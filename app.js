@@ -5,12 +5,10 @@ const h = React.createElement;
 
 // Get React hooks
 const { useState, useEffect, useRef, Fragment } = React;
-// Get Chart.js components from the global window object (loaded via CDN)
-const { Line } = window.ReactChartjs2; 
-const { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } = window.Chart;
 
-// Register Chart.js components
-Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+// --- 💡 We will get these variables *inside* the 'load' listener ---
+// --- to ensure they exist first. ---
+let Line, Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend;
 
 // --- 🎯 USER & TRAINING CONTEXT (from prompt) ---
 const USER_CONTEXT = {
@@ -997,7 +995,7 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
       // Actions
       h('div', { className: 'flex gap-4 pt-4' },
         h(Button, { variant: 'secondary', onClick: () => onEdit(entry) }, 'Edit'),
-        h(Button, { variant: 'danger', onClick: () => onDelete(entry.id) }, 'Delete')
+        h(Button, { variant: 'danger', onClick: ()s => onDelete(entry.id) }, 'Delete')
       )
     )
   );
@@ -1234,6 +1232,21 @@ const NavButton = ({ icon, label, active, onClick }) => {
 // are fully loaded *before* our app tries to use them.
 //
 window.addEventListener('load', () => {
+  // Now that the page is loaded, we can safely get the CDN variables
+  Line = window.ReactChartjs2.Line;
+  Chart = window.Chart.Chart;
+  CategoryScale = window.Chart.CategoryScale;
+  LinearScale = window.Chart.LinearScale;
+  PointElement = window.Chart.PointElement;
+  LineElement = window.Chart.LineElement;
+  Title = window.Chart.Title;
+  Tooltip = window.Chart.Tooltip;
+  Legend = window.Chart.Legend;
+
+  // Register Chart.js components
+  Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+
+  // Mount the React app
   const root = ReactDOM.createRoot(document.getElementById('root'));
   root.render(h(App));
 });
