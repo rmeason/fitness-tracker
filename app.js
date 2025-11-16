@@ -586,7 +586,6 @@ const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
         const cycleDay = entries.length % trainingCycle.length;
         const plannedWorkout = trainingCycle[cycleDay];
 
-        // This prompt is now much richer
         const prompt = `You are a hypertrophy training coach analyzing workout data for a 32-year-old male (139.5 lbs) in a body composition phase.
 
 RECENT WORKOUTS (includes RPE and Volume): ${JSON.stringify(last10Workouts)}
@@ -621,6 +620,7 @@ Provide recommendation as JSON:
         // 💡💡💡 REAL API CALL 💡💡💡
         const res = await fetch(`/.netlify/functions/get-ai-suggestion`, {
           method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt })
         });
 
@@ -723,7 +723,6 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   const addExercise = (data = null) => {
     setExercises([...exercises, data || { name: '', weight: '', eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
   };
-
   const updateExercise = (index, field, value) => {
     const newExercises = [...exercises];
     newExercises[index] = { ...newExercises[index], [field]: value };
@@ -736,7 +735,6 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     }
     setExercises(newExercises);
   };
-  
   const updateExerciseRep = (exIndex, repIndex, value) => {
     const newExercises = [...exercises];
     const newReps = [...newExercises[exIndex].reps];
@@ -744,11 +742,9 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     newExercises[exIndex] = { ...newExercises[exIndex], reps: newReps };
     setExercises(newExercises);
   };
-
   const removeExercise = (index) => {
     setExercises(exercises.filter((_, i) => i !== index));
   };
-  
   const prefillExercise = (index, exName) => {
     const lastEntry = [...allEntries].reverse().find(entry => 
       entry.exercises && entry.exercises.some(ex => ex.name === exName)
@@ -757,7 +753,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       const lastEx = lastEntry.exercises.find(ex => ex.name === exName);
       if (lastEx) {
         const newExercises = [...exercises];
-        newExercises[index] = { ...lastEx, rpe: lastEx.rpe || 8 }; // Prefill with RPE
+        newExercises[index] = { ...lastEx, rpe: lastEx.rpe || 8 };
         setExercises(newExercises);
         showToast('Exercise pre-filled!');
       }
@@ -784,16 +780,16 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       id: entryToEdit ? entryToEdit.id : generateId(),
       date,
       trainingType,
-      plannedTrainingType: plannedToday, // 💡 Store what was *planned*
-      cycleDay: cycleDay, // 💡 Store cycle day index
+      plannedTrainingType: plannedToday,
+      cycleDay: cycleDay,
       exercises: trainingType === 'REST' ? [] : exercises.map(ex => ({
         name: ex.name,
         weight: Number(ex.weight),
         eachHand: ex.eachHand,
         sets: Number(ex.sets),
         reps: ex.reps.map(r => Number(r)),
-        rpe: Number(ex.rpe), // 💡 Save RPE
-        volumeLoad: calculateVolumeLoad(ex.weight, ex.sets, ex.reps) // 💡 Save Volume
+        rpe: Number(ex.rpe),
+        volumeLoad: calculateVolumeLoad(ex.weight, ex.sets, ex.reps)
       })),
       totalSets,
       totalVolume: exercises.reduce((sum, ex) => sum + calculateVolumeLoad(ex.weight, ex.sets, ex.reps), 0),
@@ -874,6 +870,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       // 💡💡💡 REAL API CALL 💡💡💡
       const res = await fetch(`/.netlify/functions/get-vision-extraction`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: apiContent })
       });
 
