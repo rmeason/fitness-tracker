@@ -230,6 +230,24 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
+// 💡💡💡 THIS IS THE FIX 💡💡💡
+// Re-adding the original Slider component definition
+const Slider = ({ label, min, max, value, onChange, ...props }) => {
+  return h('div', { className: 'w-full' },
+    h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
+    h('input', {
+      type: 'range',
+      min,
+      max,
+      value,
+      onChange,
+      ...props,
+      className: 'w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer'
+    })
+  );
+};
+// 💡💡💡 END OF FIX 💡💡💡
+
 // RPE Slider Component
 const RpeSlider = ({ value, onChange }) => {
   const rpeDesc = {
@@ -949,7 +967,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         h(Input, { type: 'number', step: 0.1, value: deepSleepPercent, onChange: (e) => setDeepSleepPercent(Number(e.target.value)) }),
         h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(deepSleepPercent))
       ),
-      h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
+      h(RpeSlider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
     ),
     
     trainingType !== 'REST' && h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
