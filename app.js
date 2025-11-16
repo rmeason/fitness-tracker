@@ -1,7 +1,8 @@
 'use strict';
 
-// --- 💡💡💡 NEW: ES Module Imports 💡💡💡 ---
-// We now import directly, thanks to the importmap
+// --- 💡💡💡 THE FIX 💡💡💡 ---
+// We now import directly, thanks to the importmap in index.html.
+// This is the modern, correct way and avoids race conditions.
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Line } from 'react-chartjs-2';
@@ -571,7 +572,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   useEffect(() => {
     if (entryToEdit) {
       setDate(entryToEdit.date);
-      setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
+      setTrainingType(entryToEdit.trainingType || 'Push/BBiceps');
       setExercises(entryToEdit.exercises || []);
       setDuration(entryToEdit.duration || 60);
       setSleepHours(entryToEdit.sleepHours || 8);
@@ -1240,7 +1241,7 @@ const NavButton = ({ icon, label, active, onClick }) => {
 
 
 // --- 🚀 MOUNT THE APP ---
-// We removed the 'load' listener because
-// 'type="module"' scripts handle dependency loading automatically.
+// We can now safely mount the app, as 'type="module"' scripts
+// and their imports are deferred by default.
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(h(App));
