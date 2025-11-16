@@ -6,7 +6,10 @@ const h = React.createElement;
 // Get React hooks
 const { useState, useEffect, useRef, Fragment } = React;
 // Get Chart.js components from the global window object (loaded via CDN)
-const { Line } = window.ReactChartJs;
+// --- 
+// 💡 FIX: The global variable is 'ReactChartjs2', not 'ReactChartJs'
+// ---
+const { Line } = window.ReactChartjs2;
 const { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } = window.Chart;
 
 // Register Chart.js components
@@ -997,7 +1000,7 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
       // Actions
       h('div', { className: 'flex gap-4 pt-4' },
         h(Button, { variant: 'secondary', onClick: () => onEdit(entry) }, 'Edit'),
-        h(Button, { variant: 'danger', onClick: () => onDelete(entry.id) }, 'Delete')
+        h(Button, { variant: 'danger', onClick: ()D => onDelete(entry.id) }, 'Delete')
       )
     )
   );
