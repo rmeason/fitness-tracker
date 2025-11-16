@@ -1,11 +1,10 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v3'; //  bumped version
+const CACHE_NAME = 'hypertrophy-pwa-cache-v4'; //  Version bumped to v4
 
-// 💡 Added './coach.js' to the cache list
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './app.js',
-  './coach.js', // <-- NEW FILE
+  './coach.js', // <-- NEW FILE ADDED
   './manifest.json'
 ];
 
