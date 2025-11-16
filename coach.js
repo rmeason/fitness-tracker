@@ -3,7 +3,7 @@
 /**
  * Finds the last 5 times a specific exercise was performed.
  * @param {string} exerciseName - The name of the exercise (e.g., "Bench Press")
- * @param {Array} allEntries - The full logbook
+ * @param {Array} allEntries - The full logbook (must be sorted oldest-to-newest)
  * @param {number} limit - How many recent sessions to return
  * @returns {Array} - An array of { date, weight, sets, reps, rpe, volumeLoad }
  */
@@ -24,7 +24,7 @@ function getExerciseHistory(exerciseName, allEntries, limit = 5) {
     }
     if (history.length >= limit) break;
   }
-  return history.reverse(); // Return in chronological order
+  return history.reverse(); // Return in chronological order (oldest-to-newest)
 }
 
 /**
@@ -106,7 +106,16 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
     };
   }
 
-  const { weight, sets, reps } = last;
+  // Check if last session has RPE (for backward compatibility)
+  if (!last.rpe) {
+    return {
+      title: '📈 Add Reps',
+      target: `No RPE data for last session. Aim to beat ${last.reps.join('/')} reps at ${last.weight} lbs.`,
+      note: 'Start logging RPE on this exercise to unlock smarter suggestions.'
+    };
+  }
+  
+  const { weight, sets, reps, rpe } = last;
   const repsStr = reps.join('/');
 
   // --- 2. HANDLE SLEEP QUALITY ---
@@ -132,9 +141,8 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
   if (profile.status === 'MASTERED' && todaySleepPercent >= 15) {
     return {
       title: '📈 Add Weight (Sleep >= 15%)',
-      // 💡💡💡 THIS IS THE FIX 💡💡💡 (Changed ' to `)
-      target: `${weight + 5} lbs for 3 sets of 4-6 reps (RPE 9)`, // <-- FIXED!
-      note: `You mastered ${weight} lbs (RPE ${last.rpe}). Your sleep is good. Let's push for a 5lb PR!`
+      target: `${weight + 5} lbs for 3 sets of 4-6 reps (RPE 9)`,
+      note: `You mastered ${weight} lbs (RPE ${rpe}). Your sleep is good. Let's push for a 5lb PR!`
     };
   }
 
@@ -142,23 +150,26 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
   // This is for adding reps
   return {
     title: '📈 Add Reps',
-    target: `${weight} lbs for 3 sets. Try to beat ${repsStr} (e.g., ${reps[0] + 1}/${reps[1] + 1}/${reps[2]})`,
-    note: `Last RPE was ${last.rpe}. Your sleep is solid. Let's own this weight by adding more reps.`
+    target: `${weight} lbs for 3 sets. Try to beat ${repsStr} (e.g., ${reps[0] + 1}/${reps[1] || reps[0]}/${reps[2] || reps[0]})`,
+    note: `Last RPE was ${rpe}. Your sleep is solid. Let's own this weight by adding more reps.`
   };
 }
 
 /**
  * Calculates the dynamic training schedule.
  * This handles your "skipped day" request.
- * @param {Array} allEntries
+ * @param {Array} allEntries - (must be sorted oldest-to-newest)
  * @param {Array} trainingCycle - The user's defined cycle
- * @returns {object} - { today, tomorrow, note }
+ * @returns {object} - { today, note, cycleDay }
  */
 export function getDynamicCalendar(allEntries, trainingCycle) {
+  const cycleLength = trainingCycle.length;
+  
   if (allEntries.length === 0) {
     return { 
       today: trainingCycle[0], 
-      note: 'Starting your first cycle!' 
+      note: 'Starting your first cycle!',
+      cycleDay: 0
     };
   }
   
@@ -166,9 +177,10 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   const lastPlannedWorkout = lastLog.plannedTrainingType;
   const lastActualWorkout = lastLog.trainingType;
   
-  const lastCycleIndex = trainingCycle.indexOf(lastPlannedWorkout);
-  let nextCycleIndex = (lastCycleIndex + 1) % trainingCycle.length;
+  // Find the index of the last *planned* workout
+  const lastCycleIndex = lastLog.cycleDay || trainingCycle.indexOf(lastPlannedWorkout);
   
+  let nextCycleIndex = (lastCycleIndex + 1) % cycleLength;
   let todayPlanned = trainingCycle[nextCycleIndex];
   let note = `Last workout was ${lastLog.date}. Next up is ${todayPlanned}.`;
 
@@ -176,11 +188,13 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   if (lastActualWorkout === 'REST' && lastPlannedWorkout !== 'REST') {
     // You logged "REST" on a day you were supposed to train.
     todayPlanned = lastPlannedWorkout; // Today, you should do the workout you skipped.
+    nextCycleIndex = lastCycleIndex; // We are re-doing this day
     note = `You skipped ${lastPlannedWorkout} yesterday. Let's hit that today to stay on track.`;
   }
 
   return { 
     today: todayPlanned,
-    note
+    note,
+    cycleDay: nextCycleIndex // This is the index for today's plan
   };
 }
