@@ -7,9 +7,10 @@ const h = React.createElement;
 const { useState, useEffect, useRef, Fragment } = React;
 // Get Chart.js components from the global window object (loaded via CDN)
 // --- 
-// 💡 FIX: The global variable is 'ReactChartjs2', not 'ReactChartJs'
+// 💡💡💡 THIS IS THE FIX 💡💡💡
+// The global variable is 'ReactChartjs2', not 'ReactChartJs'
 // ---
-const { Line } = window.ReactChartjs2;
+const { Line } = window.ReactChartjs2; 
 const { Chart, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } = window.Chart;
 
 // Register Chart.js components
@@ -1000,7 +1001,7 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
       // Actions
       h('div', { className: 'flex gap-4 pt-4' },
         h(Button, { variant: 'secondary', onClick: () => onEdit(entry) }, 'Edit'),
-        h(Button, { variant: 'danger', onClick: ()D => onDelete(entry.id) }, 'Delete')
+        h(Button, { variant: 'danger', onClick: () => onDelete(entry.id) }, 'Delete')
       )
     )
   );
@@ -1174,7 +1175,7 @@ const App = () => {
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       // Header
       h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
+        h('h1', { className:className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
       ),
       
       // Main Content
