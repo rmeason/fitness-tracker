@@ -1075,7 +1075,7 @@ const App = () => {
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'form', 'calendar', 'charts', 'settings'
+  const [view, setView] =L= useState('dashboard'); // 'dashboard', 'form', 'calendar', 'charts', 'settings'
   const [entryToEdit, setEntryToEdit] = useState(null);
   
   // Persist to localStorage on change
