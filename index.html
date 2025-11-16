@@ -10,17 +10,6 @@
   <title>Hypertrophy Tracker Pro</title>
   <link rel="manifest" href="./manifest.json">
   
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-      "lucide-react": "https://esm.sh/lucide-react@0.263.1",
-      "recharts": "https://esm.sh/recharts@2.5.0"
-    }
-  }
-  </script>
-  
   <style>
     * {
       margin: 0;
@@ -56,13 +45,29 @@
     <div class="loading">Loading...</div>
   </div>
 
-  <script type="module">
-    import React from 'react';
-    import { createRoot } from 'react-dom/client';
-    import FitnessTracker from './fitness-tracker-pwa.js';
+  <!-- Load Babel for JSX transpilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script type="text/babel" data-type="module">
+    import React, { useState, useEffect } from 'https://esm.sh/react@18.2.0';
+    import { createRoot } from 'https://esm.sh/react-dom@18.2.0/client';
+    import { Calendar, TrendingUp, Moon, Utensils, Dumbbell, Plus, X, ChevronDown, ChevronUp, Edit2, Trash2, Award, BarChart3 } from 'https://esm.sh/lucide-react@0.263.1';
+    import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'https://esm.sh/recharts@2.5.0';
+
+    // Fetch and evaluate the component
+    const response = await fetch('./fitness-tracker-pwa.js');
+    const code = await response.text();
+    
+    // Remove import statements and export
+    const cleanCode = code
+      .replace(/import .+ from .+;?\n/g, '')
+      .replace('export default function FitnessTracker()', 'function FitnessTracker()');
+    
+    // Evaluate the code to get the component
+    eval(cleanCode);
 
     const root = createRoot(document.getElementById('root'));
-    root.render(React.createElement(FitnessTracker));
+    root.render(<FitnessTracker />);
 
     // Register service worker
     if ('serviceWorker' in navigator) {
