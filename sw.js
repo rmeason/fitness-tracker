@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v4'; //  Version bumped to v4
+const CACHE_NAME = 'hypertrophy-pwa-cache-v5'; // We are bumping the version to v5
 
 const FILES_TO_CACHE = [
   './',
@@ -73,3 +73,4 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
+
