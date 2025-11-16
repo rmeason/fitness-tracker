@@ -132,7 +132,8 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
   if (profile.status === 'MASTERED' && todaySleepPercent >= 15) {
     return {
       title: '📈 Add Weight (Sleep >= 15%)',
-      target: `${weight + 5} lbs for 3 sets of 4-6 reps (RPE 9)',
+      // 💡💡💡 THIS IS THE FIX 💡💡💡 (Changed ' to `)
+      target: `${weight + 5} lbs for 3 sets of 4-6 reps (RPE 9)`, // <-- FIXED!
       note: `You mastered ${weight} lbs (RPE ${last.rpe}). Your sleep is good. Let's push for a 5lb PR!`
     };
   }
