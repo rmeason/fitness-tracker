@@ -1172,6 +1172,7 @@ const App = () => {
       // Header
       h('header', { className: 'text-center my-6' },
         // --- 💡💡💡 THIS IS THE FIX 💡💡💡 ---
+        // Removed the duplicate 'className:'
         h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
       ),
       
