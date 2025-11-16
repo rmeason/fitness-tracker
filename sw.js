@@ -1,15 +1,11 @@
-// A simple, "cache-first" service worker
-const CACHE_NAME = 'hypertrophy-pwa-cache-v2'; // Note: Version bump to force update
+const CACHE_NAME = 'hypertrophy-pwa-cache-v3'; //  bumped version
 
-// ---
-// 💡💡💡 THIS IS THE FIX 💡💡💡
-// We are using explicit relative paths './' to avoid any
-// pathing ambiguity with GitHub Pages.
-// ---
+// 💡 Added './coach.js' to the cache list
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './app.js',
+  './coach.js', // <-- NEW FILE
   './manifest.json'
 ];
 
@@ -23,7 +19,6 @@ self.addEventListener('install', (event) => {
       })
       .catch((err) => {
         console.error('Service Worker: Failed to cache core app files during install.', err);
-        console.error('This is often a typo in the FILES_TO_CACHE array, a network error, or one of the files returning a 404.');
         console.log('Files attempted to cache:', FILES_TO_CACHE);
       })
   );
@@ -42,12 +37,9 @@ self.addEventListener('fetch', (event) => {
       caches.match(event.request)
         .then((response) => {
           return response || fetch(event.request).then((response) => {
-            // Check if we received a valid response
             if (!response || response.status !== 200) {
               return response;
             }
-
-            // Clone the response and cache it
             const responseToCache = response.clone();
             caches.open(CACHE_NAME)
               .then((cache) => {
