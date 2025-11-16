@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hypertrophy">
+  <meta name="theme-color" content="#3b82f6">
+  <title>Hypertrophy Tracker Pro</title>
+  <link rel="manifest" href="./manifest.json">
+  
+  <!-- Prevent zoom on iOS -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+  
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom": "https://esm.sh/react-dom@18.2.0/client",
+      "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+      "lucide-react": "https://esm.sh/lucide-react@0.263.1",
+      "recharts": "https://esm.sh/recharts@2.5.0"
+    }
+  }
+  </script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overscroll-behavior: none;
+      touch-action: pan-y;
+    }
+    
+    #root {
+      min-height: 100vh;
+    }
+    
+    /* Loading spinner */
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(to bottom right, #0f172a, #1e293b, #0f172a);
+      color: white;
+      font-size: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="loading">Loading...</div>
+  </div>
+
+  <script type="module">
+    import React from 'react';
+    import { createRoot } from 'react-dom/client';
+    import FitnessTracker from './fitness-tracker-pwa.jsx';
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(React.createElement(FitnessTracker));
+
+    // Register service worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.log('Service Worker registration failed'));
+      });
+    }
+
+    // Install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      
+      // Show install banner
+      const banner = document.createElement('div');
+      banner.innerHTML = `
+        <div style="position: fixed; bottom: 20px; left: 20px; right: 20px; background: linear-gradient(to right, #3b82f6, #8b5cf6); color: white; padding: 16px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 1000; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: bold; margin-bottom: 4px;">Install App</div>
+            <div style="font-size: 0.875rem; opacity: 0.9;">Add to home screen for quick access</div>
+          </div>
+          <button id="installBtn" style="background: white; color: #3b82f6; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer;">Install</button>
+        </div>
+      `;
+      document.body.appendChild(banner);
+      
+      document.getElementById('installBtn').addEventListener('click', async () => {
+        banner.remove();
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      });
+    });
+  </script>
+</body>
+</html>
