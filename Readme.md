@@ -1,75 +1,85 @@
-# Hypertrophy Tracker Pro - PWA
+# Hypertrophy PWA Fitness Tracker
 
-A comprehensive fitness tracking Progressive Web App for bodybuilding and hypertrophy training.
+This is a production-ready, build-less Progressive Web App (PWA) for tracking hypertrophy-focused workouts, sleep, and nutrition. It runs entirely in the browser using `localStorage` and is designed for deployment on GitHub Pages.
 
-## Features
-- ✅ PR Tracker with automatic detection
-- ✅ Exercise progression charts
-- ✅ 14-day training calendar  
-- ✅ Benchmark dashboard
-- ✅ AI workout suggestions
-- ✅ File upload (Fitbit screenshots, notes)
-- ✅ Offline support
-- ✅ Installable as native app
+## 🚀 Deployment to GitHub Pages
 
-## Quick Start
+1.  **Create a New GitHub Repository:**
+    * Go to GitHub and create a new public repository (e.g., `hypertrophy-pwa`).
 
-**Important:** This app needs to be hosted on a web server to work. Opening `index.html` directly won't work due to browser security restrictions.
+2.  **Upload App Files:**
+    * Upload the following files to the root of your new repository:
+        * `index.html`
+        * `app.js`
+        * `manifest.json`
+        * `sw.js`
 
-### Option 1: GitHub Pages (Recommended - Free & Easy)
+3.  **Create PWA Icons:**
+    * This is a **required** step for the PWA to be installable.
+    * Create a folder named `icons` in your repository.
+    * Inside the `icons` folder, add at least two icons:
+        * `icon-192x192.png` (a 192x192 pixel PNG)
+        * `icon-512x512.png` (a 512x512 pixel PNG)
+    * You can use a free tool like [Maskable.app](https://maskable.app/) to generate these.
 
-1. Create a new GitHub repository
-2. Upload all 4 files:
-   - `index.html`
-   - `fitness-tracker-pwa.jsx`
-   - `manifest.json`
-   - `sw.js`
-3. Go to Settings → Pages → Source → Select "main" branch
-4. Your app will be live at: `https://yourusername.github.io/repo-name`
-5. Visit on your phone and click "Add to Home Screen"
+4.  **Enable GitHub Pages:**
+    * In your repository, go to **Settings** > **Pages**.
+    * Under "Build and deployment", set the **Source** to **Deploy from a branch**.
+    * Set the **Branch** to `main` (or `master`) and the folder to `/ (root)`.
+    * Click **Save**.
 
-### Option 2: Vercel (Fastest)
+5.  **Access Your App:**
+    * Wait about 1-2 minutes for GitHub to build and deploy your site.
+    * Your app will be live at: `https://<YOUR_USERNAME>.github.io/<YOUR_REPO_NAME>/`
 
-1. Install Vercel CLI: `npm i -g vercel`
-2. In the folder with these files, run: `vercel`
-3. Follow prompts
-4. Get instant URL: `https://your-project.vercel.app`
+## 📱 How to Install on Mobile
 
-### Option 3: Local Development
+### On iOS (Safari)
+1.  Open the live URL in Safari.
+2.  Tap the "Share" icon (a box with an arrow pointing up).
+3.  Scroll down and tap **"Add to Home Screen"**.
 
-```bash
-# Python 3
-python3 -m http.server 8000
+### On Android (Chrome)
+1.  Open the live URL in Chrome.
+2.  A pop-up banner "Add to Home Screen" should appear. Tap it.
+3.  If no banner appears, tap the three-dot menu icon.
+4.  Tap **"Install app"** or **"Add to Home Screen"**.
 
-# Node.js
-npx serve
+## 💡 LocalStorage Data Structure
 
-# Then visit: http://localhost:8000
-```
+All data is stored in your browser's `localStorage` under a single key: `hypertrophyApp.entries.v1`. The data is an array of entry objects, structured like this:
 
-## Installation on Phone
-
-Once hosted:
-1. Visit the URL on your phone
-2. Browser shows "Add to Home Screen" prompt
-3. Install - works like a native app!
-4. Data stored locally on your device
-5. Works offline after first load
-
-## Files
-
-- `index.html` - App entry point
-- `fitness-tracker-pwa.jsx` - Main React component
-- `manifest.json` - PWA configuration
-- `sw.js` - Service worker for offline support
-
-## Data Storage
-
-All your workout data is stored locally in your browser's localStorage. To backup:
-1. Open browser console (F12)
-2. Run: `console.log(localStorage.getItem('fitnessEntries'))`
-3. Copy the JSON output
-
-To restore:
-1. Open console
-2. Run: `localStorage.setItem('fitnessEntries', 'PASTE_JSON_HERE')`
+```json
+[
+  {
+    "id": "id_1736876527581_t3j9qj",
+    "date": "2025-11-15",
+    "trainingType": "Push/Biceps",
+    "exercises": [
+      {
+        "name": "Bench Press",
+        "weight": 175,
+        "eachHand": false,
+        "sets": 3,
+        "reps": [5, 5, 5]
+      },
+      {
+        "name": "Skull Crushers",
+        "weight": 75,
+        "eachHand": false,
+        "sets": 3,
+        "reps": [8, 8, 7]
+      }
+    ],
+    "totalSets": 6,
+    "duration": 60,
+    "sleepHours": 8.5,
+    "deepSleepPercent": 22,
+    "deepSleepMinutes": 112,
+    "recoveryRating": 9,
+    "protein": 165,
+    "calories": 2850,
+    "weight": 140,
+    "grade": "S++"
+  }
+]
