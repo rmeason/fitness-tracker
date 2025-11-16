@@ -1175,7 +1175,7 @@ const App = () => {
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       // Header
       h('header', { className: 'text-center my-6' },
-        h('h1', { className:className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
+        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
       ),
       
       // Main Content
