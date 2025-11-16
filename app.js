@@ -45,13 +45,69 @@ const USER_CONTEXT = {
   ]
 };
 
-const TRAINING_CYCLE = [
-  'REST', 'Push/Bi', 'REST', 'Pull/Tri', 'REST', 'Push/Bi', 'Legs',
-  'REST', 'Pull/Tri', 'REST', 'Push/Bi', 'REST', 'Pull/Tri', 'Legs'
+// --- 🏋️ TRAINING CYCLE PRESETS ---
+const CYCLE_PRESETS = {
+  'current-14-day': {
+    name: 'Current 14-Day (Push/Pull/Legs)',
+    days: [
+      'REST', 'Push/Biceps', 'REST', 'Pull/Triceps', 'REST', 'Push/Biceps', 'Legs/Core',
+      'REST', 'Pull/Triceps', 'REST', 'Push/Biceps', 'REST', 'Pull/Triceps', 'Legs/Core'
+    ],
+    description: 'Your current optimized 14-day cycle with integrated arm work'
+  },
+  'upper-lower-4day': {
+    name: 'Upper/Lower 4-Day',
+    days: ['Upper', 'Lower', 'REST', 'Upper', 'Lower', 'REST', 'REST'],
+    description: 'Classic 4-day upper/lower split'
+  },
+  'ppl-6day': {
+    name: 'PPL 6-Day',
+    days: ['Push', 'Pull', 'Legs', 'Push', 'Pull', 'Legs', 'REST'],
+    description: 'High frequency push/pull/legs, 6 days per week'
+  },
+  'full-body-3day': {
+    name: 'Full Body 3x/week',
+    days: ['Full Body', 'REST', 'Full Body', 'REST', 'Full Body', 'REST', 'REST'],
+    description: 'Ideal for beginners or maintenance phases'
+  },
+  'arnold-split': {
+    name: 'Arnold Split',
+    days: ['Chest/Back', 'Shoulders/Arms', 'Legs', 'REST', 'Chest/Back', 'Shoulders/Arms', 'Legs'],
+    description: 'Classic Arnold antagonist pairing approach'
+  },
+  'bro-split-5day': {
+    name: 'Bro Split 5-Day',
+    days: ['Chest', 'Back', 'REST', 'Shoulders', 'Legs', 'Arms', 'REST'],
+    description: 'Traditional bodybuilding split, one muscle group per day'
+  }
+};
+
+// Available workout types for custom cycles
+const WORKOUT_TYPES = [
+  'REST',
+  'Push/Biceps',
+  'Pull/Triceps',
+  'Legs/Core',
+  'Upper',
+  'Lower',
+  'Full Body',
+  'Push',
+  'Pull',
+  'Legs',
+  'Chest',
+  'Back',
+  'Shoulders',
+  'Arms',
+  'Chest/Back',
+  'Shoulders/Arms',
+  'Cardio',
+  'Active Recovery'
 ];
 
 // --- 💾 LOCALSTORAGE KEYS ---
 const DB_KEY = 'hypertrophyApp.entries.v1';
+const CYCLE_KEY = 'hypertrophyApp.cycle.v1';
+const CUSTOM_CYCLES_KEY = 'hypertrophyApp.customCycles.v1';
 
 // --- 🛠️ HELPER FUNCTIONS ---
 
@@ -234,6 +290,204 @@ const Slider = ({ label, min, max, value, onChange, ...props }) => {
   );
 };
 
+// --- 🔄 CYCLE EDITOR COMPONENT ---
+const CycleEditor = ({ currentCycle, onSave }) => {
+  const { showToast } = useToast();
+  const [selectedPreset, setSelectedPreset] = useState('custom');
+  const [cycleName, setCycleName] = useState('');
+  const [cycleDays, setCycleDays] = useState(currentCycle || []);
+  const [customCycles, setCustomCycles] = useState(() => {
+    const saved = localStorage.getItem(CUSTOM_CYCLES_KEY);
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Load preset when selected
+  useEffect(() => {
+    if (selectedPreset && selectedPreset !== 'custom' && selectedPreset !== 'saved') {
+      if (CYCLE_PRESETS[selectedPreset]) {
+        setCycleDays([...CYCLE_PRESETS[selectedPreset].days]);
+        setCycleName(CYCLE_PRESETS[selectedPreset].name);
+      } else if (customCycles[selectedPreset]) {
+        setCycleDays([...customCycles[selectedPreset].days]);
+        setCycleName(customCycles[selectedPreset].name);
+      }
+    }
+  }, [selectedPreset]);
+
+  const addDay = () => {
+    setCycleDays([...cycleDays, 'REST']);
+  };
+
+  const removeDay = (index) => {
+    if (cycleDays.length > 1) {
+      setCycleDays(cycleDays.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateDay = (index, value) => {
+    const newDays = [...cycleDays];
+    newDays[index] = value;
+    setCycleDays(newDays);
+  };
+
+  const saveCustomCycle = () => {
+    if (!cycleName.trim()) {
+      showToast('Please enter a cycle name', 'error');
+      return;
+    }
+
+    const cycleId = `custom_${generateId()}`;
+    const newCustomCycles = {
+      ...customCycles,
+      [cycleId]: {
+        name: cycleName,
+        days: [...cycleDays],
+        description: `Custom ${cycleDays.length}-day cycle`
+      }
+    };
+
+    setCustomCycles(newCustomCycles);
+    localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(newCustomCycles));
+    showToast('Custom cycle saved!');
+  };
+
+  const deleteCustomCycle = (id) => {
+    const newCustomCycles = { ...customCycles };
+    delete newCustomCycles[id];
+    setCustomCycles(newCustomCycles);
+    localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(newCustomCycles));
+    showToast('Custom cycle deleted');
+  };
+
+  const applyCycle = () => {
+    if (cycleDays.length === 0) {
+      showToast('Cycle must have at least one day', 'error');
+      return;
+    }
+    onSave(cycleDays);
+    showToast('Training cycle updated!');
+  };
+
+  // Calculate cycle stats
+  const cycleStats = {
+    length: cycleDays.length,
+    trainingDays: cycleDays.filter(d => d !== 'REST').length,
+    restDays: cycleDays.filter(d => d === 'REST').length,
+    frequency: cycleDays.length > 0 ? ((cycleDays.filter(d => d !== 'REST').length / cycleDays.length) * 100).toFixed(0) : 0
+  };
+
+  return h('div', { className: 'space-y-6' },
+    // Preset Selection
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '🎯 Choose a Preset'),
+      h(Select, {
+        value: selectedPreset,
+        onChange: (e) => setSelectedPreset(e.target.value)
+      },
+        h('option', { value: 'custom' }, 'Build Custom Cycle'),
+        h('optgroup', { label: 'Presets' },
+          Object.entries(CYCLE_PRESETS).map(([key, preset]) =>
+            h('option', { key, value: key }, preset.name)
+          )
+        ),
+        Object.keys(customCycles).length > 0 && h('optgroup', { label: 'Your Saved Cycles' },
+          Object.entries(customCycles).map(([key, cycle]) =>
+            h('option', { key, value: key }, cycle.name)
+          )
+        )
+      )
+    ),
+
+    // Cycle Editor
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📅 Cycle Editor'),
+      
+      // Cycle Name
+      h('div', { className: 'mb-4' },
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Cycle Name'),
+        h(Input, {
+          type: 'text',
+          value: cycleName,
+          onChange: (e) => setCycleName(e.target.value),
+          placeholder: 'e.g., My Custom PPL'
+        })
+      ),
+
+      // Days Editor
+      h('div', { className: 'space-y-2 mb-4' },
+        cycleDays.map((day, index) =>
+          h('div', { key: index, className: 'flex gap-2 items-center' },
+            h('span', { className: 'text-sm font-medium w-16' }, `Day ${index + 1}:`),
+            h(Select, {
+              value: day,
+              onChange: (e) => updateDay(index, e.target.value),
+              className: 'flex-1'
+            },
+              WORKOUT_TYPES.map(type =>
+                h('option', { key: type, value: type }, type)
+              )
+            ),
+            cycleDays.length > 1 && h('button', {
+              onClick: () => removeDay(index),
+              className: 'text-red-400 hover:text-red-300'
+            }, '✕')
+          )
+        )
+      ),
+
+      h('div', { className: 'flex gap-2' },
+        h(Button, { onClick: addDay, variant: 'secondary' }, '+ Add Day'),
+        cycleName.trim() && h(Button, { onClick: saveCustomCycle, variant: 'secondary' }, '💾 Save as Custom')
+      )
+    ),
+
+    // Cycle Stats
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Cycle Stats'),
+      h('div', { className: 'grid grid-cols-2 gap-4 text-center' },
+        h('div', {},
+          h('div', { className: 'text-2xl font-bold' }, cycleStats.length),
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Days')
+        ),
+        h('div', {},
+          h('div', { className: 'text-2xl font-bold text-green-400' }, cycleStats.trainingDays),
+          h('div', { className: 'text-sm text-slate-400' }, 'Training Days')
+        ),
+        h('div', {},
+          h('div', { className: 'text-2xl font-bold text-blue-400' }, cycleStats.restDays),
+          h('div', { className: 'text-sm text-slate-400' }, 'Rest Days')
+        ),
+        h('div', {},
+          h('div', { className: 'text-2xl font-bold text-cyan-400' }, `${cycleStats.frequency}%`),
+          h('div', { className: 'text-sm text-slate-400' }, 'Training Frequency')
+        )
+      )
+    ),
+
+    // Saved Custom Cycles
+    Object.keys(customCycles).length > 0 && h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '💾 Your Saved Cycles'),
+      h('div', { className: 'space-y-2' },
+        Object.entries(customCycles).map(([id, cycle]) =>
+          h('div', { key: id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
+            h('div', {},
+              h('div', { className: 'font-semibold' }, cycle.name),
+              h('div', { className: 'text-xs text-slate-400' }, cycle.description)
+            ),
+            h('button', {
+              onClick: () => deleteCustomCycle(id),
+              className: 'text-red-400 hover:text-red-300'
+            }, 'Delete')
+          )
+        )
+      )
+    ),
+
+    // Apply Button
+    h(Button, { onClick: applyCycle, variant: 'primary', className: 'w-full' }, '✅ Apply This Cycle')
+  );
+};
+
 // --- 📈 CHART COMPONENT ---
 const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
   const [selectedExercise, setSelectedExercise] = useState(allExerciseNames[0] || '');
@@ -308,10 +562,13 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
 };
 
 // --- 📅 CALENDAR COMPONENT ---
-const TrainingCalendar = ({ entries }) => {
+const TrainingCalendar = ({ entries, trainingCycle }) => {
   const [startDate] = useState(new Date());
+  const cycleLength = trainingCycle.length;
   const dates = [];
-  for (let i = 0; i < 14; i++) {
+  
+  // Show current cycle
+  for (let i = 0; i < cycleLength; i++) {
     const date = new Date();
     date.setDate(startDate.getDate() + i);
     dates.push(date);
@@ -325,18 +582,23 @@ const TrainingCalendar = ({ entries }) => {
   }, {});
 
   return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-    h('h3', { className: 'text-lg font-semibold mb-4' }, '📅 14-Day Training Cycle'),
+    h('h3', { className: 'text-lg font-semibold mb-4' }, `📅 ${cycleLength}-Day Training Cycle`),
     h('div', { className: 'grid grid-cols-7 gap-2' },
       dates.map((date, index) => {
         const dateStr = formatDate(date);
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
         const dayOfMonth = date.getDate();
-        const planned = TRAINING_CYCLE[index % 14];
+        const planned = trainingCycle[index % cycleLength];
         const actual = entriesByDate[dateStr];
 
         let bgColor = 'bg-slate-700'; // Future/Planned
         if (actual) {
-          bgColor = actual.trainingType === planned ? 'bg-green-600' : 'bg-yellow-600';
+          // Simple check if training type roughly matches
+          const actualSimplified = actual.trainingType.toLowerCase();
+          const plannedSimplified = planned.toLowerCase();
+          bgColor = actualSimplified.includes(plannedSimplified.split('/')[0]) || 
+                    plannedSimplified.includes(actualSimplified.split('/')[0]) 
+                    ? 'bg-green-600' : 'bg-yellow-600';
         }
         if (dateStr === todayStr) {
           bgColor += ' ring-2 ring-blue-500';
@@ -417,7 +679,7 @@ const StatsSummary = ({ entries }) => {
 };
 
 // --- 🤖 AI SUGGESTION MODAL ---
-const AIWorkoutSuggestion = ({ entries, prs, onClose }) => {
+const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] = useState(null);
   const [error, setError] = useState(null);
@@ -430,14 +692,16 @@ const AIWorkoutSuggestion = ({ entries, prs, onClose }) => {
         const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
         const lastSleep = lastEntry ? lastEntry.deepSleepPercent : 15; // Default to 15% if no data
         const hours = lastEntry ? lastEntry.sleepHours : 7;
-        const cycleDay = entries.length % 14; // Simple cycle position
+        const cycleDay = entries.length % trainingCycle.length; // Position in current cycle
+        const plannedWorkout = trainingCycle[cycleDay];
 
         const prompt = `You are a hypertrophy training coach analyzing workout data for a 32-year-old male (139.5 lbs) in a body composition phase.
 
 RECENT WORKOUTS: ${JSON.stringify(last10Workouts)}
 CURRENT PRs: ${JSON.stringify(topPRs)}
 LAST NIGHT'S SLEEP: ${lastSleep}% deep sleep (${hours}h total)
-14-DAY CYCLE POSITION: Day ${cycleDay + 1}
+TRAINING CYCLE: ${trainingCycle.length}-day cycle
+CYCLE POSITION: Day ${cycleDay + 1} - Planned: ${plannedWorkout}
 OFF-CYCLE STATUS: 8+ weeks natural training
 
 GUIDELINES:
@@ -450,17 +714,14 @@ GUIDELINES:
 
 Provide recommendation as JSON:
 {
-  "recommendation": "Push/Biceps, Pull/Triceps, Legs/Core, or REST",
+  "recommendation": "${plannedWorkout}",
   "recommendedSets": 18,
-  "reasoning": "Based on your 15% deep sleep, a moderate volume session of 16-20 sets is ideal. Your cycle position suggests a Pull day.",
+  "reasoning": "Based on your ${lastSleep}% deep sleep and cycle position...",
   "exercises": [
-    {"name": "Lat Pulldowns", "weight": "190-195 lbs", "sets": "4", "reps": "6-8"},
-    {"name": "Weighted Pull-ups", "weight": "50-55 lbs", "sets": "3", "reps": "4-6"},
-    {"name": "Seated Cable Row", "weight": "150-160 lbs", "sets": "4", "reps": "8-10"},
-    {"name": "Bicep Curls", "weight": "30-35 lbs", "sets": "3", "reps": "10-12"},
-    {"name": "Hammer Curls", "weight": "25-30 lbs", "sets": "3", "reps": "10-12"}
+    {"name": "Exercise Name", "weight": "Weight Range", "sets": "4", "reps": "6-8"},
+    ...
   ],
-  "notes": "Focus on controlled form. Since you are off-cycle, prioritize progressive tension and recovery. Your sleep is adequate for a solid session."
+  "notes": "Focus on controlled form..."
 }`;
 
         // IMPORTANT: This API call is based on the prompt's explicit instruction
@@ -474,7 +735,7 @@ Provide recommendation as JSON:
         // Simulate API delay
         await new Promise(resolve => setTimeout(resolve, 1500));
 
-        // Simulated JSON response based on the prompt's example format
+        // Simulated JSON response based on the planned workout
         const mockResponse = {
           "id": "msg_01AbCdeFg",
           "type": "message",
@@ -483,17 +744,36 @@ Provide recommendation as JSON:
             {
               "type": "text",
               "text": JSON.stringify({
-                "recommendation": "Pull/Triceps",
-                "recommendedSets": 20,
-                "reasoning": `Based on your ${lastSleep}% deep sleep, you're in the S/A+ range (20-22 sets). Today is Day ${cycleDay + 1}, planning for 'Pull/Tri'. Let's hit it.`,
-                "exercises": [
-                  {"name": "Lat Pulldowns", "weight": "191-195 lbs", "sets": "4", "reps": "6-8 (Aim for 195 on last set!)"},
-                  {"name": "Weighted Pull-ups", "weight": "50-55 lbs", "sets": "3", "reps": "4-6 (PR is 50, try 52.5)"},
-                  {"name": "T-Bar Row", "weight": "120-130 lbs", "sets": "4", "reps": "8-10"},
-                  {"name": "Skull Crushers", "weight": "75-80 lbs", "sets": "4", "reps": "8-10 (PR is 75, try 77.5)"},
-                  {"name": "Tricep Pushdowns", "weight": "80-90 lbs", "sets": "4", "reps": "10-12"}
-                ],
-                "notes": "You're off-cycle, so these PRs are solid. Focus on form, but don't be afraid to push the weight. Your sleep supports a high-volume day."
+                "recommendation": plannedWorkout,
+                "recommendedSets": lastSleep >= 20 ? 22 : lastSleep >= 15 ? 20 : lastSleep >= 12 ? 18 : 14,
+                "reasoning": `Based on your ${lastSleep}% deep sleep, you're in the ${getSleepQualityStars(lastSleep).split(' ')[0]} range. Today is Day ${cycleDay + 1}, scheduled for '${plannedWorkout}'.`,
+                "exercises": plannedWorkout === 'REST' ? [] : 
+                  plannedWorkout.toLowerCase().includes('push') ? [
+                    {"name": "Bench Press", "weight": "175-180 lbs", "sets": "4", "reps": "5-6"},
+                    {"name": "Incline DB Press", "weight": "55-60 lbs", "sets": "4", "reps": "6-8"},
+                    {"name": "Cable Flyes", "weight": "30-35 lbs", "sets": "3", "reps": "10-12"},
+                    {"name": "EZ-Bar Curls", "weight": "80-85 lbs", "sets": "3", "reps": "8-10"},
+                    {"name": "Hammer Curls", "weight": "35-40 lbs", "sets": "3", "reps": "10-12"}
+                  ] :
+                  plannedWorkout.toLowerCase().includes('pull') ? [
+                    {"name": "Lat Pulldowns", "weight": "191-195 lbs", "sets": "4", "reps": "6-8 (Aim for 195!)"},
+                    {"name": "Weighted Pull-ups", "weight": "50-55 lbs", "sets": "3", "reps": "4-6"},
+                    {"name": "T-Bar Row", "weight": "120-130 lbs", "sets": "4", "reps": "8-10"},
+                    {"name": "Skull Crushers", "weight": "75-80 lbs", "sets": "4", "reps": "8-10"},
+                    {"name": "Tricep Pushdowns", "weight": "80-90 lbs", "sets": "3", "reps": "10-12"}
+                  ] :
+                  plannedWorkout.toLowerCase().includes('leg') ? [
+                    {"name": "Goblet Squats", "weight": "75-80 lbs", "sets": "4", "reps": "8-10"},
+                    {"name": "Leg Press", "weight": "270-290 lbs", "sets": "4", "reps": "10-12"},
+                    {"name": "Romanian Deadlifts", "weight": "135-155 lbs", "sets": "4", "reps": "8-10"},
+                    {"name": "Leg Curls", "weight": "80-90 lbs", "sets": "3", "reps": "12-15"},
+                    {"name": "Rope Cable Crunches", "weight": "165-170 lbs", "sets": "3", "reps": "15-20"}
+                  ] : [
+                    {"name": "Compound Movement", "weight": "Working Weight", "sets": "4", "reps": "6-8"},
+                    {"name": "Accessory 1", "weight": "Moderate", "sets": "3", "reps": "8-12"},
+                    {"name": "Accessory 2", "weight": "Light", "sets": "3", "reps": "12-15"}
+                  ],
+                "notes": plannedWorkout === 'REST' ? "Recovery day - focus on nutrition and sleep for tomorrow's session." : "You're off-cycle, so these PRs are solid. Focus on form, but don't be afraid to push the weight. Your sleep supports a good volume day."
               })
             }
           ],
@@ -513,7 +793,7 @@ Provide recommendation as JSON:
     };
     
     fetchRecommendation();
-  }, [entries, prs]);
+  }, [entries, prs, trainingCycle]);
   
   const renderContent = () => {
     if (loading) {
@@ -528,10 +808,10 @@ Provide recommendation as JSON:
       return h('div', { className: 'space-y-4' },
         h('div', {},
           h('h4', { className: 'text-lg font-bold text-cyan-400' }, recommendation.recommendation),
-          h('p', { className: 'text-sm text-slate-400' }, `${recommendation.recommendedSets} recommended sets.`)
+          recommendation.recommendation !== 'REST' && h('p', { className: 'text-sm text-slate-400' }, `${recommendation.recommendedSets} recommended sets.`)
         ),
         h('p', { className: 'italic' }, recommendation.reasoning),
-        h('ul', { className: 'space-y-2' },
+        recommendation.exercises.length > 0 && h('ul', { className: 'space-y-2' },
           recommendation.exercises.map((ex, i) =>
             h('li', { key: i, className: 'bg-slate-700 p-2 rounded' },
               h('span', { className: 'font-semibold' }, `${ex.name}: `),
@@ -552,7 +832,7 @@ Provide recommendation as JSON:
 
 
 // --- 📜 ENTRY LOG FORM ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames }) => {
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle }) => {
   const { showToast } = useToast();
   // Form state
   const [date, setDate] = useState(formatDate(new Date()));
@@ -568,11 +848,14 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   
   const [isUploading, setIsUploading] = useState(false);
 
+  // Get available workout types from current cycle
+  const availableWorkoutTypes = [...new Set(['REST', ...trainingCycle, ...WORKOUT_TYPES])];
+
   // Populate form if editing
   useEffect(() => {
     if (entryToEdit) {
       setDate(entryToEdit.date);
-      setTrainingType(entryToEdit.trainingType || 'Push/BBiceps');
+      setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
       setExercises(entryToEdit.exercises || []);
       setDuration(entryToEdit.duration || 60);
       setSleepHours(entryToEdit.sleepHours || 8);
@@ -819,10 +1102,9 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Training Type'),
         h(Select, { value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
-          h('option', { value: 'Push/Biceps' }, 'Push/Biceps'),
-          h('option', { value: 'Pull/Triceps' }, 'Pull/Triceps'),
-          h('option', { value: 'Legs/Core' }, 'Legs/Core'),
-          h('option', { value: 'REST' }, 'REST')
+          availableWorkoutTypes.map(type =>
+            h('option', { key: type, value: type }, type)
+          )
         )
       )
     ),
@@ -1018,11 +1300,12 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
 };
 
 // --- ⚙️ SETTINGS COMPONENT ---
-const Settings = ({ entries, setEntries }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle }) => {
   const { showToast } = useToast();
+  const [showCycleEditor, setShowCycleEditor] = useState(false);
 
   const exportData = () => {
-    const dataStr = JSON.stringify(entries, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -1040,13 +1323,19 @@ const Settings = ({ entries, setEntries }) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const importedEntries = JSON.parse(event.target.result);
-        if (Array.isArray(importedEntries)) {
-          setEntries(importedEntries);
-          showToast('Data imported successfully!');
+        const imported = JSON.parse(event.target.result);
+        
+        // Handle both old format (just entries) and new format (entries + cycle)
+        if (Array.isArray(imported)) {
+          // Old format
+          setEntries(imported);
         } else {
-          throw new Error('Invalid file format');
+          // New format
+          if (imported.entries) setEntries(imported.entries);
+          if (imported.trainingCycle) setTrainingCycle(imported.trainingCycle);
         }
+        
+        showToast('Data imported successfully!');
       } catch (err) {
         showToast('Failed to import data.', 'error');
         console.error(err);
@@ -1065,6 +1354,29 @@ const Settings = ({ entries, setEntries }) => {
 
   return h('div', { className: 'p-4 space-y-6' },
     h('h2', { className: 'text-2xl font-bold' }, '⚙️ Settings'),
+    
+    // Training Cycle Settings
+    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold' }, '🔄 Training Cycle'),
+      h('p', { className: 'text-sm text-slate-400 mb-2' }, `Current: ${trainingCycle.length}-day cycle`),
+      h(Button, { 
+        onClick: () => setShowCycleEditor(!showCycleEditor), 
+        variant: 'primary' 
+      }, showCycleEditor ? 'Hide Cycle Editor' : 'Edit Training Cycle'),
+      
+      showCycleEditor && h('div', { className: 'mt-4' },
+        h(CycleEditor, {
+          currentCycle: trainingCycle,
+          onSave: (newCycle) => {
+            setTrainingCycle(newCycle);
+            localStorage.setItem(CYCLE_KEY, JSON.stringify(newCycle));
+            setShowCycleEditor(false);
+          }
+        })
+      )
+    ),
+    
+    // Data Backup
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
@@ -1073,6 +1385,8 @@ const Settings = ({ entries, setEntries }) => {
         h(Input, { type: 'file', id: 'import-file', accept: '.json', onChange: importData })
       )
     ),
+    
+    // Danger Zone
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, 'Danger Zone'),
       h(Button, { onClick: deleteAllData, variant: 'danger' }, 'Delete All Data')
@@ -1087,6 +1401,12 @@ const App = () => {
     // Load from localStorage on init
     const saved = localStorage.getItem(DB_KEY);
     return saved ? JSON.parse(saved) : [];
+  });
+  
+  const [trainingCycle, setTrainingCycle] = useState(() => {
+    // Load saved cycle or use default
+    const saved = localStorage.getItem(CYCLE_KEY);
+    return saved ? JSON.parse(saved) : CYCLE_PRESETS['current-14-day'].days;
   });
   
   const [view, setView] = useState('dashboard'); // 'dashboard', 'form', 'calendar', 'charts', 'settings'
@@ -1148,14 +1468,20 @@ const App = () => {
           entryToEdit: entryToEdit,
           allEntries: entries,
           allExerciseNames: allExerciseNames,
-          setAllExerciseNames: setAllExerciseNames
+          setAllExerciseNames: setAllExerciseNames,
+          trainingCycle: trainingCycle
         });
       case 'calendar':
-        return h(TrainingCalendar, { entries });
+        return h(TrainingCalendar, { entries, trainingCycle });
       case 'charts':
         return h(ExerciseProgressChart, { entries, allExerciseNames });
       case 'settings':
-        return h(Settings, { entries, setEntries });
+        return h(Settings, { 
+          entries, 
+          setEntries, 
+          trainingCycle, 
+          setTrainingCycle 
+        });
       case 'dashboard':
       default:
         return h('div', { className: 'space-y-6' },
@@ -1195,6 +1521,7 @@ const App = () => {
       showAIModal && h(AIWorkoutSuggestion, {
         entries: sortedEntries, // Pass sorted (newest last)
         prs: allPRs,
+        trainingCycle: trainingCycle,
         onClose: () => setShowAIModal(false)
       }),
       
