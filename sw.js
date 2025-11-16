@@ -26,12 +26,17 @@ self.addEventListener('install', (event) => {
 
 // Fetch event: serve from cache first, then network
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') {
+  const url = new URL(event.request.url);
+
+  // 1. If it's an AI call, go to network ONLY.
+  // This ensures AI calls are always live.
+  if (url.pathname.startsWith('/.netlify/functions/')) {
+    event.respondWith(fetch(event.request));
     return;
   }
-  
-  const url = new URL(event.request.url);
-  if (url.origin === self.location.origin) {
+
+  // 2. If it's a local file, use cache-first.
+  if (event.request.method === 'GET' && url.origin === self.location.origin) {
     event.respondWith(
       caches.match(event.request)
         .then((response) => {
