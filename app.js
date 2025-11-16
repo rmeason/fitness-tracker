@@ -1075,7 +1075,7 @@ const App = () => {
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [view, setView] =L= useState('dashboard'); // 'dashboard', 'form', 'calendar', 'charts', 'settings'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'form', 'calendar', 'charts', 'settings'
   const [entryToEdit, setEntryToEdit] = useState(null);
   
   // Persist to localStorage on change
@@ -1171,8 +1171,6 @@ const App = () => {
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       // Header
       h('header', { className: 'text-center my-6' },
-        // --- 💡💡💡 THIS IS THE FIX 💡💡💡 ---
-        // Removed the duplicate 'className:'
         h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA')
       ),
       
@@ -1229,5 +1227,13 @@ const NavButton = ({ icon, label, active, onClick }) => {
 
 
 // --- 🚀 MOUNT THE APP ---
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(h(App));
+//
+// --- 💡💡💡 THIS IS THE FIX 💡💡💡 ---
+// We wrap the app mount in a 'load' event listener.
+// This ensures all CDN scripts (like React and Chart.js)
+// are fully loaded *before* our app tries to use them.
+//
+window.addEventListener('load', () => {
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(h(App));
+});
