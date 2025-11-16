@@ -1,85 +1,36 @@
-# Hypertrophy PWA Fitness Tracker
+# Hypertrophy PWA v4 (Netlify Version)
 
-This is a production-ready, build-less Progressive Web App (PWA) for tracking hypertrophy-focused workouts, sleep, and nutrition. It runs entirely in the browser using `localStorage` and is designed for deployment on GitHub Pages.
+This is a production-ready, build-less Progressive Web App (PWA) for tracking hypertrophy-focused workouts, sleep, and nutrition. It runs as a full-stack app on Netlify, using Netlify Functions and the AI Gateway for secure, live AI features.
 
-## 🚀 Deployment to GitHub Pages
+## 🚀 Deployment to Netlify (Required)
 
-1.  **Create a New GitHub Repository:**
-    * Go to GitHub and create a new public repository (e.g., `hypertrophy-pwa`).
+This app **will not work** on GitHub Pages. It must be deployed to Netlify to use the secure AI functions.
 
-2.  **Upload App Files:**
-    * Upload the following files to the root of your new repository:
-        * `index.html`
-        * `app.js`
-        * `manifest.json`
-        * `sw.js`
+1.  **Commit All Files to GitHub:**
+    * Push all 9 files in this project (including `package.json`, `netlify.toml`, and the `netlify/` folder) to your GitHub repository.
 
-3.  **Create PWA Icons:**
-    * This is a **required** step for the PWA to be installable.
-    * Create a folder named `icons` in your repository.
-    * Inside the `icons` folder, add at least two icons:
-        * `icon-192x192.png` (a 192x192 pixel PNG)
-        * `icon-512x512.png` (a 512x512 pixel PNG)
-    * You can use a free tool like [Maskable.app](https://maskable.app/) to generate these.
+2.  **Create a New Netlify Site:**
+    * Log in to Netlify.
+    * Click **"Add new site"** -> **"Import an existing project"**.
+    * Connect to GitHub and select your `fitness-tracker` repository.
 
-4.  **Enable GitHub Pages:**
-    * In your repository, go to **Settings** > **Pages**.
-    * Under "Build and deployment", set the **Source** to **Deploy from a branch**.
-    * Set the **Branch** to `main` (or `master`) and the folder to `/ (root)`.
-    * Click **Save**.
+3.  **Configure Build & Deploy:**
+    * Netlify will read your `netlify.toml` file. The settings should be correct by default (Publish directory: `/`, Build command: *blank*).
+    * Click **"Deploy site"**. Netlify will build and deploy your site, installing the AI dependencies from `package.json`.
+
+4.  **Enable AI Gateway (CRITICAL STEP):**
+    * Once the site is deployed, go to its new dashboard on Netlify.
+    * Go to **Team settings** (click your team name in the top-left).
+    * Go to **General** > **AI enablement**.
+    * Click **"Configure"** and enable AI features. You will need to add a payment method for credit-based billing (the free plan includes a generous starting credit).
+    * Connect the **Anthropic (Claude)** provider and paste in your secret API key.
 
 5.  **Access Your App:**
-    * Wait about 1-2 minutes for GitHub to build and deploy your site.
-    * Your app will be live at: `https://<YOUR_USERNAME>.github.io/<YOUR_REPO_NAME>/`
+    * Your app will be live at the Netlify URL (e.g., `https://fitness-tracker-ai.netlify.app`).
 
 ## 📱 How to Install on Mobile
 
-### On iOS (Safari)
-1.  Open the live URL in Safari.
-2.  Tap the "Share" icon (a box with an arrow pointing up).
-3.  Scroll down and tap **"Add to Home Screen"**.
-
-### On Android (Chrome)
-1.  Open the live URL in Chrome.
-2.  A pop-up banner "Add to Home Screen" should appear. Tap it.
-3.  If no banner appears, tap the three-dot menu icon.
-4.  Tap **"Install app"** or **"Add to Home Screen"**.
-
-## 💡 LocalStorage Data Structure
-
-All data is stored in your browser's `localStorage` under a single key: `hypertrophyApp.entries.v1`. The data is an array of entry objects, structured like this:
-
-```json
-[
-  {
-    "id": "id_1736876527581_t3j9qj",
-    "date": "2025-11-15",
-    "trainingType": "Push/Biceps",
-    "exercises": [
-      {
-        "name": "Bench Press",
-        "weight": 175,
-        "eachHand": false,
-        "sets": 3,
-        "reps": [5, 5, 5]
-      },
-      {
-        "name": "Skull Crushers",
-        "weight": 75,
-        "eachHand": false,
-        "sets": 3,
-        "reps": [8, 8, 7]
-      }
-    ],
-    "totalSets": 6,
-    "duration": 60,
-    "sleepHours": 8.5,
-    "deepSleepPercent": 22,
-    "deepSleepMinutes": 112,
-    "recoveryRating": 9,
-    "protein": 165,
-    "calories": 2850,
-    "weight": 140,
-    "grade": "S++"
-  }
-]
+1.  Open your new Netlify URL in your phone's browser (Safari or Chrome).
+2.  Tap the "Share" icon (on iOS) or the three-dot menu (on Android).
+3.  Tap **"Add to Home Screen"** or **"Install app"**.
+4.  (Optional) Create an `icons` folder in your repo and add `icon-192x192.png` and `icon-512x512.png` to give your app a custom icon.
