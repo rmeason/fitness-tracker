@@ -1,0 +1,5 @@
+[build]
+  # This tells Netlify to just deploy your root folder as-is.
+  publish = "/"
+  # This tells Netlify where to find your serverless functions.
+  functions = "netlify/functions"
