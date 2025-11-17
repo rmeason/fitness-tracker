@@ -938,7 +938,6 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 
       console.log("Calling REAL AI Vision Gateway...");
 
-      // 💡💡💡 REAL API CALL 💡💡💡
       const res = await fetch(`/.netlify/functions/get-vision-extraction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
