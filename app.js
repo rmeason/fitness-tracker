@@ -244,7 +244,7 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
-// 💡 This is the Slider for "Recovery Rating"
+// This is the Slider for "Recovery Rating"
 const Slider = ({ label, min, max, value, onChange, ...props }) => {
   return h('div', { className: 'w-full' },
     h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
@@ -665,7 +665,6 @@ Provide recommendation as JSON:
         }
         
         const data = await res.json();
-        // 💡 Fix: Handle potential non-JSON text
         let responseJson;
         try {
           responseJson = JSON.parse(data.text);
@@ -1188,7 +1187,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `hypertrophy-backup-v6-${formatDate(new Date())}.json`;
+    link.download = `hypertrophy-backup-v6-${formatDate(new Date())}.json`; // v6 data structure
     link.click();
     URL.revokeObjectURL(url);
     showToast('Data exported successfully!');
