@@ -244,7 +244,7 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
-// 💡 This is the Slider for "Recovery Rating"
+// This is the Slider for "Recovery Rating"
 const Slider = ({ label, min, max, value, onChange, ...props }) => {
   return h('div', { className: 'w-full' },
     h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
@@ -1396,7 +1396,6 @@ const App = () => {
       default:
         return h('div', { className: 'space-y-6' },
           h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-            // 💡💡💡 THIS IS THE FIX 💡💡💡
             h('h3', { className: 'text-lg font-semibold mb-2' }, planTitle),
             h('p', { className: 'text-2xl font-bold text-cyan-400' }, nextWorkout),
             h('p', { className: 'text-sm text-slate-300' }, coachNote)
@@ -1434,6 +1433,8 @@ const App = () => {
   };
 
   return h(ToastProvider, null,
+    // 💡💡💡 THIS IS THE NAV BAR FIX 💡💡💡
+    // The Nav Bar is now *outside* the main scrolling container.
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       h('header', { className: 'text-center my-6' },
         h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v7')
@@ -1459,21 +1460,21 @@ const App = () => {
       showNutritionModal && h(NutritionQuickAddModal, {
         onClose: () => setShowNutritionModal(false),
         onSave: handleSaveNutrition
-      }),
-      
-      // Bottom Nav Bar
-      h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-5' },
-        h(NavButton, { icon: '🔥', label: 'Log', active: view === 'dashboard', onClick: () => setView('dashboard') }),
-        h(NavButton, { icon: '📅', label: 'Calendar', active: view === 'calendar', onClick: () => setView('calendar') }),
-        h('div', { className: 'relative' },
-          h('button', {
-            className: 'absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-4xl shadow-lg hover:bg-blue-700',
-            onClick: () => handleShowForm(null)
-          }, '+')
-        ),
-        h(NavButton, { icon: '📊', label: 'Charts', active: view === 'charts', onClick: () => setView('charts') }),
-        h(NavButton, { icon: '⚙️', label: 'Settings', active: view === 'settings', onClick: () => setView('settings') })
-      )
+      })
+    ), // <-- Main scrolling div closes here
+    
+    // Bottom Nav Bar is now a sibling to the scrolling div
+    h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-5' },
+      h(NavButton, { icon: '🔥', label: 'Log', active: view === 'dashboard', onClick: () => setView('dashboard') }),
+      h(NavButton, { icon: '📅', label: 'Calendar', active: view === 'calendar', onClick: () => setView('calendar') }),
+      h('div', { className: 'relative' },
+        h('button', {
+          className: 'absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-4xl shadow-lg hover:bg-blue-700',
+          onClick: () => handleShowForm(null)
+        }, '+')
+      ),
+      h(NavButton, { icon: '📊', label: 'Charts', active: view === 'charts', onClick: () => setView('charts') }),
+      h(NavButton, { icon: '⚙️', label: 'Settings', active: view === 'settings', onClick: () => setView('settings') })
     )
   );
 };
