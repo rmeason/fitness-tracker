@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v6'; //  Version bumped to v6
+const CACHE_NAME = 'hypertrophy-pwa-cache-v7'; //  Version bumped to v7
 
 const FILES_TO_CACHE = [
   './',
