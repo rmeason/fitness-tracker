@@ -114,8 +114,22 @@ const calculateVolumeLoad = (weight, sets, reps) => {
   return (totalReps * weight);
 };
 
-const getGrade = (deepSleepPercent, totalSets) => { /* ... (same as before) ... */ };
-const getSleepQualityStars = (deepSleepPercent) => { /* ... (same as before) ... */ };
+const getGrade = (deepSleepPercent, totalSets) => {
+  if (deepSleepPercent === null || totalSets === null) return 'N/A';
+  if (deepSleepPercent >= 20 && totalSets >= 22) return 'S++';
+  if (deepSleepPercent >= 15 && totalSets >= 20) return 'S/A+';
+  if (deepSleepPercent >= 12 && totalSets >= 16) return 'A/A+';
+  if (deepSleepPercent >= 10 && totalSets >= 14) return 'B+';
+  if (deepSleepPercent < 10 && totalSets < 14) return 'C';
+  return 'B';
+};
+
+const getSleepQualityStars = (deepSleepPercent) => {
+  if (deepSleepPercent >= 20) return '⭐⭐⭐ PR RANGE';
+  if (deepSleepPercent >= 15) return '⭐⭐ TARGET RANGE';
+  if (deepSleepPercent >= 12) return '⭐ BASELINE RANGE';
+  return '⚠️ POOR';
+};
 
 const getProteinStatus = (protein) => {
   if (protein >= USER_CONTEXT.proteinOutstanding) return h('span', { className: 'text-cyan-400 font-bold' }, 'Outstanding');
@@ -124,8 +138,39 @@ const getProteinStatus = (protein) => {
   return h('span', { className: 'text-yellow-500' }, 'Below Target');
 };
 
-const calculateAllPRs = (entries) => { /* ... (same as before) ... */ };
-const getPreviousPR = (exerciseName, allEntries, currentEntryId) => { /* ... (same as before) ... */ };
+const calculateAllPRs = (entries) => {
+  const prs = new Map();
+  const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+  for (const entry of sortedEntries) {
+    if (!entry.exercises) continue;
+    for (const ex of entry.exercises) {
+      const currentPR = prs.get(ex.name);
+      if (!currentPR || ex.weight > currentPR.weight) {
+        prs.set(ex.name, {
+          name: ex.name,
+          weight: ex.weight,
+          sets: ex.sets,
+          reps: ex.reps.join('/'),
+          date: entry.date,
+        });
+      }
+    }
+  }
+  return Array.from(prs.values()).sort((a, b) => b.weight - a.weight);
+};
+
+const getPreviousPR = (exerciseName, allEntries, currentEntryId) => {
+  let maxWeight = 0;
+  for (const entry of allEntries) {
+    if (entry.id === currentEntryId || !entry.exercises) continue;
+    for (const ex of entry.exercises) {
+      if (ex.name === exerciseName && ex.weight > maxWeight) {
+        maxWeight = ex.weight;
+      }
+    }
+  }
+  return maxWeight;
+};
 
 // 💡 NEW: Helper to get today's nutrition totals
 const getTodaysNutrition = (nutritionLog) => {
@@ -138,69 +183,399 @@ const getTodaysNutrition = (nutritionLog) => {
 
 // --- 🍞 TOAST COMPONENT ---
 const ToastContext = React.createContext();
-const ToastProvider = ({ children }) => { /* ... (same as before) ... */ };
+const ToastProvider = ({ children }) => {
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type, id: generateId() });
+    setTimeout(() => { setToast(null); }, 3000);
+  };
+  return h(ToastContext.Provider, { value: { showToast } },
+    h(Fragment, null,
+      children,
+      toast && h('div', { className: `toast ${toast.type} ${toast ? 'show' : ''}`, key: toast.id }, toast.message)
+    )
+  );
+};
 const useToast = () => React.useContext(ToastContext);
 
 // --- MODAL COMPONENT ---
-const Modal = ({ show, onClose, title, children }) => { /* ... (same as before) ... */ };
-
-// --- UI COMPONENTS ---
-const Button = ({ onClick, children, className = '', variant = 'primary' }) => { /* ... (same as before) ... */ };
-const Input = (props) => { /* ... (same as before) ... */ };
-const Select = ({ children, ...props }) => { /* ... (same as before) ... */ };
-const Slider = ({ label, min, max, value, onChange, ...props }) => { /* ... (same as before) ... */ };
-const RpeSlider = ({ value, onChange }) => { /* ... (same as before) ... */ };
-const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent }) => { /* ... (same as before) ... */ };
-// --- 🔄 CYCLE EDITOR COMPONENT ---
-const CycleEditor = ({ currentCycle, onSave }) => { /* ... (same as before) ... */ };
-// --- 📈 CHART COMPONENT (UPGRADED) ---
-const ExerciseProgressChart = ({ entries, allExerciseNames }) => { /* ... (same as before) ... */ };
-// --- 📅 CALENDAR COMPONENT (UPGRADED) ---
-const TrainingCalendar = ({ entries, trainingCycle, dynamicToday }) => { /* ... (same as before) ... */ };
-// --- 🏆 PR DASHBOARD COMPONENT ---
-const PRDashboard = ({ prs }) => { /* ... (same as before) ... */ };
-
-// --- 💡 NEW: NUTRITION QUICK-ADD MODAL ---
-const NutritionQuickAddModal = ({ onClose, onSave }) => {
-  const [protein, setProtein] = useState('');
-  const [calories, setCalories] = useState('');
-  const { showToast } = useToast();
-
-  const handleAdd = () => {
-    const prot = Number(protein) || 0;
-    const cals = Number(calories) || 0;
-
-    if (prot === 0 && cals === 0) {
-      showToast('Please enter protein or calories', 'error');
-      return;
-    }
-
-    onSave({
-      id: generateId(),
-      date: formatDate(new Date()),
-      protein: prot,
-      calories: cals,
-    });
-
-    showToast(`Added ${prot}g protein and ${cals} kcal!`, 'success');
-    onClose();
-  };
-
-  return h(Modal, { show: true, onClose, title: "🥩 Quick Add Nutrition" },
-    h('div', { className: 'space-y-4' },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
-        h(Input, { type: 'number', value: protein, onChange: e => setProtein(e.target.value), placeholder: 'e.g., 30' })
+const Modal = ({ show, onClose, title, children }) => {
+  if (!show) return null;
+  return h(Fragment, null,
+    h('div', { className: 'modal-backdrop', onClick: onClose }),
+    h('div', { className: 'modal-content bg-slate-800 rounded-lg p-6 w-11/12 md:w-1/2 max-w-lg shadow-xl' },
+      h('div', { className: 'flex justify-between items-center mb-4' },
+        h('h3', { className: 'text-xl font-bold' }, title),
+        h('button', { className: 'text-slate-400 hover:text-white', onClick: onClose }, 'X')
       ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
-        h(Input, { type: 'number', value: calories, onChange: e => setCalories(e.target.value), placeholder: 'e.g., 500' })
-      ),
-      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, 'Add Entry')
+      children
     )
   );
 };
 
+// --- UI COMPONENTS ---
+const Button = ({ onClick, children, className = '', variant = 'primary' }) => {
+  const variants = {
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white',
+    secondary: 'bg-slate-600 hover:bg-slate-700 text-white',
+    danger: 'bg-red-600 hover:bg-red-700 text-white',
+  };
+  return h('button', {
+    onClick,
+    className: `py-2 px-4 rounded-lg font-semibold shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${variants[variant]} ${className}`
+  }, children);
+};
+
+const Input = (props) => {
+  return h('input', {
+    ...props,
+    className: `w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 ${props.className || ''}`
+  });
+};
+
+const Select = ({ children, ...props }) => {
+  return h('select', {
+    ...props,
+    className: `w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white ${props.className || ''}`
+  }, children);
+};
+
+// 💡💡💡 THIS IS THE FIX 💡💡💡
+// Re-adding the original Slider component definition
+const Slider = ({ label, min, max, value, onChange, ...props }) => {
+  return h('div', { className: 'w-full' },
+    h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
+    h('input', {
+      type: 'range',
+      min,
+      max,
+      value,
+      onChange,
+      ...props,
+      className: 'w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer'
+    })
+  );
+};
+// 💡💡💡 END OF FIX 💡💡💡
+
+// RPE Slider Component
+const RpeSlider = ({ value, onChange }) => {
+  const rpeDesc = {
+    1: '1 (Rest)', 1.5: '1.5',
+    2: '2', 2.5: '2.5',
+    3: '3', 3.5: '3.5',
+    4: '4 (Easy)', 4.5: '4.5',
+    5: '5', 5.5: '5.5',
+    6: '6 (RIR 4)', 6.5: '6.5 (RIR 3-4)',
+    7: '7 (RIR 3)', 7.5: '7.5 (RIR 2-3)',
+    8: '8 (RIR 2)', 8.5: '8.5 (RIR 1-2)',
+    9: '9 (RIR 1)', 9.5: '9.5 (RIR 0-1)',
+    10: '10 (Failure)'
+  };
+  
+  return h('div', { className: 'w-full' },
+    h('label', { className: 'block text-sm font-medium mb-1' }, `RPE: ${rpeDesc[value] || 'N/A'}`),
+    h('input', {
+      type: 'range',
+      min: 1,
+      max: 10,
+      step: 0.5,
+      value: value,
+      onChange: onChange,
+      className: 'w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer'
+    })
+  );
+};
+
+// Coach Suggestion Component
+const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent }) => {
+  const [suggestion, setSuggestion] = useState(null);
+  useEffect(() => {
+    if (exerciseName) {
+      const s = Coach.getSmartSuggestion(exerciseName, allEntries, todaySleepPercent);
+      setSuggestion(s);
+    } else {
+      setSuggestion(null);
+    }
+  }, [exerciseName, allEntries, todaySleepPercent]);
+
+  if (!suggestion) return null;
+
+  return h('div', { className: 'p-3 bg-blue-900/50 border border-blue-700 rounded-lg space-y-1' },
+    h('h5', { className: 'font-bold text-cyan-400' }, `🧠 Coach: ${suggestion.title}`),
+    h('p', { className: 'text-sm font-bold' }, `Target: ${suggestion.target}`),
+    h('p', { className: 'text-xs text-slate-300' }, `Note: ${suggestion.note}`)
+  );
+};
+
+// --- 🔄 CYCLE EDITOR COMPONENT ---
+const CycleEditor = ({ currentCycle, onSave }) => {
+  const { showToast } = useToast();
+  const [selectedPreset, setSelectedPreset] = useState('custom');
+  const [cycleName, setCycleName] = useState('');
+  const [cycleDays, setCycleDays] = useState(currentCycle || []);
+  const [customCycles, setCustomCycles] = useState(() => {
+    const saved = localStorage.getItem(CUSTOM_CYCLES_KEY);
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  useEffect(() => {
+    if (selectedPreset && selectedPreset !== 'custom' && selectedPreset !== 'saved') {
+      if (CYCLE_PRESETS[selectedPreset]) {
+        setCycleDays([...CYCLE_PRESETS[selectedPreset].days]);
+        setCycleName(CYCLE_PRESETS[selectedPreset].name);
+      } else if (customCycles[selectedPreset]) {
+        setCycleDays([...customCycles[selectedPreset].days]);
+        setCycleName(customCycles[selectedPreset].name);
+      }
+    }
+  }, [selectedPreset, customCycles]);
+
+  const addDay = () => setCycleDays([...cycleDays, 'REST']);
+  const removeDay = (index) => {
+    if (cycleDays.length > 1) setCycleDays(cycleDays.filter((_, i) => i !== index));
+  };
+  const updateDay = (index, value) => {
+    const newDays = [...cycleDays];
+    newDays[index] = value;
+    setCycleDays(newDays);
+  };
+
+  const saveCustomCycle = () => {
+    if (!cycleName.trim()) {
+      showToast('Please enter a cycle name', 'error');
+      return;
+    }
+    const cycleId = `custom_${generateId()}`;
+    const newCustomCycles = {
+      ...customCycles,
+      [cycleId]: {
+        name: cycleName,
+        days: [...cycleDays],
+        description: `Custom ${cycleDays.length}-day cycle`
+      }
+    };
+    setCustomCycles(newCustomCycles);
+    localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(newCustomCycles));
+    showToast('Custom cycle saved!');
+  };
+
+  const deleteCustomCycle = (id) => {
+    const newCustomCycles = { ...customCycles };
+    delete newCustomCycles[id];
+    setCustomCycles(newCustomCycles);
+    localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(newCustomCycles));
+    if (selectedPreset === id) setSelectedPreset('custom');
+    showToast('Custom cycle deleted');
+  };
+
+  const applyCycle = () => {
+    if (cycleDays.length === 0) {
+      showToast('Cycle must have at least one day', 'error');
+      return;
+    }
+    onSave(cycleDays);
+    showToast('Training cycle updated!');
+  };
+
+  const cycleStats = {
+    length: cycleDays.length,
+    trainingDays: cycleDays.filter(d => d !== 'REST').length,
+    restDays: cycleDays.filter(d => d === 'REST').length,
+    frequency: cycleDays.length > 0 ? ((cycleDays.filter(d => d !== 'REST').length / cycleDays.length) * 100).toFixed(0) : 0
+  };
+
+  return h('div', { className: 'space-y-6' },
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '🎯 Choose a Preset'),
+      h(Select, { value: selectedPreset, onChange: (e) => setSelectedPreset(e.target.value) },
+        h('option', { value: 'custom' }, 'Build Custom Cycle'),
+        h('optgroup', { label: 'Presets' },
+          Object.entries(CYCLE_PRESETS).map(([key, preset]) => h('option', { key, value: key }, preset.name))
+        ),
+        Object.keys(customCycles).length > 0 && h('optgroup', { label: 'Your Saved Cycles' },
+          Object.entries(customCycles).map(([key, cycle]) => h('option', { key, value: key }, cycle.name))
+        )
+      )
+    ),
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📅 Cycle Editor'),
+      h('div', { className: 'mb-4' },
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Cycle Name'),
+        h(Input, { type: 'text', value: cycleName, onChange: (e) => setCycleName(e.target.value), placeholder: 'e.g., My Custom PPL' })
+      ),
+      h('div', { className: 'space-y-2 mb-4' },
+        cycleDays.map((day, index) =>
+          h('div', { key: index, className: 'flex gap-2 items-center' },
+            h('span', { className: 'text-sm font-medium w-16' }, `Day ${index + 1}:`),
+            h(Select, { value: day, onChange: (e) => updateDay(index, e.target.value), className: 'flex-1' },
+              WORKOUT_TYPES.map(type => h('option', { key: type, value: type }, type))
+            ),
+            cycleDays.length > 1 && h('button', { onClick: () => removeDay(index), className: 'text-red-400 hover:text-red-300' }, '✕')
+          )
+        )
+      ),
+      h('div', { className: 'flex gap-2' },
+        h(Button, { onClick: addDay, variant: 'secondary' }, '+ Add Day'),
+        cycleName.trim() && h(Button, { onClick: saveCustomCycle, variant: 'secondary' }, '💾 Save as Custom')
+      )
+    ),
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Cycle Stats'),
+      h('div', { className: 'grid grid-cols-2 gap-4 text-center' },
+        h('div', {}, h('div', { className: 'text-2xl font-bold' }, cycleStats.length), h('div', { className: 'text-sm text-slate-400' }, 'Total Days')),
+        h('div', {}, h('div', { className: 'text-2xl font-bold text-green-400' }, cycleStats.trainingDays), h('div', { className: 'text-sm text-slate-400' }, 'Training Days')),
+        h('div', {}, h('div', { className: 'text-2xl font-bold text-blue-400' }, cycleStats.restDays), h('div', { className: 'text-sm text-slate-400' }, 'Rest Days')),
+        h('div', {}, h('div', { className: 'text-2xl font-bold text-cyan-400' }, `${cycleStats.frequency}%`), h('div', { className: 'text-sm text-slate-400' }, 'Training Frequency'))
+      )
+    ),
+    Object.keys(customCycles).length > 0 && h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '💾 Your Saved Cycles'),
+      h('div', { className: 'space-y-2' },
+        Object.entries(customCycles).map(([id, cycle]) =>
+          h('div', { key: id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
+            h('div', {},
+              h('div', { className: 'font-semibold' }, cycle.name),
+              h('div', { className: 'text-xs text-slate-400' }, cycle.description)
+            ),
+            h('button', { onClick: () => deleteCustomCycle(id), className: 'text-red-400 hover:text-red-300' }, 'Delete')
+          )
+        )
+      )
+    ),
+    h(Button, { onClick: applyCycle, variant: 'primary', className: 'w-full' }, '✅ Apply This Cycle')
+  );
+};
+
+// --- 📈 CHART COMPONENT (UPGRADED) ---
+const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
+  const [selectedExercise, setSelectedExercise] = useState(allExerciseNames[0] || '');
+  const [chartType, setChartType] = useState('weight');
+
+  if (!entries || entries.length === 0) {
+    return h('p', { className: 'text-slate-400' }, 'No workout data yet to display charts.');
+  }
+
+  const exerciseData = entries
+    .map(entry => {
+      if (!entry.exercises) return null;
+      const ex = entry.exercises.find(e => e.name === selectedExercise);
+      if (!ex) return null;
+      return {
+        date: entry.date,
+        weight: ex.weight,
+        volumeLoad: ex.volumeLoad || 0
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  const chartData = {
+    labels: exerciseData.map(d => d.date),
+    datasets: [
+      {
+        label: chartType === 'weight' ? `${selectedExercise} Weight (lbs)` : `${selectedExercise} Volume (lbs)`,
+        data: exerciseData.map(d => chartType === 'weight' ? d.weight : d.volumeLoad),
+        borderColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
+        backgroundColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
+        tension: 0.1,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { color: '#cbd5e1' } },
+      title: { display: true, text: `Progression for ${selectedExercise}`, color: '#f1f5f9' },
+    },
+    scales: {
+      x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+      y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+    }
+  };
+
+  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+    h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
+    h('div', { className: 'grid grid-cols-2 gap-4 mb-4' },
+      h(Select, { value: selectedExercise, onChange: (e) => setSelectedExercise(e.target.value) },
+        h('option', { value: '' }, 'Select Exercise...'),
+        allExerciseNames.map(name => h('option', { key: name, value: name }, name))
+      ),
+      h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
+        h('option', { value: 'weight' }, 'Show Peak Weight'),
+        h('option', { value: 'volume' }, 'Show Volume Load')
+      )
+    ),
+    exerciseData.length > 0 && selectedExercise
+      ? h(Line, { data: chartData, options: chartOptions })
+      : h('p', { className: 'text-slate-400' }, 'No data for this exercise yet. Log a workout!')
+  );
+};
+
+// --- 📅 CALENDAR COMPONENT (UPGRADED) ---
+const TrainingCalendar = ({ entries, trainingCycle, dynamicToday }) => {
+  const [startDate] = useState(new Date());
+  const cycleLength = trainingCycle.length;
+  const dates = [];
+  const daysToShow = Math.max(14, 28);
+  
+  for (let i = 0; i < daysToShow; i++) {
+    const date = new Date();
+    date.setDate(startDate.getDate() + i);
+    dates.push(date);
+  }
+
+  const todayStr = formatDate(new Date());
+  const entriesByDate = entries.reduce((acc, entry) => {
+    acc[entry.date] = entry;
+    return acc;
+  }, {});
+
+  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+    h('h3', { className: 'text-lg font-semibold mb-4' }, `📅 ${cycleLength}-Day Training Cycle`),
+    h('div', { className: 'grid grid-cols-7 gap-2' },
+      dates.map((date, index) => {
+        const dateStr = formatDate(date);
+        const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
+        const dayOfMonth = date.getDate();
+        const planned = (dateStr === todayStr) ? dynamicToday : trainingCycle[index % cycleLength];
+        const actual = entriesByDate[dateStr];
+        let bgColor = 'bg-slate-700';
+        if (actual) {
+          bgColor = (actual.plannedTrainingType === actual.trainingType) ? 'bg-green-600' : 'bg-yellow-600';
+        }
+        if (dateStr === todayStr) {
+          bgColor += ' ring-2 ring-blue-500';
+        }
+        return h('div', { key: dateStr, className: `p-2 rounded-lg text-center ${bgColor}` },
+          h('div', { className: 'font-bold text-xs' }, dayOfWeek.toUpperCase()),
+          h('div', { className: 'text-lg font-bold' }, dayOfMonth),
+          h('div', { className: 'text-xs truncate' }, actual ? actual.trainingType : planned)
+        );
+      })
+    )
+  );
+};
+
+// --- 🏆 PR DASHBOARD COMPONENT ---
+const PRDashboard = ({ prs }) => {
+  const topPRs = [...prs].slice(0, 10);
+  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+    h('h3', { className: 'text-lg font-semibold mb-4' }, '🏆 Personal Records'),
+    topPRs.length === 0
+      ? h('p', { className: 'text-slate-400' }, 'No PRs logged yet. Start training!')
+      : h('ul', { className: 'space-y-2' },
+        topPRs.map(pr =>
+          h('li', { key: pr.name, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
+            h('span', { className: 'font-semibold' }, pr.name),
+            h('span', { className: 'text-cyan-400 font-bold' }, `${pr.weight} lbs`),
+            h('span', { className: 'text-xs text-slate-400' }, `${pr.sets}x${pr.reps}`)
+          )
+        )
+      )
+  );
+};
 
 // --- 📊 STATS SUMMARY COMPONENT (UPGRADED) ---
 const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
@@ -230,7 +605,113 @@ const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
 };
 
 // --- 🤖 AI SUGGESTION MODAL (UPGRADED) ---
-const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => { /* ... (same as before) ... */ };
+const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
+  const [loading, setLoading] = useState(true);
+  const [recommendation, setRecommendation] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchRecommendation = async () => {
+      try {
+        const last10Workouts = entries.slice(-10);
+        const topPRs = prs.slice(0, 10);
+        const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+        const lastSleep = lastEntry ? lastEntry.deepSleepPercent : 15;
+        const hours = lastEntry ? lastEntry.sleepHours : 7;
+        const cycleDay = entries.length % trainingCycle.length;
+        const plannedWorkout = trainingCycle[cycleDay];
+
+        const prompt = `You are a hypertrophy training coach analyzing workout data for a 32-year-old male (139.5 lbs) in a body composition phase.
+
+RECENT WORKOUTS (includes RPE and Volume): ${JSON.stringify(last10Workouts)}
+CURRENT PRs: ${JSON.stringify(topPRs)}
+LAST NIGHT'S SLEEP: ${lastSleep}% deep sleep (${hours}h total)
+TRAINING CYCLE: ${trainingCycle.length}-day cycle (${trainingCycle.join(', ')})
+CYCLE POSITION: Day ${cycleDay + 1} - Planned: ${plannedWorkout}
+OFF-CYCLE STATUS: 8+ weeks natural training
+
+GUIDELINES:
+- 20%+ deep sleep → 22-24 working sets optimal
+- 15-20% deep sleep → 20-22 working sets  
+- 12-16% deep sleep → 16-20 working sets
+- <12% deep sleep → 12-16 sets or recommend rest
+- Progressive overload: Use the "Smart Coach" logic. Analyze RPE from past workouts to suggest adding weight (if RPE <= 8) or adding reps (if RPE 8.5-9.5).
+- If sleep is poor (<12%), suggest a 10-15% weight deload for higher reps.
+
+Provide recommendation as JSON:
+{
+  "recommendation": "${plannedWorkout}",
+  "recommendedSets": 18,
+  "reasoning": "Based on your ${lastSleep}% deep sleep and cycle position...",
+  "exercises": [
+    {"name": "Exercise Name", "weight": "Weight Range", "sets": "4", "reps": "6-8"},
+    ...
+  ],
+  "notes": "Focus on controlled form..."
+}`;
+
+        console.log("Calling REAL AI Gateway...");
+        
+        const res = await fetch(`/.netlify/functions/get-ai-suggestion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(`AI Gateway failed: ${errData.error || res.statusText}`);
+        }
+        
+        const data = await res.json();
+        const responseJson = JSON.parse(data.text);
+        setRecommendation(responseJson);
+
+      } catch (err) {
+        console.error("AI Error:", err);
+        setError(`Failed to get AI recommendation: ${err.message}.`);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchRecommendation();
+  }, [entries, prs, trainingCycle]);
+  
+  const renderContent = () => {
+    if (loading) {
+      return h('div', { className: 'flex justify-center items-center h-32' },
+        h('div', { className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500' })
+      );
+    }
+    if (error) {
+      return h('p', { className: 'text-red-400' }, error);
+    }
+    if (recommendation) {
+      return h('div', { className: 'space-y-4' },
+        h('div', {},
+          h('h4', { className: 'text-lg font-bold text-cyan-400' }, recommendation.recommendation),
+          recommendation.recommendation !== 'REST' && h('p', { className: 'text-sm text-slate-400' }, `${recommendation.recommendedSets} recommended sets.`)
+        ),
+        h('p', { className: 'italic' }, recommendation.reasoning),
+        recommendation.exercises.length > 0 && h('ul', { className: 'space-y-2' },
+          recommendation.exercises.map((ex, i) =>
+            h('li', { key: i, className: 'bg-slate-700 p-2 rounded' },
+              h('span', { className: 'font-semibold' }, `${ex.name}: `),
+              h('span', {}, `${ex.sets} sets of ${ex.reps} at ${ex.weight}`)
+            )
+          )
+        ),
+        h('p', { className: 'text-sm text-slate-400' }, h('strong', null, 'Coach Notes: '), recommendation.notes)
+      );
+    }
+    return null;
+  };
+
+  return h(Modal, { show: true, onClose, title: "🤖 AI Workout Recommendation" },
+    renderContent()
+  );
+};
 
 
 // --- 📜 ENTRY LOG FORM (UPGRADED) ---
@@ -371,7 +852,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     if (prsFound.length === 0) showToast('Entry saved!', 'success');
   };
   
-  // --- FILE UPLOAD (Upgraded) ---
+  // --- 💡 FILE UPLOAD (UPGRADED) 💡 ---
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -442,21 +923,21 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       // Auto-populate form
       if (resultJson.sleepHours) setSleepHours(resultJson.sleepHours);
       if (resultJson.deepSleepPercent) setDeepSleepPercent(resultJson.deepSleepPercent);
-      // 💡 NEW: Add to nutrition log instead of form
-      if (resultJson.protein || resultJson.calories) {
-        const prot = resultJson.protein || 0;
-        const cals = resultJson.calories || 0;
-        // This is a bit of a hack. We need to call the *App's* save handler.
-        // For now, we'll just show a toast.
-        // A better long-term solution would be to pass `onSaveNutrition` down.
-        showToast(`Extracted ${prot}g Protein / ${cals} kcal. Please add manually.`, 'success');
-      }
       if (resultJson.weight) setWeight(resultJson.weight);
       if (resultJson.exercises && resultJson.exercises.length > 0) {
         setExercises(resultJson.exercises.map(ex => ({ ...ex, rpe: 8 })));
       }
       
-      showToast('Data extracted! Nutrition added separately.', 'success');
+      // 💡 NEW: Add to nutrition log instead of form
+      if (resultJson.protein || resultJson.calories) {
+        // This is a bit of a hack. A better v6 would pass `onSaveNutrition` here.
+        // For now, we'll just show a toast.
+        const prot = resultJson.protein || 0;
+        const cals = resultJson.calories || 0;
+        showToast(`Extracted ${prot}g P / ${cals} kCal. Please add to nutrition log.`, 'success');
+      } else {
+        showToast('Data extracted!', 'success');
+      }
 
     } catch (err) {
       console.error("Upload error:", err);
