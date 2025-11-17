@@ -590,7 +590,6 @@ const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
     h('div', { className: 'grid grid-cols-2 gap-4' },
       h('div', { className: 'text-center' }, h('div', { className: 'text-2xl font-bold' }, totalWorkouts), h('div', { className: 'text-sm text-slate-400' }, 'Workouts')),
       h('div', { className: 'text-center' }, h('div', { className: 'text-2xl font-bold' }, `${currentWeight} lbs`), h('div', { className: 'text-sm text-slate-400' }, 'Current')),
-      // 💡 NEW: Show live totals for today
       h('div', { className: 'text-center' }, 
         h('div', { className: 'text-2xl font-bold' }, `${liveProtein}g`),
         h('div', { className: 'text-sm text-slate-400' }, "Today's Protein"),
@@ -713,6 +712,46 @@ Provide recommendation as JSON:
   );
 };
 
+// 💡 NEW: NUTRITION QUICK-ADD MODAL
+const NutritionQuickAddModal = ({ onClose, onSave }) => {
+  const [protein, setProtein] = useState('');
+  const [calories, setCalories] = useState('');
+  const { showToast } = useToast();
+
+  const handleAdd = () => {
+    const prot = Number(protein) || 0;
+    const cals = Number(calories) || 0;
+
+    if (prot === 0 && cals === 0) {
+      showToast('Please enter protein or calories', 'error');
+      return;
+    }
+
+    onSave({
+      id: generateId(),
+      date: formatDate(new Date()),
+      protein: prot,
+      calories: cals,
+    });
+
+    showToast(`Added ${prot}g protein and ${cals} kcal!`, 'success');
+    onClose();
+  };
+
+  return h(Modal, { show: true, onClose, title: "🥩 Quick Add Nutrition" },
+    h('div', { className: 'space-y-4' },
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
+        h(Input, { type: 'number', value: protein, onChange: e => setProtein(e.target.value), placeholder: 'e.g., 30' })
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
+        h(Input, { type: 'number', value: calories, onChange: e => setCalories(e.target.value), placeholder: 'e.g., 500' })
+      ),
+      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, 'Add Entry')
+    )
+  );
+};
 
 // --- 📜 ENTRY LOG FORM (UPGRADED) ---
 const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, todaysNutrition }) => {
@@ -899,6 +938,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 
       console.log("Calling REAL AI Vision Gateway...");
 
+      // 💡💡💡 REAL API CALL 💡💡💡
       const res = await fetch(`/.netlify/functions/get-vision-extraction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -928,10 +968,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         setExercises(resultJson.exercises.map(ex => ({ ...ex, rpe: 8 })));
       }
       
-      // 💡 NEW: Add to nutrition log instead of form
       if (resultJson.protein || resultJson.calories) {
-        // This is a bit of a hack. A better v6 would pass `onSaveNutrition` here.
-        // For now, we'll just show a toast.
         const prot = resultJson.protein || 0;
         const cals = resultJson.calories || 0;
         showToast(`Extracted ${prot}g P / ${cals} kCal. Please add to nutrition log.`, 'success');
@@ -1101,7 +1138,6 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
     isExpanded && h('div', { className: 'p-4 border-t border-slate-700 space-y-4' },
       h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
         h('div', {}, h('div', { className: 'font-bold' }, '🌙 Sleep'), h('div', { className: 'text-sm' }, `${entry.sleepHours}h / ${entry.deepSleepPercent}% deep`)),
-        // 💡 NEW: Reads the "snapshotted" data
         h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${entry.protein}g`)),
         h('div', {}, h('div', { className: 'font-bold' }, '🔥 Calories'), h('div', { className: 'text-sm' }, `${entry.calories} kcal`)),
         h('div', {}, h('div', { className: 'font-bold' }, '⚖️ Weight'), h('div', { className: 'text-sm' }, `${entry.weight} lbs`))
@@ -1136,7 +1172,6 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   });
 
   const exportData = () => {
-    // 💡 NEW: Export nutrition log
     const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -1165,7 +1200,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             setCustomCycles(imported.customCycles);
             localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(imported.customCycles));
           }
-          if (imported.nutrition) setNutrition(imported.nutrition); // 💡 NEW: Import nutrition
+          if (imported.nutrition) setNutrition(imported.nutrition);
         }
         showToast('Data imported successfully!');
       } catch (err) {
@@ -1182,11 +1217,11 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       setEntries([]);
       setTrainingCycle(CYCLE_PRESETS['current-14-day'].days);
       setCustomCycles({});
-      setNutrition([]); // 💡 NEW: Clear nutrition
+      setNutrition([]);
       localStorage.removeItem(DB_KEY);
       localStorage.removeItem(CYCLE_KEY);
       localStorage.removeItem(CUSTOM_CYCLES_KEY);
-      localStorage.removeItem(NUTRITION_KEY); // 💡 NEW: Clear nutrition
+      localStorage.removeItem(NUTRITION_KEY);
       showToast('All data deleted.', 'danger');
     }
   };
@@ -1237,7 +1272,6 @@ const App = () => {
     return saved ? JSON.parse(saved) : CYCLE_PRESETS['current-14-day'].days;
   });
   
-  // 💡 NEW: Nutrition state
   const [nutrition, setNutrition] = useState(() => {
     const saved = localStorage.getItem(NUTRITION_KEY);
     return saved ? JSON.parse(saved) : [];
@@ -1246,17 +1280,14 @@ const App = () => {
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
   
-  // Persist entries
   useEffect(() => {
     localStorage.setItem(DB_KEY, JSON.stringify(entries));
   }, [entries]);
   
-  // Persist cycle
   useEffect(() => {
     localStorage.setItem(CYCLE_KEY, JSON.stringify(trainingCycle));
   }, [trainingCycle]);
   
-  // 💡 NEW: Persist nutrition
   useEffect(() => {
     localStorage.setItem(NUTRITION_KEY, JSON.stringify(nutrition));
   }, [nutrition]);
@@ -1271,13 +1302,12 @@ const App = () => {
   
   const { today: plannedToday, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
   
-  // 💡 NEW: Get live nutrition totals
   const todaysNutrition = getTodaysNutrition(nutrition);
   
   // Modals
   const [showAIModal, setShowAIModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
-  const [showNutritionModal, setShowNutritionModal] = useState(false); // 💡 NEW
+  const [showNutritionModal, setShowNutritionModal] = useState(false);
 
   // --- HANDLERS ---
   const handleSaveEntry = (entry) => {
@@ -1299,7 +1329,6 @@ const App = () => {
     setEntryToEdit(null);
   };
   
-  // 💡 NEW: Nutrition save handler
   const handleSaveNutrition = (newEntry) => {
     setNutrition(prev => [...prev, newEntry]);
   };
@@ -1332,7 +1361,7 @@ const App = () => {
           trainingCycle: trainingCycle,
           plannedToday: plannedToday,
           cycleDay: cycleDay,
-          todaysNutrition: todaysNutrition // 💡 Pass snapshot
+          todaysNutrition: todaysNutrition
         });
       case 'calendar':
         return h(TrainingCalendar, { 
@@ -1348,8 +1377,8 @@ const App = () => {
           setEntries, 
           trainingCycle, 
           setTrainingCycle,
-          nutrition: nutrition, // 💡 Pass nutrition
-          setNutrition: setNutrition // 💡 Pass nutrition
+          nutrition: nutrition,
+          setNutrition: setNutrition
         });
       case 'dashboard':
       default:
@@ -1359,13 +1388,11 @@ const App = () => {
             h('p', { className: 'text-2xl font-bold text-cyan-400' }, plannedToday),
             h('p', { className: 'text-sm text-slate-300' }, coachNote)
           ),
-          // 💡 NEW: Pass live totals
           h(StatsSummary, { 
             entries: sortedEntries, 
             liveProtein: todaysNutrition.totalProtein,
             liveCalories: todaysNutrition.totalCalories
           }),
-          // 💡 NEW: Nutrition Button
           h(Button, { 
             onClick: () => setShowNutritionModal(true), 
             variant: 'secondary',
@@ -1415,7 +1442,6 @@ const App = () => {
           )
         )
       ),
-      // 💡 NEW: Nutrition Modal
       showNutritionModal && h(NutritionQuickAddModal, {
         onClose: () => setShowNutritionModal(false),
         onSave: handleSaveNutrition
