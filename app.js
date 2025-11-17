@@ -724,6 +724,9 @@ Provide recommendation as JSON:
 const NutritionQuickAddModal = ({ onClose, onSave }) => {
   const [protein, setProtein] = useState('');
   const [calories, setCalories] = useState('');
+  // 💡💡💡 THIS IS THE FIX 💡💡💡
+  // Add date state, defaulting to today
+  const [date, setDate] = useState(formatDate(new Date()));
   const { showToast } = useToast();
 
   const handleAdd = () => {
@@ -737,17 +740,23 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
 
     onSave({
       id: generateId(),
-      date: formatDate(new Date()),
+      date: date, // 💡 Use the date from the state
       protein: prot,
       calories: cals,
     });
 
-    showToast(`Added ${prot}g protein and ${cals} kcal!`, 'success');
+    showToast(`Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
     onClose();
   };
 
   return h(Modal, { show: true, onClose, title: "🥩 Quick Add Nutrition" },
     h('div', { className: 'space-y-4' },
+      // 💡💡💡 THIS IS THE FIX 💡💡💡
+      // Add Date Input field
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
+        h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
+      ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
         h(Input, { type: 'number', value: protein, onChange: e => setProtein(e.target.value), placeholder: 'e.g., 30' })
@@ -1164,7 +1173,7 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
       ),
       h('div', { className: 'flex gap-4 pt-4' },
         h(Button, { variant: 'secondary', onClick: () => onEdit(entry) }, 'Edit'),
-        h(Button, { variant: 'danger', onClick: () => onDelete(entry.id) }, 'Delete')
+        h(Button, { variant: 'danger', onClick: ()Ok => onDelete(entry.id) }, 'Delete')
       )
     )
   );
