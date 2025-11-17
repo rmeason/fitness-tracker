@@ -1173,7 +1173,7 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
       ),
       h('div', { className: 'flex gap-4 pt-4' },
         h(Button, { variant: 'secondary', onClick: () => onEdit(entry) }, 'Edit'),
-        h(Button, { variant: 'danger', onClick: ()Ok => onDelete(entry.id) }, 'Delete')
+        h(Button, { variant: 'danger', onClick: () => onDelete(entry.id) }, 'Delete')
       )
     )
   );
@@ -1317,12 +1317,10 @@ const App = () => {
   );
   const allPRs = calculateAllPRs(entries);
   
-  // 💡💡💡 THIS IS THE FIX 💡💡💡
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
   const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
   const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
-  // 💡💡💡 END OF FIX 💡💡💡
   
   const todaysNutrition = getTodaysNutrition(nutrition);
   
@@ -1446,7 +1444,7 @@ const App = () => {
     // The Nav Bar is now *outside* the main scrolling container.
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v7')
+        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v8')
       ),
       h('main', {}, renderView()),
       
