@@ -1,10 +1,10 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v5'; // We are bumping the version to v5
+const CACHE_NAME = 'hypertrophy-pwa-cache-v5'; //  Version bumped to v5
 
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './app.js',
-  './coach.js', // <-- NEW FILE ADDED
+  './coach.js',
   './manifest.json'
 ];
 
@@ -29,7 +29,6 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
   // 1. If it's an AI call, go to network ONLY.
-  // This ensures AI calls are always live.
   if (url.pathname.startsWith('/.netlify/functions/')) {
     event.respondWith(fetch(event.request));
     return;
@@ -73,4 +72,3 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
-
