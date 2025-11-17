@@ -244,7 +244,7 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
-// This is the Slider for "Recovery Rating"
+// 💡 This is the Slider for "Recovery Rating"
 const Slider = ({ label, min, max, value, onChange, ...props }) => {
   return h('div', { className: 'w-full' },
     h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
@@ -721,8 +721,6 @@ Provide recommendation as JSON:
 };
 
 // 💡 NEW: NUTRITION QUICK-ADD MODAL
-// 💡💡💡 THIS IS THE FIX 💡💡💡
-// Moved this component *before* LogEntryForm and App
 const NutritionQuickAddModal = ({ onClose, onSave }) => {
   const [protein, setProtein] = useState('');
   const [calories, setCalories] = useState('');
@@ -1438,7 +1436,7 @@ const App = () => {
   return h(ToastProvider, null,
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v6')
+        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v7')
       ),
       h('main', {}, renderView()),
       
