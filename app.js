@@ -244,6 +244,7 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
+// 💡 This is the Slider for "Recovery Rating"
 const Slider = ({ label, min, max, value, onChange, ...props }) => {
   return h('div', { className: 'w-full' },
     h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
@@ -581,7 +582,6 @@ const PRDashboard = ({ prs }) => {
 // --- 📊 STATS SUMMARY COMPONENT (UPGRADED) ---
 const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
   const totalWorkouts = entries.filter(e => e.trainingType !== 'REST').length;
-  // 💡 Fix: Handle empty entries array for currentWeight
   const currentWeight = entries.length > 0 ? (entries[entries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight;
   
   const validSleepEntries = entries.filter(e => e.deepSleepPercent !== null && e.deepSleepPercent > 0);
@@ -1107,7 +1107,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 };
 
 // --- 📜 ENTRY CARD COMPONENT (UPGRADED) ---
-const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => { // 💡 NEW: Receives nutrition log
+const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   // 💡 NEW: Dynamically calculate nutrition for this entry's date
@@ -1144,7 +1144,8 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => { // 💡 NEW: Rec
     isExpanded && h('div', { className: 'p-4 border-t border-slate-700 space-y-4' },
       h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
         h('div', {}, h('div', { className: 'font-bold' }, '🌙 Sleep'), h('div', { className: 'text-sm' }, `${entry.sleepHours}h / ${entry.deepSleepPercent}% deep`)),
-        // 💡 NEW: Shows dynamically calculated totals
+        // 💡💡💡 THIS IS THE FIX 💡💡💡
+        // Using the live `totalProtein` and `totalCalories` variables
         h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${totalProtein}g`)),
         h('div', {}, h('div', { className: 'font-bold' }, '🔥 Calories'), h('div', { className: 'text-sm' }, `${totalCalories} kcal`)),
         h('div', {}, h('div', { className: 'font-bold' }, '⚖️ Weight'), h('div', { className: 'text-sm' }, `${entry.weight} lbs`))
@@ -1307,7 +1308,10 @@ const App = () => {
   );
   const allPRs = calculateAllPRs(entries);
   
-  const { today: plannedToday, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+  // 💡 NEW: Smart logic for dashboard card
+  const todayStr = formatDate(new Date());
+  const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
+  const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
   
   const todaysNutrition = getTodaysNutrition(nutrition);
   
@@ -1366,15 +1370,14 @@ const App = () => {
           allExerciseNames: allExerciseNames,
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
-          plannedToday: plannedToday,
-          cycleDay: cycleDay,
-          todaysNutrition: todaysNutrition // 💡 Pass snapshot
+          plannedToday: nextWorkout, // Pass the next workout
+          cycleDay: cycleDay
         });
       case 'calendar':
         return h(TrainingCalendar, { 
           entries: sortedEntries, 
           trainingCycle, 
-          dynamicToday: plannedToday 
+          dynamicToday: nextWorkout 
         });
       case 'charts':
         return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames });
@@ -1391,8 +1394,11 @@ const App = () => {
       default:
         return h('div', { className: 'space-y-6' },
           h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-            h('h3', { className: 'text-lg font-semibold mb-2' }, '💡 Today\'s Plan'),
-            h('p', { className: 'text-2xl font-bold text-cyan-400' }, plannedToday),
+            // 💡💡💡 THIS IS THE FIX 💡💡💡
+            h('h3', { className: 'text-lg font-semibold mb-2' }, 
+              hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan"
+            ),
+            h('p', { className: 'text-2xl font-bold text-cyan-400' }, nextWorkout),
             h('p', { className: 'text-sm text-slate-300' }, coachNote)
           ),
           h(StatsSummary, { 
