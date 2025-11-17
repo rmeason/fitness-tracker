@@ -722,6 +722,8 @@ Provide recommendation as JSON:
 };
 
 // 💡 NEW: NUTRITION QUICK-ADD MODAL
+// 💡💡💡 THIS IS THE FIX 💡💡💡
+// Moved this component *before* LogEntryForm and App
 const NutritionQuickAddModal = ({ onClose, onSave }) => {
   const [protein, setProtein] = useState('');
   const [calories, setCalories] = useState('');
@@ -1110,7 +1112,8 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // 💡 NEW: Dynamically calculate nutrition for this entry's date
+  // 💡💡💡 THIS IS THE FIX 💡💡💡
+  // We are now dynamically calculating nutrition totals for THIS entry's date
   const { totalProtein, totalCalories } = getNutritionForDate(nutrition, entry.date);
   
   const totalVolume = entry.totalVolume || 0;
@@ -1308,10 +1311,12 @@ const App = () => {
   );
   const allPRs = calculateAllPRs(entries);
   
-  // 💡 NEW: Smart logic for dashboard card
+  // 💡💡💡 THIS IS THE FIX 💡💡💡
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
   const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+  const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
+  // 💡💡💡 END OF FIX 💡💡💡
   
   const todaysNutrition = getTodaysNutrition(nutrition);
   
@@ -1370,7 +1375,7 @@ const App = () => {
           allExerciseNames: allExerciseNames,
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
-          plannedToday: nextWorkout, // Pass the next workout
+          plannedToday: nextWorkout,
           cycleDay: cycleDay
         });
       case 'calendar':
@@ -1395,9 +1400,7 @@ const App = () => {
         return h('div', { className: 'space-y-6' },
           h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
             // 💡💡💡 THIS IS THE FIX 💡💡💡
-            h('h3', { className: 'text-lg font-semibold mb-2' }, 
-              hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan"
-            ),
+            h('h3', { className: 'text-lg font-semibold mb-2' }, planTitle),
             h('p', { className: 'text-2xl font-bold text-cyan-400' }, nextWorkout),
             h('p', { className: 'text-sm text-slate-300' }, coachNote)
           ),
