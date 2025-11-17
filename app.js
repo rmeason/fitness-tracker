@@ -102,7 +102,7 @@ const WORKOUT_TYPES = [
 const DB_KEY = 'hypertrophyApp.entries.v1';
 const CYCLE_KEY = 'hypertrophyApp.cycle.v1';
 const CUSTOM_CYCLES_KEY = 'hypertrophyApp.customCycles.v1';
-const NUTRITION_KEY = 'hypertrophyApp.nutrition.v1'; // 💡 NEW: Separate nutrition DB
+const NUTRITION_KEY = 'hypertrophyApp.nutrition.v1'; // Separate nutrition DB
 
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -172,13 +172,17 @@ const getPreviousPR = (exerciseName, allEntries, currentEntryId) => {
   return maxWeight;
 };
 
-// 💡 NEW: Helper to get today's nutrition totals
-const getTodaysNutrition = (nutritionLog) => {
-  const todayStr = formatDate(new Date());
-  const todaysEntries = nutritionLog.filter(n => n.date === todayStr);
-  const totalProtein = todaysEntries.reduce((sum, entry) => sum + (entry.protein || 0), 0);
-  const totalCalories = todaysEntries.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+// Helper to get nutrition totals for a *specific day*
+const getNutritionForDate = (nutritionLog, date) => {
+  const entriesForDate = nutritionLog.filter(n => n.date === date);
+  const totalProtein = entriesForDate.reduce((sum, entry) => sum + (entry.protein || 0), 0);
+  const totalCalories = entriesForDate.reduce((sum, entry) => sum + (entry.calories || 0), 0);
   return { totalProtein, totalCalories };
+};
+
+// Helper to get *today's* nutrition totals
+const getTodaysNutrition = (nutritionLog) => {
+  return getNutritionForDate(nutritionLog, formatDate(new Date()));
 };
 
 // --- 🍞 TOAST COMPONENT ---
@@ -240,8 +244,6 @@ const Select = ({ children, ...props }) => {
   }, children);
 };
 
-// 💡💡💡 THIS IS THE FIX 💡💡💡
-// Re-adding the original Slider component definition
 const Slider = ({ label, min, max, value, onChange, ...props }) => {
   return h('div', { className: 'w-full' },
     h('label', { className: 'block text-sm font-medium mb-1' }, `${label}: ${value}`),
@@ -256,7 +258,6 @@ const Slider = ({ label, min, max, value, onChange, ...props }) => {
     })
   );
 };
-// 💡💡💡 END OF FIX 💡💡💡
 
 // RPE Slider Component
 const RpeSlider = ({ value, onChange }) => {
@@ -580,7 +581,8 @@ const PRDashboard = ({ prs }) => {
 // --- 📊 STATS SUMMARY COMPONENT (UPGRADED) ---
 const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
   const totalWorkouts = entries.filter(e => e.trainingType !== 'REST').length;
-  const currentWeight = entries.length > 0 ? entries[entries.length - 1].weight : USER_CONTEXT.startWeight;
+  // 💡 Fix: Handle empty entries array for currentWeight
+  const currentWeight = entries.length > 0 ? (entries[entries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight;
   
   const validSleepEntries = entries.filter(e => e.deepSleepPercent !== null && e.deepSleepPercent > 0);
   const avgDeepSleep = validSleepEntries.length > 0 ? (validSleepEntries.reduce((sum, e) => sum + e.deepSleepPercent, 0) / validSleepEntries.length).toFixed(1) : 'N/A';
@@ -663,7 +665,14 @@ Provide recommendation as JSON:
         }
         
         const data = await res.json();
-        const responseJson = JSON.parse(data.text);
+        // 💡 Fix: Handle potential non-JSON text
+        let responseJson;
+        try {
+          responseJson = JSON.parse(data.text);
+        } catch(e) {
+          console.error("AI returned non-JSON:", data.text);
+          throw new Error("AI returned an invalid response.");
+        }
         setRecommendation(responseJson);
 
       } catch (err) {
@@ -693,7 +702,7 @@ Provide recommendation as JSON:
           recommendation.recommendation !== 'REST' && h('p', { className: 'text-sm text-slate-400' }, `${recommendation.recommendedSets} recommended sets.`)
         ),
         h('p', { className: 'italic' }, recommendation.reasoning),
-        recommendation.exercises.length > 0 && h('ul', { className: 'space-y-2' },
+        recommendation.exercises && recommendation.exercises.length > 0 && h('ul', { className: 'space-y-2' },
           recommendation.exercises.map((ex, i) =>
             h('li', { key: i, className: 'bg-slate-700 p-2 rounded' },
               h('span', { className: 'font-semibold' }, `${ex.name}: `),
@@ -754,7 +763,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
 };
 
 // --- 📜 ENTRY LOG FORM (UPGRADED) ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, todaysNutrition }) => {
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay }) => {
   const { showToast } = useToast();
   // Form state
   const [date, setDate] = useState(formatDate(new Date()));
@@ -764,7 +773,6 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   const [sleepHours, setSleepHours] = useState(8);
   const [deepSleepPercent, setDeepSleepPercent] = useState(20);
   const [recoveryRating, setRecoveryRating] = useState(8);
-  // ❌ REMOVED: protein and calories state
   const [weight, setWeight] = useState(USER_CONTEXT.startWeight);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -780,10 +788,9 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       setSleepHours(entryToEdit.sleepHours || 8);
       setDeepSleepPercent(entryToEdit.deepSleepPercent || 20);
       setRecoveryRating(entryToEdit.recoveryRating || 8);
-      // ❌ REMOVED: setProtein and setCalories
       setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
     } else {
-      const lastWeight = allEntries.length > 0 ? allEntries[allEntries.length - 1].weight : USER_CONTEXT.startWeight;
+      const lastWeight = allEntries.length > 0 ? (allEntries[allEntries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight;
       setWeight(lastWeight);
       setTrainingType(plannedToday);
     }
@@ -868,9 +875,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       deepSleepPercent: Number(deepSleepPercent),
       deepSleepMinutes,
       recoveryRating: Number(recoveryRating),
-      // 💡 NEW: Snapshot today's nutrition totals
-      protein: todaysNutrition.totalProtein,
-      calories: todaysNutrition.totalCalories,
+      // 💡 DECOUPLED: protein and calories are no longer saved here
       weight: Number(weight),
       grade,
     };
@@ -1086,7 +1091,6 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       h('div', { className: 'text-lg font-bold' }, `Total Working Sets: ${exercises.reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0)}`)
     ),
 
-    // 💡 NEW: Only show Body Weight here
     h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
       h('h3', { className: 'text-lg font-semibold' }, '⚖️ Body Weight'),
       h('div', {},
@@ -1103,8 +1107,11 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 };
 
 // --- 📜 ENTRY CARD COMPONENT (UPGRADED) ---
-const EntryCard = ({ entry, onEdit, onDelete }) => {
+const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => { // 💡 NEW: Receives nutrition log
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // 💡 NEW: Dynamically calculate nutrition for this entry's date
+  const { totalProtein, totalCalories } = getNutritionForDate(nutrition, entry.date);
   
   const totalVolume = entry.totalVolume || 0;
   const validExercises = (entry.exercises || []).filter(ex => ex.rpe > 0);
@@ -1137,8 +1144,9 @@ const EntryCard = ({ entry, onEdit, onDelete }) => {
     isExpanded && h('div', { className: 'p-4 border-t border-slate-700 space-y-4' },
       h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
         h('div', {}, h('div', { className: 'font-bold' }, '🌙 Sleep'), h('div', { className: 'text-sm' }, `${entry.sleepHours}h / ${entry.deepSleepPercent}% deep`)),
-        h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${entry.protein}g`)),
-        h('div', {}, h('div', { className: 'font-bold' }, '🔥 Calories'), h('div', { className: 'text-sm' }, `${entry.calories} kcal`)),
+        // 💡 NEW: Shows dynamically calculated totals
+        h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${totalProtein}g`)),
+        h('div', {}, h('div', { className: 'font-bold' }, '🔥 Calories'), h('div', { className: 'text-sm' }, `${totalCalories} kcal`)),
         h('div', {}, h('div', { className: 'font-bold' }, '⚖️ Weight'), h('div', { className: 'text-sm' }, `${entry.weight} lbs`))
       ),
       entry.exercises && entry.exercises.length > 0 && h('div', {},
@@ -1176,7 +1184,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `hypertrophy-backup-v5-${formatDate(new Date())}.json`;
+    link.download = `hypertrophy-backup-v6-${formatDate(new Date())}.json`;
     link.click();
     URL.revokeObjectURL(url);
     showToast('Data exported successfully!');
@@ -1192,7 +1200,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         if (Array.isArray(imported)) {
           setEntries(imported); // Old v1 format
         } else {
-          // New v2-v5 format
+          // New v2-v6 format
           if (imported.entries) setEntries(imported.entries);
           if (imported.trainingCycle) setTrainingCycle(imported.trainingCycle);
           if (imported.customCycles) {
@@ -1360,7 +1368,7 @@ const App = () => {
           trainingCycle: trainingCycle,
           plannedToday: plannedToday,
           cycleDay: cycleDay,
-          todaysNutrition: todaysNutrition
+          todaysNutrition: todaysNutrition // 💡 Pass snapshot
         });
       case 'calendar':
         return h(TrainingCalendar, { 
@@ -1409,6 +1417,7 @@ const App = () => {
               ? [...sortedEntries].reverse().map(entry => h(EntryCard, {
                   key: entry.id,
                   entry: entry,
+                  nutrition: nutrition, // 💡 Pass full nutrition log here
                   onEdit: handleShowForm,
                   onDelete: openDeleteModal
                 }))
@@ -1421,7 +1430,7 @@ const App = () => {
   return h(ToastProvider, null,
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v5')
+        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA v6')
       ),
       h('main', {}, renderView()),
       
