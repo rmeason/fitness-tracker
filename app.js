@@ -2252,6 +2252,7 @@ const App = () => {
   
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
+  const [nutritionEntryToEdit, setNutritionEntryToEdit] = useState(null);
 
   // Run data migration on mount (only once)
   useEffect(() => {
@@ -2318,13 +2319,30 @@ const App = () => {
     setEntryToEdit(null);
   };
   
-  const handleSaveNutrition = (newEntry) => {
-    setNutrition(prev => [...prev, newEntry]);
+  const handleSaveNutrition = (entry) => {
+    setNutrition(prev => {
+      const existing = prev.find(e => e.id === entry.id);
+      if (existing) {
+        // Update existing
+        return prev.map(e => e.id === entry.id ? entry : e);
+      } else {
+        // Add new
+        return [...prev, entry];
+      }
+    });
+
+    setView('dashboard');
+    setNutritionEntryToEdit(null);
   };
 
   const handleShowForm = (entry = null) => {
     setEntryToEdit(entry);
     setView('form');
+  };
+
+  const handleShowNutritionForm = (entry = null) => {
+    setNutritionEntryToEdit(entry);
+    setView('nutritionForm');
   };
 
   const handleDuplicateLastWorkout = () => {
@@ -2344,7 +2362,11 @@ const App = () => {
     setEntries(prev => prev.filter(e => e.id !== id));
     setShowDeleteModal(null);
   };
-  
+
+  const handleDeleteNutrition = (id) => {
+    setNutrition(prev => prev.filter(e => e.id !== id));
+  };
+
   const openDeleteModal = (id) => {
     setShowDeleteModal(id);
   };
@@ -2363,6 +2385,14 @@ const App = () => {
           trainingCycle: trainingCycle,
           plannedToday: nextWorkout,
           cycleDay: cycleDay
+        });
+      case 'nutritionForm':
+        return h(NutritionLogForm, {
+          onSave: handleSaveNutrition,
+          onCancel: () => setView('dashboard'),
+          entryToEdit: nutritionEntryToEdit,
+          nutrition: nutrition,
+          allEntries: sortedEntries
         });
       case 'calendar':
         return h('div', { className: 'space-y-4' },
@@ -2427,10 +2457,10 @@ const App = () => {
           ),
           h('div', { className: 'grid grid-cols-2 gap-4' },
             h(Button, {
-              onClick: () => setShowNutritionModal(true),
+              onClick: () => handleShowNutritionForm(),
               variant: 'secondary',
               className: 'text-lg'
-            }, '🥩 Add Nutrition'),
+            }, '🌙 Log Sleep/Nutrition'),
             sortedEntries.filter(e => e.trainingType !== 'REST').length > 0 && h(Button, {
               onClick: handleDuplicateLastWorkout,
               variant: 'secondary',
