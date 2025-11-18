@@ -1255,7 +1255,173 @@ const CollapsibleSection = ({ title, isOpen, onToggle, children, icon = '📋' }
   );
 };
 
-// --- 📜 ENTRY LOG FORM (UPGRADED) ---
+// --- 🥩 NUTRITION LOG FORM (NEW) ---
+const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries }) => {
+  const { showToast } = useToast();
+
+  // Form state
+  const [date, setDate] = useState(formatDate(new Date()));
+  const [sleepHours, setSleepHours] = useState(8);
+  const [sleepMinutes, setSleepMinutes] = useState(0);
+  const [deepSleepHours, setDeepSleepHours] = useState(1);
+  const [deepSleepMinutes, setDeepSleepMinutes] = useState(36);
+  const [recoveryRating, setRecoveryRating] = useState(8);
+  const [protein, setProtein] = useState('');
+  const [calories, setCalories] = useState('');
+  const [weight, setWeight] = useState(() => {
+    // Get last weight from nutrition entries or workout entries
+    const lastNutrition = nutrition.length > 0 ? nutrition[nutrition.length - 1] : null;
+    const lastWorkout = allEntries.length > 0 ? allEntries[allEntries.length - 1] : null;
+    return lastNutrition?.weight || lastWorkout?.weight || USER_CONTEXT.startWeight;
+  });
+
+  // Auto-calculate deep sleep percentage
+  const totalSleepDecimal = timeToDecimal(sleepHours, sleepMinutes);
+  const deepSleepDecimal = timeToDecimal(deepSleepHours, deepSleepMinutes);
+  const deepSleepPercent = totalSleepDecimal > 0 ? Math.min(100, (deepSleepDecimal / totalSleepDecimal) * 100) : 0;
+
+  // Populate form if editing
+  useEffect(() => {
+    if (entryToEdit) {
+      setDate(entryToEdit.date);
+      const totalSleep = decimalToTime(entryToEdit.sleepHours || 8);
+      setSleepHours(totalSleep.hours);
+      setSleepMinutes(totalSleep.minutes);
+
+      const deepSleepHoursDecimal = (entryToEdit.sleepHours || 8) * ((entryToEdit.deepSleepPercent || 20) / 100);
+      const deepSleep = decimalToTime(deepSleepHoursDecimal);
+      setDeepSleepHours(deepSleep.hours);
+      setDeepSleepMinutes(deepSleep.minutes);
+
+      setRecoveryRating(entryToEdit.recoveryRating || 8);
+      setProtein(entryToEdit.protein || '');
+      setCalories(entryToEdit.calories || '');
+      setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
+    }
+  }, [entryToEdit]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    const deepSleepMinutesTotal = Math.round(deepSleepDecimal * 60);
+
+    const entry = {
+      id: entryToEdit ? entryToEdit.id : generateId(),
+      date,
+      sleepHours: totalSleepDecimal,
+      deepSleepPercent: deepSleepPercent,
+      deepSleepMinutes: deepSleepMinutesTotal,
+      protein: protein ? parseNumberWithSuffix(protein) : 0,
+      calories: calories ? parseNumberWithSuffix(calories) : 0,
+      weight: Number(weight) || USER_CONTEXT.startWeight,
+      recoveryRating: Number(recoveryRating)
+    };
+
+    onSave(entry);
+    showToast('Nutrition/sleep entry saved!', 'success');
+  };
+
+  return h('form', { onSubmit: handleSubmit, className: 'space-y-6 p-4 pb-24' },
+    h('div', { className: 'flex justify-between items-center mb-4' },
+      h('h2', { className: 'text-2xl font-bold' }, entryToEdit ? 'Edit Nutrition/Sleep' : 'Log Nutrition/Sleep'),
+      h('button', {
+        type: 'button',
+        onClick: onCancel,
+        className: 'text-slate-400 hover:text-white text-2xl'
+      }, '✕')
+    ),
+
+    // Date
+    h('div', {},
+      h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
+      h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
+    ),
+
+    // Sleep Section
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg space-y-4' },
+      h('h3', { className: 'text-lg font-semibold flex items-center gap-2' },
+        h('span', {}, '🌙'),
+        'Sleep & Recovery'
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Total Sleep Time'),
+        h('div', { className: 'grid grid-cols-2 gap-2' },
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
+            h(Input, { type: 'number', min: 0, max: 24, value: sleepHours, onChange: (e) => setSleepHours(Number(e.target.value)) })
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
+            h(Input, { type: 'number', min: 0, max: 59, value: sleepMinutes, onChange: (e) => setSleepMinutes(Number(e.target.value)) })
+          )
+        ),
+        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Total: ${formatSleepTime(totalSleepDecimal)}`)
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Deep Sleep Time'),
+        h('div', { className: 'grid grid-cols-2 gap-2' },
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
+            h(Input, { type: 'number', min: 0, max: 24, value: deepSleepHours, onChange: (e) => setDeepSleepHours(Number(e.target.value)) })
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
+            h(Input, { type: 'number', min: 0, max: 59, value: deepSleepMinutes, onChange: (e) => setDeepSleepMinutes(Number(e.target.value)) })
+          )
+        ),
+        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Deep: ${formatSleepTime(deepSleepDecimal)} (${deepSleepPercent.toFixed(1)}%)`),
+        h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(deepSleepPercent))
+      ),
+      h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
+    ),
+
+    // Nutrition Section
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg space-y-4' },
+      h('h3', { className: 'text-lg font-semibold flex items-center gap-2' },
+        h('span', {}, '🥩'),
+        'Nutrition'
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
+        h(Input, {
+          type: 'text',
+          value: protein,
+          onChange: e => setProtein(parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 140 or 3k'
+        })
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
+        h(Input, {
+          type: 'text',
+          value: calories,
+          onChange: e => setCalories(parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 2800 or 3k'
+        })
+      )
+    ),
+
+    // Body Weight Section
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold flex items-center gap-2' },
+        h('span', {}, '⚖️'),
+        'Body Weight'
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Weight (lbs)'),
+        h(Input, { type: 'number', step: 0.1, value: weight, onChange: (e) => setWeight(Number(e.target.value)) })
+      )
+    ),
+
+    // Save Button
+    h('div', { className: 'fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 flex gap-4 z-50' },
+      h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? '💾 Update Entry' : '💾 Save Entry'),
+      h(Button, { type: 'button', variant: 'secondary', onClick: onCancel }, 'Cancel')
+    )
+  );
+};
+
+// --- 📜 WORKOUT LOG FORM (UPDATED) ---
 const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay }) => {
   const { showToast } = useToast();
   // Form state
