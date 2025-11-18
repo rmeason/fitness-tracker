@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v8'; //  Version bumped to v8
+const CACHE_NAME = 'hypertrophy-pwa-cache-v8'; //  Version bumped to v.8
 
 const FILES_TO_CACHE = [
   './',
@@ -72,3 +72,4 @@ self.addEventListener('activate', (event) => {
   );
   self.clients.claim();
 });
+
