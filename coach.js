@@ -5,7 +5,7 @@
  * @param {string} exerciseName - The name of the exercise (e.g., "Bench Press")
  * @param {Array} allEntries - The full logbook (must be sorted oldest-to-newest)
  * @param {number} limit - How many recent sessions to return
- * @returns {Array} - An array of { date, weight, sets, reps, rpe, volumeLoad }
+ * @returns {Array} - An array of { date, weight, weights, sets, reps, rpe, volumeLoad }
  */
 function getExerciseHistory(exerciseName, allEntries, limit = 5) {
   const history = [];
@@ -15,10 +15,19 @@ function getExerciseHistory(exerciseName, allEntries, limit = 5) {
     if (entry.exercises) {
       const foundExercise = entry.exercises.find(ex => ex.name === exerciseName);
       if (foundExercise) {
+        // Normalize to new format: ensure weights is an array
+        const weights = Array.isArray(foundExercise.weights)
+          ? foundExercise.weights
+          : (foundExercise.weight ? Array(foundExercise.sets || 3).fill(foundExercise.weight) : []);
+
+        const maxWeight = weights.length > 0 ? Math.max(...weights.filter(w => w > 0)) : 0;
+
         history.push({
           date: entry.date,
           sleepPercent: entry.deepSleepPercent,
-          ...foundExercise
+          ...foundExercise,
+          weights: weights, // Always provide as array
+          weight: maxWeight, // Provide max weight for backward compatibility
         });
       }
     }

@@ -108,10 +108,74 @@ const NUTRITION_KEY = 'hypertrophyApp.nutrition.v1'; // Separate nutrition DB
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
 const formatDate = (date) => date.toISOString().split('T')[0];
 
-const calculateVolumeLoad = (weight, sets, reps) => {
-  if (!weight || !sets || !reps || reps.length === 0) return 0;
-  const totalReps = reps.reduce((sum, rep) => sum + (Number(rep) || 0), 0);
-  return (totalReps * weight);
+// Time conversion helpers
+const decimalToTime = (decimalHours) => {
+  if (!decimalHours || decimalHours < 0) return { hours: 0, minutes: 0 };
+  const hours = Math.floor(decimalHours);
+  const minutes = Math.round((decimalHours - hours) * 60);
+  return { hours, minutes };
+};
+
+const timeToDecimal = (hours, minutes) => {
+  const h = Number(hours) || 0;
+  const m = Number(minutes) || 0;
+  return Math.max(0, h + (m / 60)); // Ensure non-negative
+};
+
+const formatSleepTime = (decimalHours) => {
+  if (!decimalHours) return '0h 0m';
+  const { hours, minutes } = decimalToTime(decimalHours);
+  return `${hours}h ${minutes}m`;
+};
+
+const formatSleepDisplay = (totalHours, deepSleepPercent) => {
+  const totalFormatted = formatSleepTime(totalHours);
+  const deepHours = totalHours * (deepSleepPercent / 100);
+  const deepFormatted = formatSleepTime(deepHours);
+  return `${totalFormatted} total (${deepFormatted} deep, ${deepSleepPercent.toFixed(1)}%)`;
+};
+
+// Parse time strings like "8h 15m" or "1h 40m"
+const parseTimeString = (timeStr) => {
+  const hMatch = timeStr.match(/(\d+)h/);
+  const mMatch = timeStr.match(/(\d+)m/);
+  const hours = hMatch ? parseInt(hMatch[1]) : 0;
+  const minutes = mMatch ? parseInt(mMatch[1]) : 0;
+  return timeToDecimal(hours, minutes);
+};
+
+// Parse numbers with 'k' suffix (e.g., "3k" -> 3000)
+const parseNumberWithSuffix = (value) => {
+  if (typeof value === 'number') return value;
+  if (!value) return '';
+  const str = value.toString().trim().toLowerCase();
+  if (str.endsWith('k')) {
+    const num = parseFloat(str.slice(0, -1));
+    return isNaN(num) ? '' : num * 1000;
+  }
+  return value;
+};
+
+// Safely get max weight from weights array (handles empty arrays and edge cases)
+const getMaxWeight = (weights) => {
+  if (!weights) return 0;
+  if (!Array.isArray(weights)) return Number(weights) || 0;
+  const validWeights = weights.filter(w => w > 0);
+  return validWeights.length > 0 ? Math.max(...validWeights) : 0;
+};
+
+const calculateVolumeLoad = (weights, reps) => {
+  if (!weights || !reps || reps.length === 0) return 0;
+  // Support both old format (single weight) and new format (array of weights)
+  const weightsArray = Array.isArray(weights) ? weights : Array(reps.length).fill(weights);
+
+  let totalVolume = 0;
+  for (let i = 0; i < reps.length; i++) {
+    const weight = Number(weightsArray[i]) || 0;
+    const rep = Number(reps[i]) || 0;
+    totalVolume += weight * rep;
+  }
+  return totalVolume;
 };
 
 const getGrade = (deepSleepPercent, totalSets) => {
@@ -144,11 +208,16 @@ const calculateAllPRs = (entries) => {
   for (const entry of sortedEntries) {
     if (!entry.exercises) continue;
     for (const ex of entry.exercises) {
+      // Get max weight from the exercise (support both old and new format)
+      const maxWeight = Array.isArray(ex.weights)
+        ? getMaxWeight(ex.weights)
+        : (ex.weight || 0);
+
       const currentPR = prs.get(ex.name);
-      if (!currentPR || ex.weight > currentPR.weight) {
+      if (!currentPR || maxWeight > currentPR.weight) {
         prs.set(ex.name, {
           name: ex.name,
-          weight: ex.weight,
+          weight: maxWeight,
           sets: ex.sets,
           reps: ex.reps.join('/'),
           date: entry.date,
@@ -164,8 +233,14 @@ const getPreviousPR = (exerciseName, allEntries, currentEntryId) => {
   for (const entry of allEntries) {
     if (entry.id === currentEntryId || !entry.exercises) continue;
     for (const ex of entry.exercises) {
-      if (ex.name === exerciseName && ex.weight > maxWeight) {
-        maxWeight = ex.weight;
+      if (ex.name === exerciseName) {
+        // Support both old and new format
+        const exMaxWeight = Array.isArray(ex.weights)
+          ? getMaxWeight(ex.weights)
+          : (ex.weight || 0);
+        if (exMaxWeight > maxWeight) {
+          maxWeight = exMaxWeight;
+        }
       }
     }
   }
@@ -290,8 +365,10 @@ const RpeSlider = ({ value, onChange }) => {
 };
 
 // Coach Suggestion Component
-const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent }) => {
+const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent, trainingType }) => {
   const [suggestion, setSuggestion] = useState(null);
+  const [volumeTarget, setVolumeTarget] = useState(null);
+
   useEffect(() => {
     if (exerciseName) {
       const s = Coach.getSmartSuggestion(exerciseName, allEntries, todaySleepPercent);
@@ -299,19 +376,46 @@ const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent }) => 
     } else {
       setSuggestion(null);
     }
-  }, [exerciseName, allEntries, todaySleepPercent]);
 
-  if (!suggestion) return null;
+    // Calculate volume target based on last session of same training type
+    if (trainingType && trainingType !== 'REST') {
+      const lastSameWorkout = [...allEntries]
+        .filter(e => e.trainingType === trainingType && e.totalVolume > 0)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+
+      if (lastSameWorkout) {
+        const targetMin = Math.round(lastSameWorkout.totalVolume * 1.0); // Match last session
+        const targetMax = Math.round(lastSameWorkout.totalVolume * 1.1); // 10% increase
+        setVolumeTarget({
+          lastVolume: lastSameWorkout.totalVolume,
+          targetMin,
+          targetMax,
+          lastDate: lastSameWorkout.date
+        });
+      } else {
+        setVolumeTarget(null);
+      }
+    }
+  }, [exerciseName, allEntries, todaySleepPercent, trainingType]);
+
+  if (!suggestion && !volumeTarget) return null;
 
   return h('div', { className: 'p-3 bg-blue-900/50 border border-blue-700 rounded-lg space-y-1' },
-    h('h5', { className: 'font-bold text-cyan-400' }, `🧠 Coach: ${suggestion.title}`),
-    h('p', { className: 'text-sm font-bold' }, `Target: ${suggestion.target}`),
-    h('p', { className: 'text-xs text-slate-300' }, `Note: ${suggestion.note}`)
+    suggestion && h(Fragment, null,
+      h('h5', { className: 'font-bold text-cyan-400' }, `🧠 Coach: ${suggestion.title}`),
+      h('p', { className: 'text-sm font-bold' }, `Target: ${suggestion.target}`),
+      h('p', { className: 'text-xs text-slate-300' }, `Note: ${suggestion.note}`)
+    ),
+    volumeTarget && h('div', { className: 'mt-2 pt-2 border-t border-blue-600' },
+      h('p', { className: 'text-xs text-slate-300' },
+        `💪 Session Volume Target: ${volumeTarget.targetMin.toLocaleString()}-${volumeTarget.targetMax.toLocaleString()} lbs (Last ${trainingType}: ${volumeTarget.lastVolume.toLocaleString()} lbs on ${volumeTarget.lastDate})`
+      )
+    )
   );
 };
 
 // --- 🔄 CYCLE EDITOR COMPONENT ---
-const CycleEditor = ({ currentCycle, onSave }) => {
+const CycleEditor = ({ currentCycle, onSave, onClose, entries }) => {
   const { showToast } = useToast();
   const [selectedPreset, setSelectedPreset] = useState('custom');
   const [cycleName, setCycleName] = useState('');
@@ -320,6 +424,7 @@ const CycleEditor = ({ currentCycle, onSave }) => {
     const saved = localStorage.getItem(CUSTOM_CYCLES_KEY);
     return saved ? JSON.parse(saved) : {};
   });
+  const [showPreview, setShowPreview] = useState(true);
 
   useEffect(() => {
     if (selectedPreset && selectedPreset !== 'custom' && selectedPreset !== 'saved') {
@@ -445,7 +550,38 @@ const CycleEditor = ({ currentCycle, onSave }) => {
         )
       )
     ),
-    h(Button, { onClick: applyCycle, variant: 'primary', className: 'w-full' }, '✅ Apply This Cycle')
+
+    // Live Preview Section
+    showPreview && h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('div', { className: 'flex justify-between items-center mb-4' },
+        h('h3', { className: 'text-lg font-semibold' }, '👁️ Live Preview'),
+        h('button', {
+          onClick: () => setShowPreview(!showPreview),
+          className: 'text-sm text-slate-400 hover:text-white'
+        }, showPreview ? 'Hide' : 'Show')
+      ),
+      h('div', { className: 'text-sm text-slate-400 mb-3' }, 'How this cycle affects the next 14 days:'),
+      h('div', { className: 'grid grid-cols-7 gap-2' },
+        Array.from({ length: 14 }, (_, i) => {
+          const dayIndex = i % cycleDays.length;
+          const workout = cycleDays[dayIndex] || 'REST';
+          const isRest = workout === 'REST';
+          return h('div', {
+            key: i,
+            className: `p-2 rounded text-center text-xs ${isRest ? 'bg-slate-700' : 'bg-blue-900'}`
+          },
+            h('div', { className: 'font-bold' }, `D${i + 1}`),
+            h('div', { className: 'text-[10px] mt-1 truncate' }, workout)
+          );
+        })
+      )
+    ),
+
+    // Action Buttons
+    h('div', { className: 'flex gap-2' },
+      h(Button, { onClick: applyCycle, variant: 'primary', className: 'flex-1' }, '✅ Apply This Cycle'),
+      onClose && h(Button, { onClick: onClose, variant: 'secondary' }, 'Cancel')
+    )
   );
 };
 
@@ -458,14 +594,67 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
     return h('p', { className: 'text-slate-400' }, 'No workout data yet to display charts.');
   }
 
+  // Session volume chart shows total volume for each workout
+  if (chartType === 'sessionVolume') {
+    const sessionData = entries
+      .filter(e => e.trainingType !== 'REST' && e.totalVolume > 0)
+      .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    const chartData = {
+      labels: sessionData.map(d => `${d.date} (${d.trainingType})`),
+      datasets: [
+        {
+          label: 'Total Session Volume (lbs)',
+          data: sessionData.map(d => d.totalVolume),
+          borderColor: '#a78bfa',
+          backgroundColor: '#a78bfa',
+          tension: 0.1,
+        },
+      ],
+    };
+
+    const chartOptions = {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { color: '#cbd5e1' } },
+        title: { display: true, text: 'Session Volume Progress', color: '#f1f5f9' },
+      },
+      scales: {
+        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      }
+    };
+
+    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
+      h('div', { className: 'mb-4' },
+        h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
+          h('option', { value: 'weight' }, 'Show Peak Weight'),
+          h('option', { value: 'volume' }, 'Show Volume Load'),
+          h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
+        )
+      ),
+      sessionData.length > 0
+        ? h(Line, { data: chartData, options: chartOptions })
+        : h('p', { className: 'text-slate-400' }, 'No workout data yet. Log a workout!')
+    );
+  }
+
+  // Exercise-specific charts (weight and volume)
   const exerciseData = entries
     .map(entry => {
       if (!entry.exercises) return null;
       const ex = entry.exercises.find(e => e.name === selectedExercise);
       if (!ex) return null;
+
+      // Get max weight from weights array
+      const maxWeight = Array.isArray(ex.weights)
+        ? getMaxWeight(ex.weights)
+        : (ex.weight || 0);
+
       return {
         date: entry.date,
-        weight: ex.weight,
+        weight: maxWeight,
         volumeLoad: ex.volumeLoad || 0
       };
     })
@@ -506,7 +695,8 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
       ),
       h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
         h('option', { value: 'weight' }, 'Show Peak Weight'),
-        h('option', { value: 'volume' }, 'Show Volume Load')
+        h('option', { value: 'volume' }, 'Show Volume Load'),
+        h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
       )
     ),
     exerciseData.length > 0 && selectedExercise
@@ -516,33 +706,197 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
 };
 
 // --- 📅 CALENDAR COMPONENT (UPGRADED) ---
-const TrainingCalendar = ({ entries, trainingCycle, dynamicToday }) => {
-  const [startDate] = useState(new Date());
-  const cycleLength = trainingCycle.length;
-  const dates = [];
-  const daysToShow = Math.max(14, 28);
-  
-  for (let i = 0; i < daysToShow; i++) {
-    const date = new Date();
-    date.setDate(startDate.getDate() + i);
-    dates.push(date);
-  }
+const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, onSetCycleDay }) => {
+  const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
+  const [weekStartDay, setWeekStartDay] = useState(0); // 0 = Sunday, 1 = Monday
+  const [contextMenuDate, setContextMenuDate] = useState(null);
+  const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
 
+  const cycleLength = trainingCycle.length;
   const todayStr = formatDate(new Date());
+
+  // Create a map of entries by date for quick lookup
   const entriesByDate = entries.reduce((acc, entry) => {
     acc[entry.date] = entry;
     return acc;
   }, {});
 
-  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-    h('h3', { className: 'text-lg font-semibold mb-4' }, `📅 ${cycleLength}-Day Training Cycle`),
+  // Get the start of the current week based on preference
+  const getWeekStart = (offset = 0) => {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const diff = currentDay - weekStartDay;
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - diff + (offset * 7));
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+  };
+
+  // Generate dates for the current week view
+  const weekStart = getWeekStart(currentWeekOffset);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + i);
+    dates.push(date);
+  }
+
+  // Calculate planned workout for a given date using Coach logic
+  const getPlannedWorkout = (dateStr) => {
+    // If this is today and we have dynamicToday, use it
+    if (dateStr === todayStr) {
+      return dynamicToday;
+    }
+
+    // Find the most recent logged entry before or on this date
+    const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const lastEntryBeforeDate = sortedEntries
+      .filter(e => new Date(e.date) <= new Date(dateStr))
+      .pop();
+
+    if (!lastEntryBeforeDate) {
+      // No entries yet, start from beginning of cycle
+      const daysSinceEpoch = Math.floor((new Date(dateStr) - new Date('2025-01-01')) / (1000 * 60 * 60 * 24));
+      return trainingCycle[daysSinceEpoch % cycleLength];
+    }
+
+    // Calculate days difference from last logged entry
+    const daysDiff = Math.floor((new Date(dateStr) - new Date(lastEntryBeforeDate.date)) / (1000 * 60 * 60 * 24));
+
+    // Use cycleDay from last entry if available, otherwise infer it
+    const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
+      ? lastEntryBeforeDate.cycleDay
+      : trainingCycle.indexOf(lastEntryBeforeDate.plannedTrainingType);
+
+    // Handle skipped days: if user logged REST on a training day, don't advance cycle
+    let nextCycleDay = lastCycleDay;
+    if (lastEntryBeforeDate.trainingType === 'REST' && lastEntryBeforeDate.plannedTrainingType !== 'REST') {
+      // They skipped, so the planned workout stays the same
+      nextCycleDay = lastCycleDay;
+    } else {
+      // Normal progression
+      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
+    }
+
+    return trainingCycle[nextCycleDay];
+  };
+
+  // Get cycle position for current plan
+  const getCurrentCycleDay = () => {
+    if (entries.length === 0) return 1;
+    const lastEntry = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    if (lastEntry.cycleDay !== undefined) {
+      const lastCycleDay = lastEntry.cycleDay;
+      // Check if they skipped
+      if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType !== 'REST') {
+        return lastCycleDay + 1; // Still on the same day they skipped
+      }
+      return ((lastCycleDay + 1) % cycleLength) + 1; // +1 for display (1-indexed)
+    }
+    return 1;
+  };
+
+  const currentCycleDay = getCurrentCycleDay();
+
+  return h('div', { className: 'bg-slate-800 p-4 rounded-lg relative' },
+    // Context menu for setting cycle day
+    contextMenuDate && h('div', {
+      className: 'fixed bg-slate-900 border border-slate-700 rounded-lg shadow-xl p-2 z-50',
+      style: { left: `${contextMenuPosition.x}px`, top: `${contextMenuPosition.y}px` },
+      onClick: (e) => e.stopPropagation()
+    },
+      h('div', { className: 'text-xs font-semibold text-slate-400 px-2 py-1' }, `Set ${contextMenuDate} as...`),
+      Array.from({ length: cycleLength }, (_, i) => i + 1).map(day =>
+        h('button', {
+          key: day,
+          className: 'w-full text-left px-3 py-2 hover:bg-slate-800 rounded text-sm',
+          onClick: () => {
+            onSetCycleDay && onSetCycleDay(contextMenuDate, day - 1);
+            setContextMenuDate(null);
+          }
+        }, `Day ${day} of ${cycleLength}`)
+      )
+    ),
+
+    h('div', { className: 'flex justify-between items-center mb-4' },
+      h('div', {},
+        h('h3', { className: 'text-lg font-semibold' }, `📅 ${cycleLength}-Day Training Cycle`),
+        h('p', { className: 'text-sm text-slate-400' }, `Day ${currentCycleDay} of ${cycleLength}`)
+      ),
+      h('div', { className: 'flex gap-2 items-center' },
+        onEditCycle && h(Button, {
+          onClick: onEditCycle,
+          variant: 'primary',
+          className: 'px-3 py-1 text-sm'
+        }, '⚙️ Edit Cycle'),
+        h(Button, {
+          onClick: () => setCurrentWeekOffset(currentWeekOffset - 1),
+          variant: 'secondary',
+          className: 'px-2 py-1 text-sm'
+        }, '← Prev'),
+        h('span', { className: 'text-sm text-slate-400' },
+          currentWeekOffset === 0 ? 'This Week' :
+          currentWeekOffset > 0 ? `+${currentWeekOffset}w` :
+          `${currentWeekOffset}w`
+        ),
+        h(Button, {
+          onClick: () => setCurrentWeekOffset(currentWeekOffset + 1),
+          variant: 'secondary',
+          className: 'px-2 py-1 text-sm'
+        }, 'Next →')
+      )
+    ),
+    h('div', { className: 'flex gap-2 mb-2 text-xs' },
+      h('button', {
+        onClick: () => setWeekStartDay(0),
+        className: `px-2 py-1 rounded text-slate-400 ${weekStartDay === 0 ? 'bg-blue-600 text-white' : 'bg-slate-700'}`
+      }, 'Start Sunday'),
+      h('button', {
+        onClick: () => setWeekStartDay(1),
+        className: `px-2 py-1 rounded text-slate-400 ${weekStartDay === 1 ? 'bg-blue-600 text-white' : 'bg-slate-700'}`
+      }, 'Start Monday'),
+      h('button', {
+        onClick: () => {
+          if (confirm('Reset cycle position to Day 1 today? This will recalculate all future planned workouts.')) {
+            // This could call a handler to reset cycle position
+            onSetCycleDay && onSetCycleDay(todayStr, 0);
+            alert('Cycle position reset to Day 1!');
+          }
+        },
+        className: 'px-2 py-1 rounded bg-orange-900 text-orange-300 hover:bg-orange-800 ml-auto'
+      }, '🔄 Reset Cycle Position')
+    ),
     h('div', { className: 'grid grid-cols-7 gap-2' },
-      dates.map((date, index) => {
+      dates.map((date) => {
         const dateStr = formatDate(date);
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
         const dayOfMonth = date.getDate();
-        const planned = (dateStr === todayStr) ? dynamicToday : trainingCycle[index % cycleLength];
         const actual = entriesByDate[dateStr];
+        const planned = getPlannedWorkout(dateStr);
+
+        // Calculate cycle day for this date
+        const getCycleDayForDate = (date) => {
+          const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+          const lastEntryBeforeDate = sortedEntries
+            .filter(e => new Date(e.date) <= new Date(date))
+            .pop();
+
+          if (!lastEntryBeforeDate) {
+            const daysSinceEpoch = Math.floor((new Date(date) - new Date('2025-01-01')) / (1000 * 60 * 60 * 24));
+            return (daysSinceEpoch % cycleLength) + 1;
+          }
+
+          const daysDiff = Math.floor((new Date(date) - new Date(lastEntryBeforeDate.date)) / (1000 * 60 * 60 * 24));
+          const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
+            ? lastEntryBeforeDate.cycleDay
+            : 0;
+
+          return ((lastCycleDay + daysDiff) % cycleLength) + 1;
+        };
+
+        const cycleDayNumber = getCycleDayForDate(dateStr);
+        const isCycleBoundary = cycleDayNumber === 1 || cycleDayNumber === cycleLength;
+
         let bgColor = 'bg-slate-700';
         if (actual) {
           bgColor = (actual.plannedTrainingType === actual.trainingType) ? 'bg-green-600' : 'bg-yellow-600';
@@ -550,13 +904,46 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday }) => {
         if (dateStr === todayStr) {
           bgColor += ' ring-2 ring-blue-500';
         }
-        return h('div', { key: dateStr, className: `p-2 rounded-lg text-center ${bgColor}` },
+        if (isCycleBoundary) {
+          bgColor += ' ring-1 ring-purple-400';
+        }
+
+        return h('div', {
+          key: dateStr,
+          className: `p-2 rounded-lg text-center ${bgColor} cursor-pointer hover:opacity-80 transition-opacity relative`,
+          onContextMenu: (e) => {
+            e.preventDefault();
+            setContextMenuDate(dateStr);
+            setContextMenuPosition({ x: e.clientX, y: e.clientY });
+          },
+          onTouchStart: (e) => {
+            // Long press detection for mobile
+            const touchTimer = setTimeout(() => {
+              const touch = e.touches[0];
+              setContextMenuDate(dateStr);
+              setContextMenuPosition({ x: touch.clientX, y: touch.clientY });
+            }, 500);
+            e.target._touchTimer = touchTimer;
+          },
+          onTouchEnd: (e) => {
+            if (e.target._touchTimer) {
+              clearTimeout(e.target._touchTimer);
+            }
+          }
+        },
           h('div', { className: 'font-bold text-xs' }, dayOfWeek.toUpperCase()),
           h('div', { className: 'text-lg font-bold' }, dayOfMonth),
-          h('div', { className: 'text-xs truncate' }, actual ? actual.trainingType : planned)
+          h('div', { className: 'text-xs truncate' }, actual ? actual.trainingType : planned),
+          h('div', { className: 'text-[10px] text-slate-400 mt-0.5' }, `D${cycleDayNumber}`)
         );
       })
-    )
+    ),
+
+    // Click outside to close context menu
+    contextMenuDate && h('div', {
+      className: 'fixed inset-0 z-40',
+      onClick: () => setContextMenuDate(null)
+    })
   );
 };
 
@@ -619,8 +1006,8 @@ const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
         const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
         const lastSleep = lastEntry ? lastEntry.deepSleepPercent : 15;
         const hours = lastEntry ? lastEntry.sleepHours : 7;
-        const cycleDay = entries.length % trainingCycle.length;
-        const plannedWorkout = trainingCycle[cycleDay];
+        // Use dynamic calendar logic for correct cycle position
+        const { cycleDay, today: plannedWorkout } = Coach.getDynamicCalendar(entries, trainingCycle);
 
         const prompt = `You are a hypertrophy training coach analyzing workout data for a 32-year-old male (139.5 lbs) in a body composition phase.
 
@@ -759,14 +1146,42 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
       ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
-        h(Input, { type: 'number', value: protein, onChange: e => setProtein(e.target.value), placeholder: 'e.g., 30' })
+        h(Input, {
+          type: 'text',
+          value: protein,
+          onChange: e => setProtein(parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 30 or 3k'
+        })
       ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
-        h(Input, { type: 'number', value: calories, onChange: e => setCalories(e.target.value), placeholder: 'e.g., 500' })
+        h(Input, {
+          type: 'text',
+          value: calories,
+          onChange: e => setCalories(parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 500 or 3k'
+        })
       ),
       h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, 'Add Entry')
     )
+  );
+};
+
+// Collapsible Section Component
+const CollapsibleSection = ({ title, isOpen, onToggle, children, icon = '📋' }) => {
+  return h('div', { className: 'bg-slate-800 rounded-lg overflow-hidden' },
+    h('button', {
+      type: 'button',
+      onClick: onToggle,
+      className: 'w-full p-4 flex justify-between items-center hover:bg-slate-700 transition-colors'
+    },
+      h('h3', { className: 'text-lg font-semibold flex items-center gap-2' },
+        h('span', {}, icon),
+        title
+      ),
+      h('span', { className: 'text-2xl' }, isOpen ? '▼' : '▶')
+    ),
+    isOpen && h('div', { className: 'p-4 pt-0 space-y-4' }, children)
   );
 };
 
@@ -778,23 +1193,108 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   const [trainingType, setTrainingType] = useState(plannedToday);
   const [exercises, setExercises] = useState([]);
   const [duration, setDuration] = useState(60);
+
+  // Sleep time inputs (h:mm format)
   const [sleepHours, setSleepHours] = useState(8);
-  const [deepSleepPercent, setDeepSleepPercent] = useState(20);
+  const [sleepMinutes, setSleepMinutes] = useState(0);
+  const [deepSleepHours, setDeepSleepHours] = useState(1);
+  const [deepSleepMinutes, setDeepSleepMinutes] = useState(36);
+
   const [recoveryRating, setRecoveryRating] = useState(8);
   const [weight, setWeight] = useState(USER_CONTEXT.startWeight);
   const [isUploading, setIsUploading] = useState(false);
 
+  // UI state for collapsible sections and quick log
+  const [quickLogMode, setQuickLogMode] = useState(false);
+  const [sleepSectionOpen, setSleepSectionOpen] = useState(true);
+  const [trainingSectionOpen, setTrainingSectionOpen] = useState(true);
+  const [bodySectionOpen, setBodySectionOpen] = useState(false);
+
   const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES])];
+
+  // Auto-calculate deep sleep percentage from time inputs
+  const totalSleepDecimal = timeToDecimal(sleepHours, sleepMinutes);
+  const deepSleepDecimal = timeToDecimal(deepSleepHours, deepSleepMinutes);
+  const deepSleepPercent = totalSleepDecimal > 0 ? Math.min(100, (deepSleepDecimal / totalSleepDecimal) * 100) : 0;
+
+  // Get recent exercises (last 10 unique)
+  const recentExercises = [...new Set(
+    allEntries
+      .flatMap(e => (e.exercises || []).map(ex => ex.name))
+      .filter(Boolean)
+      .reverse()
+  )].slice(0, 10);
+
+  // Workout timer
+  const [workoutStartTime, setWorkoutStartTime] = useState(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  useEffect(() => {
+    if (exercises.length > 0 && !workoutStartTime) {
+      setWorkoutStartTime(Date.now());
+    }
+  }, [exercises.length]);
+
+  useEffect(() => {
+    if (!workoutStartTime) return;
+    const interval = setInterval(() => {
+      setElapsedTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [workoutStartTime]);
+
+  const formatElapsedTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        const form = document.querySelector('form');
+        if (form) form.requestSubmit();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onCancel();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onCancel]);
 
   // Populate form
   useEffect(() => {
     if (entryToEdit) {
       setDate(entryToEdit.date);
       setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
-      setExercises(entryToEdit.exercises.map(ex => ({ ...ex, rpe: ex.rpe || 8 })) || []);
+      // Convert old format exercises to new format with weights array
+      const normalizedExercises = (entryToEdit.exercises || []).map(ex => {
+        const weights = Array.isArray(ex.weights)
+          ? [...ex.weights]
+          : (ex.weight ? Array(ex.sets || 3).fill(ex.weight) : ['', '', '']);
+        return {
+          ...ex,
+          weights: weights,
+          rpe: ex.rpe || 8
+        };
+      });
+      setExercises(normalizedExercises);
       setDuration(entryToEdit.duration || 60);
-      setSleepHours(entryToEdit.sleepHours || 8);
-      setDeepSleepPercent(entryToEdit.deepSleepPercent || 20);
+
+      // Convert stored decimal hours to h:mm format
+      const totalSleep = decimalToTime(entryToEdit.sleepHours || 8);
+      setSleepHours(totalSleep.hours);
+      setSleepMinutes(totalSleep.minutes);
+
+      const deepSleepHoursDecimal = (entryToEdit.sleepHours || 8) * ((entryToEdit.deepSleepPercent || 20) / 100);
+      const deepSleep = decimalToTime(deepSleepHoursDecimal);
+      setDeepSleepHours(deepSleep.hours);
+      setDeepSleepMinutes(deepSleep.minutes);
+
       setRecoveryRating(entryToEdit.recoveryRating || 8);
       setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
     } else {
@@ -806,17 +1306,27 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
 
   // --- Exercise Handlers ---
   const addExercise = (data = null) => {
-    setExercises([...exercises, data || { name: '', weight: '', eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
+    setExercises([...exercises, data || { name: '', weights: ['', '', ''], eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
   };
   const updateExercise = (index, field, value) => {
     const newExercises = [...exercises];
     newExercises[index] = { ...newExercises[index], [field]: value };
     if (field === 'sets') {
-      const newReps = new Array(Number(value) || 0).fill('');
+      const newSets = Number(value) || 0;
+      // Resize reps array
+      const newReps = new Array(newSets).fill('');
       for (let i = 0; i < Math.min(newReps.length, newExercises[index].reps.length); i++) {
         newReps[i] = newExercises[index].reps[i];
       }
       newExercises[index].reps = newReps;
+
+      // Resize weights array
+      const newWeights = new Array(newSets).fill('');
+      const oldWeights = newExercises[index].weights || [];
+      for (let i = 0; i < Math.min(newWeights.length, oldWeights.length); i++) {
+        newWeights[i] = oldWeights[i];
+      }
+      newExercises[index].weights = newWeights;
     }
     setExercises(newExercises);
   };
@@ -827,18 +1337,44 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     newExercises[exIndex] = { ...newExercises[exIndex], reps: newReps };
     setExercises(newExercises);
   };
+  const updateExerciseWeight = (exIndex, weightIndex, value) => {
+    const newExercises = [...exercises];
+    const newWeights = [...(newExercises[exIndex].weights || [])];
+    newWeights[weightIndex] = value;
+    newExercises[exIndex] = { ...newExercises[exIndex], weights: newWeights };
+    setExercises(newExercises);
+  };
+  const copyWeightToAllSets = (exIndex) => {
+    const newExercises = [...exercises];
+    const firstWeight = newExercises[exIndex].weights?.[0] || '';
+    if (firstWeight) {
+      const numSets = newExercises[exIndex].sets || 0;
+      newExercises[exIndex].weights = new Array(numSets).fill(firstWeight);
+      setExercises(newExercises);
+      showToast('Weight copied to all sets!');
+    }
+  };
   const removeExercise = (index) => {
     setExercises(exercises.filter((_, i) => i !== index));
   };
   const prefillExercise = (index, exName) => {
-    const lastEntry = [...allEntries].reverse().find(entry => 
+    const lastEntry = [...allEntries].reverse().find(entry =>
       entry.exercises && entry.exercises.some(ex => ex.name === exName)
     );
     if (lastEntry) {
       const lastEx = lastEntry.exercises.find(ex => ex.name === exName);
       if (lastEx) {
         const newExercises = [...exercises];
-        newExercises[index] = { ...lastEx, rpe: lastEx.rpe || 8 };
+        // Convert old format to new format if needed
+        const weights = Array.isArray(lastEx.weights)
+          ? [...lastEx.weights]
+          : (lastEx.weight ? Array(lastEx.sets || 3).fill(lastEx.weight) : ['', '', '']);
+
+        newExercises[index] = {
+          ...lastEx,
+          weights: weights,
+          rpe: lastEx.rpe || 8
+        };
         setExercises(newExercises);
         showToast('Exercise pre-filled!');
       }
@@ -850,10 +1386,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   // --- Submit Handler (Upgraded) ---
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     const totalSets = trainingType === 'REST' ? 0 : exercises.reduce((sum, ex) => sum + Number(ex.sets), 0);
     const grade = getGrade(deepSleepPercent, totalSets);
-    const deepSleepMinutes = Math.round((sleepHours * 60) * (deepSleepPercent / 100));
+    const deepSleepMinutesTotal = Math.round(deepSleepDecimal * 60);
 
     const newNames = new Set(allExerciseNames);
     exercises.forEach(ex => {
@@ -867,21 +1403,29 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       trainingType,
       plannedTrainingType: plannedToday,
       cycleDay: cycleDay,
-      exercises: trainingType === 'REST' ? [] : exercises.map(ex => ({
-        name: ex.name,
-        weight: Number(ex.weight),
-        eachHand: ex.eachHand,
-        sets: Number(ex.sets),
-        reps: ex.reps.map(r => Number(r)),
-        rpe: Number(ex.rpe),
-        volumeLoad: calculateVolumeLoad(ex.weight, ex.sets, ex.reps)
-      })),
+      exercises: trainingType === 'REST' ? [] : exercises.map(ex => {
+        const weights = (ex.weights || []).map(w => Number(w) || 0);
+        const reps = ex.reps.map(r => Number(r) || 0);
+        return {
+          name: ex.name,
+          weights: weights,
+          eachHand: ex.eachHand,
+          sets: Number(ex.sets),
+          reps: reps,
+          rpe: Number(ex.rpe),
+          volumeLoad: calculateVolumeLoad(weights, reps)
+        };
+      }),
       totalSets,
-      totalVolume: exercises.reduce((sum, ex) => sum + calculateVolumeLoad(ex.weight, ex.sets, ex.reps), 0),
+      totalVolume: exercises.reduce((sum, ex) => {
+        const weights = (ex.weights || []).map(w => Number(w) || 0);
+        const reps = ex.reps.map(r => Number(r) || 0);
+        return sum + calculateVolumeLoad(weights, reps);
+      }, 0),
       duration: Number(duration),
-      sleepHours: Number(sleepHours),
-      deepSleepPercent: Number(deepSleepPercent),
-      deepSleepMinutes,
+      sleepHours: totalSleepDecimal,
+      deepSleepPercent: deepSleepPercent,
+      deepSleepMinutes: deepSleepMinutesTotal,
       recoveryRating: Number(recoveryRating),
       // 💡 DECOUPLED: protein and calories are no longer saved here
       weight: Number(weight),
@@ -892,11 +1436,18 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     if (entry.trainingType !== 'REST') {
       entry.exercises.forEach(ex => {
         const prevPR = getPreviousPR(ex.name, allEntries, entry.id);
-        if (ex.weight > prevPR) {
-          const percent = prevPR > 0 ? `+${((ex.weight - prevPR) / prevPR * 100).toFixed(0)}%` : '+100%';
-          prsFound.push(`🏆 New PR! ${ex.name}: ${ex.weight} lbs (${percent})`);
+        const maxWeight = getMaxWeight(ex.weights);
+        if (maxWeight > 0 && maxWeight > prevPR) {
+          const percent = prevPR > 0 ? `+${((maxWeight - prevPR) / prevPR * 100).toFixed(0)}%` : '+100%';
+          prsFound.push(`🏆 New PR! ${ex.name}: ${maxWeight} lbs (${percent})`);
         }
       });
+    }
+
+    // Haptic feedback on PR detection
+    if (prsFound.length > 0 && 'vibrate' in navigator) {
+      // Three short bursts for celebration: [200ms vibrate, 100ms pause, 200ms vibrate, 100ms pause, 200ms vibrate]
+      navigator.vibrate([200, 100, 200, 100, 200]);
     }
 
     onSave(entry);
@@ -971,13 +1522,35 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       }
 
       const resultJson = JSON.parse(jsonMatch[0]);
-      
+
       // Auto-populate form
-      if (resultJson.sleepHours) setSleepHours(resultJson.sleepHours);
-      if (resultJson.deepSleepPercent) setDeepSleepPercent(resultJson.deepSleepPercent);
+      if (resultJson.sleepHours) {
+        const totalSleep = decimalToTime(resultJson.sleepHours);
+        setSleepHours(totalSleep.hours);
+        setSleepMinutes(totalSleep.minutes);
+
+        // If deepSleepPercent is provided, calculate deep sleep time
+        if (resultJson.deepSleepPercent) {
+          const deepSleepDecimalValue = resultJson.sleepHours * (resultJson.deepSleepPercent / 100);
+          const deepSleep = decimalToTime(deepSleepDecimalValue);
+          setDeepSleepHours(deepSleep.hours);
+          setDeepSleepMinutes(deepSleep.minutes);
+        }
+      }
       if (resultJson.weight) setWeight(resultJson.weight);
       if (resultJson.exercises && resultJson.exercises.length > 0) {
-        setExercises(resultJson.exercises.map(ex => ({ ...ex, rpe: 8 })));
+        // Convert extracted exercises to new format with weights array
+        const normalizedExercises = resultJson.exercises.map(ex => {
+          const weights = ex.weight
+            ? Array(ex.sets || 3).fill(ex.weight)
+            : (ex.weights || ['', '', '']);
+          return {
+            ...ex,
+            weights: weights,
+            rpe: 8
+          };
+        });
+        setExercises(normalizedExercises);
       }
       
       if (resultJson.protein || resultJson.calories) {
@@ -997,10 +1570,17 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
   };
 
   // --- Render Form ---
-  return h('form', { onSubmit: handleSubmit, className: 'space-y-6 p-4' },
-    h('h2', { className: 'text-2xl font-bold' }, entryToEdit ? 'Edit Log Entry' : 'New Log Entry'),
-    
-    h('div', { className: 'p-4 bg-slate-800 rounded-lg' },
+  return h('form', { onSubmit: handleSubmit, className: 'space-y-6 p-4 pb-24' },
+    h('div', { className: 'flex justify-between items-center mb-4' },
+      h('h2', { className: 'text-2xl font-bold' }, entryToEdit ? 'Edit Log Entry' : 'New Log Entry'),
+      h('button', {
+        type: 'button',
+        onClick: () => setQuickLogMode(!quickLogMode),
+        className: 'px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700'
+      }, quickLogMode ? '📝 Full Mode' : '⚡ Quick Log')
+    ),
+
+    !quickLogMode && h('div', { className: 'p-4 bg-slate-800 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold mb-2' }, '⚡ Auto-Populate (REAL AI)'),
       h('label', { className: 'block text-sm font-medium mb-1', htmlFor: 'file-upload' }, 'Upload Fitbit Image or .txt Log'),
       h(Input, { type: 'file', id: 'file-upload', onChange: handleFileUpload, accept: 'image/*,.txt' }),
@@ -1018,115 +1598,313 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Training Type'),
         h(Select, { value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
-          availableWorkoutTypes.map(type => 
+          availableWorkoutTypes.map(type =>
             h('option', { key: type, value: type }, type === plannedToday ? `${type} (Planned)` : type)
           )
         )
       )
     ),
 
-    h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('h3', { className: 'text-lg font-semibold' }, '🌙 Sleep & Recovery'),
+    h(CollapsibleSection, {
+      title: 'Sleep & Recovery',
+      icon: '🌙',
+      isOpen: sleepSectionOpen,
+      onToggle: () => setSleepSectionOpen(!sleepSectionOpen)
+    },
       h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Total Sleep (hours)'),
-        h(Input, { type: 'number', step: 0.1, value: sleepHours, onChange: (e) => setSleepHours(Number(e.target.value)) })
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Total Sleep Time'),
+        h('div', { className: 'grid grid-cols-2 gap-2' },
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
+            h(Input, { type: 'number', min: 0, max: 24, value: sleepHours, onChange: (e) => setSleepHours(Number(e.target.value)) })
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
+            h(Input, { type: 'number', min: 0, max: 59, value: sleepMinutes, onChange: (e) => setSleepMinutes(Number(e.target.value)) })
+          )
+        ),
+        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Total: ${formatSleepTime(totalSleepDecimal)}`)
       ),
       h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Deep Sleep (%)'),
-        h(Input, { type: 'number', step: 0.1, value: deepSleepPercent, onChange: (e) => setDeepSleepPercent(Number(e.target.value)) }),
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Deep Sleep Time'),
+        h('div', { className: 'grid grid-cols-2 gap-2' },
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
+            h(Input, { type: 'number', min: 0, max: 24, value: deepSleepHours, onChange: (e) => setDeepSleepHours(Number(e.target.value)) })
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
+            h(Input, { type: 'number', min: 0, max: 59, value: deepSleepMinutes, onChange: (e) => setDeepSleepMinutes(Number(e.target.value)) })
+          )
+        ),
+        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Deep: ${formatSleepTime(deepSleepDecimal)} (${deepSleepPercent.toFixed(1)}%)`),
         h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(deepSleepPercent))
       ),
-      h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
+      (!quickLogMode || sleepSectionOpen) && h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
     ),
-    
-    trainingType !== 'REST' && h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('h3', { className: 'text-lg font-semibold' }, '💪 Training'),
+
+    trainingType !== 'REST' && h(CollapsibleSection, {
+      title: 'Training',
+      icon: '💪',
+      isOpen: trainingSectionOpen,
+      onToggle: () => setTrainingSectionOpen(!trainingSectionOpen)
+    },
+      workoutStartTime && h('div', { className: 'mb-4 p-3 bg-slate-900 rounded-lg' },
+        h('div', { className: 'flex items-center justify-between' },
+          h('div', {},
+            h('p', { className: 'text-xs text-slate-400' }, '⏱️ Workout Timer'),
+            h('p', { className: 'text-2xl font-bold text-blue-400' }, formatElapsedTime(elapsedTime))
+          ),
+          h('button', {
+            type: 'button',
+            onClick: () => setDuration(Math.round(elapsedTime / 60)),
+            className: 'px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm transition-colors'
+          }, '↓ Use as duration')
+        )
+      ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Duration (minutes)'),
         h(Input, { type: 'number', step: 5, value: duration, onChange: (e) => setDuration(Number(e.target.value)) })
       ),
       h('h4', { className: 'font-semibold' }, 'Exercises'),
+      recentExercises.length > 0 && h('div', { className: 'mb-3' },
+        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Recent exercises:'),
+        h('div', { className: 'flex flex-wrap gap-2' },
+          recentExercises.map(exName =>
+            h('button', {
+              key: exName,
+              type: 'button',
+              onClick: () => {
+                // Find the last time this exercise was performed
+                const lastEntry = [...allEntries].reverse().find(e =>
+                  e.exercises && e.exercises.some(ex => ex.name === exName)
+                );
+                const lastExercise = lastEntry?.exercises.find(ex => ex.name === exName);
+
+                // Pre-fill with last performance
+                const newExercise = {
+                  name: exName,
+                  sets: lastExercise?.sets || 3,
+                  weights: lastExercise?.weights ? [...lastExercise.weights] : ['', '', ''],
+                  reps: lastExercise?.reps ? [...lastExercise.reps] : ['', '', ''],
+                  rpe: lastExercise?.rpe || 8
+                };
+                setExercises([...exercises, newExercise]);
+              },
+              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center'
+            }, exName)
+          )
+        )
+      ),
       h('div', { className: 'space-y-4' },
-        exercises.map((ex, i) => h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
-          h('div', { className: 'flex justify-between items-center' },
-            h('span', { className: 'font-semibold' }, `Exercise ${i + 1}`),
-            h('button', { type: 'button', className: 'text-red-400', onClick: () => removeExercise(i) }, 'Remove')
-          ),
-          
-          h(CoachSuggestionBox, { 
-            exerciseName: ex.name, 
-            allEntries, 
-            todaySleepPercent: deepSleepPercent 
-          }),
-          
-          h('div', {},
-            h('label', { className: 'block text-xs mb-1' }, 'Exercise Name'),
-            h(Input, { type: 'text', list: 'exercise-names', value: ex.name, onChange: (e) => updateExercise(i, 'name', e.target.value) }),
-            h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
-          ),
-          h('div', {},
-            h('label', { className: 'block text-xs mb-1' }, 'Load Previous Data'),
-            h(Select, { onChange: (e) => prefillExercise(i, e.target.value), value: '' },
-              h('option', { value: '' }, 'Select to pre-fill...'),
-              allExerciseNames.map(name => h('option', { key: name, value: name }, name))
+        exercises.map((ex, i) => quickLogMode
+          ? // QUICK LOG MODE: Compact single-row layout
+            h('div', { key: i, className: 'p-2 bg-slate-700 rounded-lg' },
+              h('div', { className: 'grid grid-cols-12 gap-2 items-center' },
+                h('div', { className: 'col-span-4' },
+                  h(Input, {
+                    type: 'text',
+                    list: 'exercise-names',
+                    placeholder: 'Exercise',
+                    value: ex.name,
+                    onChange: (e) => updateExercise(i, 'name', e.target.value),
+                    className: 'text-sm'
+                  })
+                ),
+                h('div', { className: 'col-span-2' },
+                  h(Input, {
+                    type: 'number',
+                    min: 1,
+                    placeholder: 'Sets',
+                    value: ex.sets,
+                    onChange: (e) => updateExercise(i, 'sets', e.target.value),
+                    className: 'text-sm'
+                  })
+                ),
+                h('div', { className: 'col-span-2' },
+                  h(Input, {
+                    type: 'number',
+                    step: 0.5,
+                    placeholder: 'Wt',
+                    value: (ex.weights && ex.weights[0]) || '',
+                    onChange: (e) => {
+                      const val = e.target.value;
+                      const newWeights = Array(Number(ex.sets) || 3).fill(val);
+                      const newExercises = [...exercises];
+                      newExercises[i] = { ...newExercises[i], weights: newWeights };
+                      setExercises(newExercises);
+                    },
+                    className: 'text-sm'
+                  })
+                ),
+                h('div', { className: 'col-span-2' },
+                  h(Input, {
+                    type: 'number',
+                    placeholder: 'Reps',
+                    value: ex.reps[0] || '',
+                    onChange: (e) => {
+                      const val = e.target.value;
+                      const newReps = Array(Number(ex.sets) || 3).fill(val);
+                      const newExercises = [...exercises];
+                      newExercises[i] = { ...newExercises[i], reps: newReps };
+                      setExercises(newExercises);
+                    },
+                    className: 'text-sm'
+                  })
+                ),
+                h('div', { className: 'col-span-2' },
+                  h('button', { type: 'button', className: 'text-red-400 text-xs', onClick: () => removeExercise(i) }, '✕')
+                )
+              ),
+              h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
             )
-          ),
-          h('div', { className: 'grid grid-cols-2 gap-2' },
-            h('div', {},
-              h('label', { className: 'block text-xs mb-1' }, 'Weight (lbs)'),
-              h(Input, { type: 'number', step: 0.5, value: ex.weight, onChange: (e) => updateExercise(i, 'weight', e.target.value) })
-            ),
-            h('div', {},
-              h('label', { className: 'block text-xs mb-1' }, 'Sets'),
-              h(Input, { type: 'number', min: 1, value: ex.sets, onChange: (e) => updateExercise(i, 'sets', e.target.value) })
-            )
-          ),
-          h('div', { className: 'flex items-center' },
+          : // FULL MODE: Detailed layout
+            h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
+              h('div', { className: 'flex justify-between items-center' },
+                h('span', { className: 'font-semibold' }, `Exercise ${i + 1}`),
+                h('button', { type: 'button', className: 'text-red-400', onClick: () => removeExercise(i) }, 'Remove')
+              ),
+
+              h(CoachSuggestionBox, {
+                exerciseName: ex.name,
+                allEntries,
+                todaySleepPercent: deepSleepPercent,
+                trainingType: trainingType
+              }),
+
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'Exercise Name'),
+                h(Input, { type: 'text', list: 'exercise-names', value: ex.name, onChange: (e) => updateExercise(i, 'name', e.target.value) }),
+                h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
+              ),
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'Load Previous Data'),
+                h(Select, { onChange: (e) => prefillExercise(i, e.target.value), value: '' },
+                  h('option', { value: '' }, 'Select to pre-fill...'),
+                  allExerciseNames.map(name => h('option', { key: name, value: name }, name))
+                )
+              ),
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'Number of Sets'),
+                h(Input, { type: 'number', min: 1, value: ex.sets, onChange: (e) => updateExercise(i, 'sets', e.target.value) })
+              ),
+          h('div', { className: 'flex items-center gap-2' },
             h('input', { type: 'checkbox', id: `eachHand-${i}`, checked: ex.eachHand, onChange: (e) => updateExercise(i, 'eachHand', e.target.checked), className: 'h-4 w-4' }),
-            h('label', { htmlFor: `eachHand-${i}`, className: 'ml-2 block text-sm' }, 'Weight is "each hand"')
+            h('label', { htmlFor: `eachHand-${i}`, className: 'block text-sm' }, 'Weight is "each hand"')
           ),
           h('div', {},
-            h('label', { className: 'block text-xs mb-1' }, `Reps per Set (${ex.sets})`),
-            h('div', { className: 'grid grid-cols-3 gap-2' },
-              ex.reps.map((rep, r_i) => h(Input, { key: r_i, type: 'number', placeholder: `Set ${r_i + 1}`, value: rep, onChange: (e) => updateExerciseRep(i, r_i, e.target.value) }))
+            h('div', { className: 'flex justify-between items-center mb-1' },
+              h('label', { className: 'block text-xs' }, `Weight & Reps per Set (${ex.sets} sets)`),
+              (ex.weights && ex.weights[0]) && h('button', {
+                type: 'button',
+                className: 'text-xs text-blue-400 hover:text-blue-300',
+                onClick: () => copyWeightToAllSets(i)
+              }, '📋 Copy weight to all sets')
+            ),
+            h('div', { className: 'space-y-2' },
+              ex.reps.map((rep, setIndex) =>
+                h('div', { key: setIndex, className: 'grid grid-cols-3 gap-2 items-center' },
+                  h('div', { className: 'text-xs text-slate-400' }, `Set ${setIndex + 1}:`),
+                  h(Input, {
+                    type: 'number',
+                    step: 0.5,
+                    placeholder: 'Weight',
+                    value: (ex.weights && ex.weights[setIndex]) || '',
+                    onChange: (e) => updateExerciseWeight(i, setIndex, e.target.value)
+                  }),
+                  h(Input, {
+                    type: 'number',
+                    placeholder: 'Reps',
+                    value: rep,
+                    onChange: (e) => updateExerciseRep(i, setIndex, e.target.value)
+                  })
+                )
+              )
             )
           ),
-          
+
           h(RpeSlider, { value: ex.rpe, onChange: (e) => updateExercise(i, 'rpe', e.target.value) })
         )),
         h(Button, { type: 'button', variant: 'secondary', onClick: () => addExercise() }, '+ Add Exercise')
       ),
-      h('div', { className: 'text-lg font-bold' }, `Total Working Sets: ${exercises.reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0)}`)
+      h('div', { className: 'grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg' },
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Working Sets'),
+          h('div', { className: 'text-2xl font-bold text-cyan-400' }, exercises.reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0))
+        ),
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Session Volume'),
+          h('div', { className: 'text-2xl font-bold text-green-400' },
+            (() => {
+              const totalVolume = exercises.reduce((sum, ex) => {
+                const weights = (ex.weights || []).map(w => Number(w) || 0);
+                const reps = ex.reps.map(r => Number(r) || 0);
+                return sum + calculateVolumeLoad(weights, reps);
+              }, 0);
+              return `${totalVolume.toLocaleString()} lbs`;
+            })()
+          )
+        )
+      )
     ),
 
-    h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('h3', { className: 'text-lg font-semibold' }, '⚖️ Body Weight'),
+    h(CollapsibleSection, {
+      title: 'Body Weight',
+      icon: '⚖️',
+      isOpen: bodySectionOpen,
+      onToggle: () => setBodySectionOpen(!bodySectionOpen)
+    },
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Body Weight (lbs)'),
         h(Input, { type: 'number', step: 0.1, value: weight, onChange: (e) => setWeight(Number(e.target.value)) })
       )
     ),
 
-    h('div', { className: 'flex gap-4' },
-      h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? 'Update Entry' : 'Save Entry'),
+    // Floating Save Button
+    h('div', { className: 'fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 flex gap-4 z-50' },
+      h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? '💾 Update Entry' : '💾 Save Entry'),
       h(Button, { type: 'button', variant: 'secondary', onClick: onCancel }, 'Cancel')
     )
   );
 };
 
 // --- 📜 ENTRY CARD COMPONENT (UPGRADED) ---
-const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
+const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   // 💡💡💡 THIS IS THE FIX 💡💡💡
   // We are now dynamically calculating nutrition totals for THIS entry's date
   const { totalProtein, totalCalories } = getNutritionForDate(nutrition, entry.date);
-  
+
   const totalVolume = entry.totalVolume || 0;
   const validExercises = (entry.exercises || []).filter(ex => ex.rpe > 0);
   const avgRPE = validExercises.length > 0
     ? (validExercises.reduce((sum, ex) => sum + (ex.rpe || 0), 0) / validExercises.length).toFixed(1)
     : 'N/A';
+
+  // Find last workout of same type for volume comparison
+  const getVolumeComparison = () => {
+    if (entry.trainingType === 'REST') return null;
+
+    const previousWorkouts = allEntries
+      .filter(e => e.trainingType === entry.trainingType && e.date < entry.date && e.totalVolume > 0)
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    if (previousWorkouts.length === 0) return null;
+
+    const lastWorkout = previousWorkouts[0];
+    const volumeDiff = totalVolume - lastWorkout.totalVolume;
+    const volumePercent = ((volumeDiff / lastWorkout.totalVolume) * 100).toFixed(1);
+
+    return {
+      diff: volumeDiff,
+      percent: volumePercent,
+      isIncrease: volumeDiff > 0,
+      lastVolume: lastWorkout.totalVolume
+    };
+  };
+
+  const volumeComparison = getVolumeComparison();
 
   return h('div', { className: 'bg-slate-800 rounded-lg shadow-lg overflow-hidden' },
     h('div', {
@@ -1136,7 +1914,10 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
       h('div', { className: 'flex items-center gap-3' },
         h('span', { className: 'text-3xl' }, entry.trainingType === 'REST' ? '🛌' : '💪'),
         h('div', {},
-          h('h3', { className: 'text-lg font-bold' }, `${entry.date} - ${entry.trainingType}`),
+          h('div', { className: 'flex items-center gap-2' },
+            h('h3', { className: 'text-lg font-bold' }, `${entry.date} - ${entry.trainingType}`),
+            volumeComparison && h('span', { className: 'text-xl' }, volumeComparison.isIncrease ? '📈' : '📉')
+          ),
           h('p', { className: 'text-sm text-slate-400' },
             entry.trainingType !== 'REST'
               ? `Vol: ${totalVolume.toLocaleString()} lbs | Sets: ${entry.totalSets} | Avg RPE: ${avgRPE}`
@@ -1152,7 +1933,11 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
 
     isExpanded && h('div', { className: 'p-4 border-t border-slate-700 space-y-4' },
       h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
-        h('div', {}, h('div', { className: 'font-bold' }, '🌙 Sleep'), h('div', { className: 'text-sm' }, `${entry.sleepHours}h / ${entry.deepSleepPercent}% deep`)),
+        h('div', {},
+          h('div', { className: 'font-bold' }, '🌙 Sleep'),
+          h('div', { className: 'text-xs' }, formatSleepTime(entry.sleepHours)),
+          h('div', { className: 'text-xs text-slate-400' }, `${formatSleepTime(entry.sleepHours * (entry.deepSleepPercent / 100))} deep (${entry.deepSleepPercent.toFixed(1)}%)`)
+        ),
         // 💡💡💡 THIS IS THE FIX 💡💡💡
         // Using the live `totalProtein` and `totalCalories` variables
         h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${totalProtein}g`)),
@@ -1162,11 +1947,37 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete }) => {
       entry.exercises && entry.exercises.length > 0 && h('div', {},
         h('h4', { className: 'text-md font-semibold mb-2' }, 'Exercises'),
         h('ul', { className: 'space-y-1' },
-          entry.exercises.map((ex, i) =>
-            h('li', { key: i, className: 'flex justify-between text-sm bg-slate-700 p-2 rounded' },
+          entry.exercises.map((ex, i) => {
+            // Support both old and new format
+            const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
+            const validWeights = weights.filter(w => w > 0);
+            const weightDisplay = validWeights.length > 0
+              ? (validWeights.every(w => w === validWeights[0])
+                ? `${validWeights[0]} lbs`  // All weights same
+                : `${Math.min(...validWeights)}-${Math.max(...validWeights)} lbs`) // Weight range
+              : 'N/A';
+
+            return h('li', { key: i, className: 'flex justify-between text-sm bg-slate-700 p-2 rounded' },
               h('span', { className: 'font-medium' }, ex.name),
-              h('span', {}, `${ex.weight} lbs | ${ex.sets}x(${ex.reps.join('/')})`),
+              h('span', {}, `${weightDisplay} | ${ex.sets}x(${ex.reps.join('/')})`),
               h('span', { className: 'text-slate-400' }, `RPE: ${ex.rpe || 'N/A'}`)
+            );
+          })
+        )
+      ),
+      volumeComparison && h('div', { className: 'p-3 bg-slate-900 rounded-lg' },
+        h('h4', { className: 'text-sm font-semibold mb-2' }, '📊 Volume Comparison'),
+        h('div', { className: 'flex justify-between items-center' },
+          h('div', {},
+            h('div', { className: 'text-xs text-slate-400' }, 'vs. Last ' + entry.trainingType),
+            h('div', { className: 'text-sm' }, `Previous: ${volumeComparison.lastVolume.toLocaleString()} lbs`)
+          ),
+          h('div', { className: 'text-right' },
+            h('div', {
+              className: `text-lg font-bold ${volumeComparison.isIncrease ? 'text-green-400' : 'text-red-400'}`
+            }, `${volumeComparison.isIncrease ? '+' : ''}${volumeComparison.percent}%`),
+            h('div', { className: 'text-xs text-slate-400' },
+              `${volumeComparison.isIncrease ? '+' : ''}${volumeComparison.diff.toLocaleString()} lbs`
             )
           )
         )
@@ -1328,6 +2139,9 @@ const App = () => {
   const [showAIModal, setShowAIModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [showNutritionModal, setShowNutritionModal] = useState(false);
+  const [showCycleEditor, setShowCycleEditor] = useState(false);
+  const [showCycleStartModal, setShowCycleStartModal] = useState(false);
+  const [pendingCycle, setPendingCycle] = useState(null);
 
   // --- HANDLERS ---
   const handleSaveEntry = (entry) => {
@@ -1357,7 +2171,20 @@ const App = () => {
     setEntryToEdit(entry);
     setView('form');
   };
-  
+
+  const handleDuplicateLastWorkout = () => {
+    const lastWorkout = sortedEntries.filter(e => e.trainingType !== 'REST').pop();
+    if (lastWorkout) {
+      const duplicated = {
+        ...lastWorkout,
+        id: null, // Will be generated in form
+        date: formatDate(new Date()), // Set to today
+      };
+      setEntryToEdit(duplicated);
+      setView('form');
+    }
+  };
+
   const handleDeleteEntry = (id) => {
     setEntries(prev => prev.filter(e => e.id !== id));
     setShowDeleteModal(null);
@@ -1383,11 +2210,25 @@ const App = () => {
           cycleDay: cycleDay
         });
       case 'calendar':
-        return h(TrainingCalendar, { 
-          entries: sortedEntries, 
-          trainingCycle, 
-          dynamicToday: nextWorkout 
-        });
+        return h('div', { className: 'space-y-4' },
+          h(TrainingCalendar, {
+            entries: sortedEntries,
+            trainingCycle,
+            dynamicToday: nextWorkout,
+            onEditCycle: () => setShowCycleEditor(true),
+            onSetCycleDay: (date, dayNumber) => {
+              // Handle manual cycle day setting
+              const entry = {
+                id: generateId(),
+                date: date,
+                manualCycleDay: dayNumber,
+                note: `Manually set to Day ${dayNumber} of cycle`
+              };
+              // You can store this in a separate state or as a marker
+              console.log('Set cycle day:', date, dayNumber);
+            }
+          })
+        );
       case 'charts':
         return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames });
       case 'settings':
@@ -1402,23 +2243,47 @@ const App = () => {
       case 'dashboard':
       default:
         return h('div', { className: 'space-y-6' },
-          h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-            h('h3', { className: 'text-lg font-semibold mb-2' }, planTitle),
-            h('p', { className: 'text-2xl font-bold text-cyan-400' }, nextWorkout),
-            h('p', { className: 'text-sm text-slate-300' }, coachNote)
+          // Enhanced Header with Planned Workout + Today's Stats
+          h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
+            h('div', { className: 'mb-4' },
+              h('h3', { className: 'text-sm font-semibold text-slate-400 mb-1' }, planTitle),
+              h('p', { className: 'text-3xl font-bold text-cyan-400' }, nextWorkout),
+              h('p', { className: 'text-sm text-slate-300 mt-1' }, coachNote)
+            ),
+            h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
+              h('div', { className: 'text-center' },
+                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Protein'),
+                h('div', { className: 'text-2xl font-bold text-green-400' }, `${todaysNutrition.totalProtein}g`),
+                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein))
+              ),
+              h('div', { className: 'text-center' },
+                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
+                h('div', { className: 'text-2xl font-bold text-orange-400' }, todaysNutrition.totalCalories)
+              ),
+              h('div', { className: 'text-center' },
+                h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
+                h('div', { className: 'text-2xl font-bold' }, `${sortedEntries.length > 0 ? (sortedEntries[sortedEntries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight} lbs`)
+              ),
+              h('div', { className: 'text-center' },
+                h('div', { className: 'text-xs text-slate-400' }, 'Total Workouts'),
+                h('div', { className: 'text-2xl font-bold text-purple-400' }, sortedEntries.filter(e => e.trainingType !== 'REST').length)
+              )
+            )
           ),
-          h(StatsSummary, { 
-            entries: sortedEntries, 
-            liveProtein: todaysNutrition.totalProtein,
-            liveCalories: todaysNutrition.totalCalories
-          }),
-          h(Button, { 
-            onClick: () => setShowNutritionModal(true), 
-            variant: 'secondary',
-            className: 'w-full text-lg'
-          }, '🥩 Add Nutrition'),
-          h(Button, { 
-            onClick: () => setShowAIModal(true), 
+          h('div', { className: 'grid grid-cols-2 gap-4' },
+            h(Button, {
+              onClick: () => setShowNutritionModal(true),
+              variant: 'secondary',
+              className: 'text-lg'
+            }, '🥩 Add Nutrition'),
+            sortedEntries.filter(e => e.trainingType !== 'REST').length > 0 && h(Button, {
+              onClick: handleDuplicateLastWorkout,
+              variant: 'secondary',
+              className: 'text-lg'
+            }, '📋 Duplicate Last')
+          ),
+          h(Button, {
+            onClick: () => setShowAIModal(true),
             variant: 'primary',
             className: 'w-full text-lg'
           }, '🤖 Get Full Workout (REAL AI)'),
@@ -1430,6 +2295,7 @@ const App = () => {
                   key: entry.id,
                   entry: entry,
                   nutrition: nutrition, // 💡 Pass full nutrition log here
+                  allEntries: sortedEntries, // For volume comparison
                   onEdit: handleShowForm,
                   onDelete: openDeleteModal
                 }))
@@ -1467,7 +2333,63 @@ const App = () => {
       showNutritionModal && h(NutritionQuickAddModal, {
         onClose: () => setShowNutritionModal(false),
         onSave: handleSaveNutrition
-      })
+      }),
+
+      // Cycle Editor Modal
+      showCycleEditor && h(Modal, {
+        show: showCycleEditor,
+        onClose: () => setShowCycleEditor(false),
+        title: "Edit Training Cycle"
+      },
+        h(CycleEditor, {
+          currentCycle: trainingCycle,
+          entries: sortedEntries,
+          onClose: () => setShowCycleEditor(false),
+          onSave: (newCycle) => {
+            setPendingCycle(newCycle);
+            setShowCycleStartModal(true);
+            setShowCycleEditor(false);
+          }
+        })
+      ),
+
+      // Start Cycle Confirmation Modal
+      showCycleStartModal && h(Modal, {
+        show: showCycleStartModal,
+        onClose: () => setShowCycleStartModal(false),
+        title: "Start New Cycle?"
+      },
+        h('div', { className: 'space-y-4' },
+          h('p', {}, 'How would you like to start this new training cycle?'),
+          h('div', { className: 'flex flex-col gap-3' },
+            h(Button, {
+              variant: 'primary',
+              className: 'w-full',
+              onClick: () => {
+                setTrainingCycle(pendingCycle);
+                // Reset cycle position by clearing entries or adding marker
+                showToast('Cycle updated! Starting fresh from Day 1 today.');
+                setShowCycleStartModal(false);
+                setPendingCycle(null);
+              }
+            }, '🔄 Start from Day 1 Today'),
+            h(Button, {
+              variant: 'secondary',
+              className: 'w-full',
+              onClick: () => {
+                setTrainingCycle(pendingCycle);
+                showToast('Cycle updated! Continuing from current position.');
+                setShowCycleStartModal(false);
+                setPendingCycle(null);
+              }
+            }, '➡️ Continue from Current Position')
+          ),
+          h('div', { className: 'text-sm text-slate-400 mt-4' },
+            h('p', {}, 'Starting from Day 1 will reset your cycle position.'),
+            h('p', {}, 'Continuing will keep your current progress through the cycle.')
+          )
+        )
+      )
     ), // <-- Main scrolling div closes here
     
     // Bottom Nav Bar is now a sibling to the scrolling div
