@@ -103,6 +103,8 @@ const DB_KEY = 'hypertrophyApp.entries.v1';
 const CYCLE_KEY = 'hypertrophyApp.cycle.v1';
 const CUSTOM_CYCLES_KEY = 'hypertrophyApp.customCycles.v1';
 const NUTRITION_KEY = 'hypertrophyApp.nutrition.v1'; // Separate nutrition DB
+const DIET_GOALS_KEY = 'hypertrophyApp.dietGoals.v1'; // Diet goals
+const MIGRATION_FLAG_KEY = 'hypertrophyApp.migrationV2.done'; // Migration tracker
 
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -176,6 +178,60 @@ const calculateVolumeLoad = (weights, reps) => {
     totalVolume += weight * rep;
   }
   return totalVolume;
+};
+
+// --- 🔄 DATA MIGRATION FUNCTION ---
+// Migrates old entries (with sleep/nutrition in workout) to separated structure
+const migrateToSeparatedData = () => {
+  // Check if migration already completed
+  if (localStorage.getItem(MIGRATION_FLAG_KEY)) {
+    console.log('Migration already completed, skipping...');
+    return { migrated: false };
+  }
+
+  console.log('Starting data migration to separated nutrition/workout structure...');
+
+  const workoutEntries = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  const existingNutrition = JSON.parse(localStorage.getItem(NUTRITION_KEY) || '[]');
+
+  const newNutritionEntries = [];
+  const updatedWorkoutEntries = [];
+
+  workoutEntries.forEach(entry => {
+    // Create nutrition entry if this workout has sleep/nutrition data
+    if (entry.sleepHours || entry.weight || entry.recoveryRating) {
+      const nutritionEntry = {
+        id: generateId(),
+        date: entry.date,
+        sleepHours: entry.sleepHours || 0,
+        deepSleepPercent: entry.deepSleepPercent || 0,
+        deepSleepMinutes: entry.deepSleepMinutes || 0,
+        protein: 0, // Old entries didn't store protein in workout
+        calories: 0, // Old entries didn't store calories in workout
+        weight: entry.weight || 0,
+        recoveryRating: entry.recoveryRating || 8
+      };
+
+      // Only add if we don't already have nutrition for this date
+      const existsForDate = existingNutrition.some(n => n.date === entry.date) ||
+                            newNutritionEntries.some(n => n.date === entry.date);
+      if (!existsForDate) {
+        newNutritionEntries.push(nutritionEntry);
+      }
+    }
+
+    // Create cleaned workout entry (remove nutrition fields)
+    const { sleepHours, deepSleepPercent, deepSleepMinutes, weight, recoveryRating, grade, ...workoutData } = entry;
+    updatedWorkoutEntries.push(workoutData);
+  });
+
+  // Save migrated data
+  localStorage.setItem(DB_KEY, JSON.stringify(updatedWorkoutEntries));
+  localStorage.setItem(NUTRITION_KEY, JSON.stringify([...existingNutrition, ...newNutritionEntries]));
+  localStorage.setItem(MIGRATION_FLAG_KEY, 'true');
+
+  console.log(`Migration complete! Created ${newNutritionEntries.length} nutrition entries.`);
+  return { migrated: true, nutritionCreated: newNutritionEntries.length };
 };
 
 const getGrade = (deepSleepPercent, totalSets) => {
@@ -2121,7 +2177,17 @@ const App = () => {
   
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
-  
+
+  // Run data migration on mount (only once)
+  useEffect(() => {
+    const result = migrateToSeparatedData();
+    if (result.migrated) {
+      console.log(`Migration successful: ${result.nutritionCreated} nutrition entries created`);
+      // Force reload data after migration
+      window.location.reload();
+    }
+  }, []); // Empty deps = run once on mount
+
   useEffect(() => {
     localStorage.setItem(DB_KEY, JSON.stringify(entries));
   }, [entries]);
