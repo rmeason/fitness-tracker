@@ -1263,29 +1263,14 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   const [trainingType, setTrainingType] = useState(plannedToday);
   const [exercises, setExercises] = useState([]);
   const [duration, setDuration] = useState(60);
-
-  // Sleep time inputs (h:mm format)
-  const [sleepHours, setSleepHours] = useState(8);
-  const [sleepMinutes, setSleepMinutes] = useState(0);
-  const [deepSleepHours, setDeepSleepHours] = useState(1);
-  const [deepSleepMinutes, setDeepSleepMinutes] = useState(36);
-
-  const [recoveryRating, setRecoveryRating] = useState(8);
-  const [weight, setWeight] = useState(USER_CONTEXT.startWeight);
+  const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
   const [isUploading, setIsUploading] = useState(false);
 
   // UI state for collapsible sections and quick log
   const [quickLogMode, setQuickLogMode] = useState(false);
-  const [sleepSectionOpen, setSleepSectionOpen] = useState(true);
   const [trainingSectionOpen, setTrainingSectionOpen] = useState(true);
-  const [bodySectionOpen, setBodySectionOpen] = useState(false);
 
   const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES])];
-
-  // Auto-calculate deep sleep percentage from time inputs
-  const totalSleepDecimal = timeToDecimal(sleepHours, sleepMinutes);
-  const deepSleepDecimal = timeToDecimal(deepSleepHours, deepSleepMinutes);
-  const deepSleepPercent = totalSleepDecimal > 0 ? Math.min(100, (deepSleepDecimal / totalSleepDecimal) * 100) : 0;
 
   // Get recent exercises (last 10 unique)
   const recentExercises = [...new Set(
@@ -1354,22 +1339,8 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
       });
       setExercises(normalizedExercises);
       setDuration(entryToEdit.duration || 60);
-
-      // Convert stored decimal hours to h:mm format
-      const totalSleep = decimalToTime(entryToEdit.sleepHours || 8);
-      setSleepHours(totalSleep.hours);
-      setSleepMinutes(totalSleep.minutes);
-
-      const deepSleepHoursDecimal = (entryToEdit.sleepHours || 8) * ((entryToEdit.deepSleepPercent || 20) / 100);
-      const deepSleep = decimalToTime(deepSleepHoursDecimal);
-      setDeepSleepHours(deepSleep.hours);
-      setDeepSleepMinutes(deepSleep.minutes);
-
-      setRecoveryRating(entryToEdit.recoveryRating || 8);
-      setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
+      setCaloriesBurned(entryToEdit.caloriesBurned || '');
     } else {
-      const lastWeight = allEntries.length > 0 ? (allEntries[allEntries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight;
-      setWeight(lastWeight);
       setTrainingType(plannedToday);
     }
   }, [entryToEdit, allEntries, plannedToday]);
@@ -1458,8 +1429,6 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
     e.preventDefault();
 
     const totalSets = trainingType === 'REST' ? 0 : exercises.reduce((sum, ex) => sum + Number(ex.sets), 0);
-    const grade = getGrade(deepSleepPercent, totalSets);
-    const deepSleepMinutesTotal = Math.round(deepSleepDecimal * 60);
 
     const newNames = new Set(allExerciseNames);
     exercises.forEach(ex => {
@@ -1493,13 +1462,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
         return sum + calculateVolumeLoad(weights, reps);
       }, 0),
       duration: Number(duration),
-      sleepHours: totalSleepDecimal,
-      deepSleepPercent: deepSleepPercent,
-      deepSleepMinutes: deepSleepMinutesTotal,
-      recoveryRating: Number(recoveryRating),
-      // 💡 DECOUPLED: protein and calories are no longer saved here
-      weight: Number(weight),
-      grade,
+      caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
     };
 
     const prsFound = [];
@@ -1593,21 +1556,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 
       const resultJson = JSON.parse(jsonMatch[0]);
 
-      // Auto-populate form
-      if (resultJson.sleepHours) {
-        const totalSleep = decimalToTime(resultJson.sleepHours);
-        setSleepHours(totalSleep.hours);
-        setSleepMinutes(totalSleep.minutes);
-
-        // If deepSleepPercent is provided, calculate deep sleep time
-        if (resultJson.deepSleepPercent) {
-          const deepSleepDecimalValue = resultJson.sleepHours * (resultJson.deepSleepPercent / 100);
-          const deepSleep = decimalToTime(deepSleepDecimalValue);
-          setDeepSleepHours(deepSleep.hours);
-          setDeepSleepMinutes(deepSleep.minutes);
-        }
-      }
-      if (resultJson.weight) setWeight(resultJson.weight);
+      // Auto-populate form (workout data only - nutrition/sleep handled separately)
       if (resultJson.exercises && resultJson.exercises.length > 0) {
         // Convert extracted exercises to new format with weights array
         const normalizedExercises = resultJson.exercises.map(ex => {
@@ -1675,44 +1624,6 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       )
     ),
 
-    h(CollapsibleSection, {
-      title: 'Sleep & Recovery',
-      icon: '🌙',
-      isOpen: sleepSectionOpen,
-      onToggle: () => setSleepSectionOpen(!sleepSectionOpen)
-    },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Total Sleep Time'),
-        h('div', { className: 'grid grid-cols-2 gap-2' },
-          h('div', {},
-            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
-            h(Input, { type: 'number', min: 0, max: 24, value: sleepHours, onChange: (e) => setSleepHours(Number(e.target.value)) })
-          ),
-          h('div', {},
-            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
-            h(Input, { type: 'number', min: 0, max: 59, value: sleepMinutes, onChange: (e) => setSleepMinutes(Number(e.target.value)) })
-          )
-        ),
-        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Total: ${formatSleepTime(totalSleepDecimal)}`)
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Deep Sleep Time'),
-        h('div', { className: 'grid grid-cols-2 gap-2' },
-          h('div', {},
-            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Hours'),
-            h(Input, { type: 'number', min: 0, max: 24, value: deepSleepHours, onChange: (e) => setDeepSleepHours(Number(e.target.value)) })
-          ),
-          h('div', {},
-            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Minutes'),
-            h(Input, { type: 'number', min: 0, max: 59, value: deepSleepMinutes, onChange: (e) => setDeepSleepMinutes(Number(e.target.value)) })
-          )
-        ),
-        h('p', { className: 'text-xs text-slate-400 mt-1' }, `Deep: ${formatSleepTime(deepSleepDecimal)} (${deepSleepPercent.toFixed(1)}%)`),
-        h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(deepSleepPercent))
-      ),
-      (!quickLogMode || sleepSectionOpen) && h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
-    ),
-
     trainingType !== 'REST' && h(CollapsibleSection, {
       title: 'Training',
       icon: '💪',
@@ -1735,6 +1646,16 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Duration (minutes)'),
         h(Input, { type: 'number', step: 5, value: duration, onChange: (e) => setDuration(Number(e.target.value)) })
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories Burned (optional)'),
+        h(Input, {
+          type: 'number',
+          step: 10,
+          value: caloriesBurned,
+          onChange: (e) => setCaloriesBurned(e.target.value),
+          placeholder: 'e.g., 350'
+        })
       ),
       h('h4', { className: 'font-semibold' }, 'Exercises'),
       recentExercises.length > 0 && h('div', { className: 'mb-3' },
@@ -1915,18 +1836,6 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
             })()
           )
         )
-      )
-    ),
-
-    h(CollapsibleSection, {
-      title: 'Body Weight',
-      icon: '⚖️',
-      isOpen: bodySectionOpen,
-      onToggle: () => setBodySectionOpen(!bodySectionOpen)
-    },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Body Weight (lbs)'),
-        h(Input, { type: 'number', step: 0.1, value: weight, onChange: (e) => setWeight(Number(e.target.value)) })
       )
     ),
 
