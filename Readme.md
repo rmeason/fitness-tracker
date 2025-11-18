@@ -1,4 +1,4 @@
-# Hypertrophy PWA v.8 (Netlify Version)
+# Hypertrophy PWA v 0.8 (Netlify Version)
 
 This is a production-ready, build-less Progressive Web App (PWA) for tracking hypertrophy-focused workouts, sleep, and nutrition. It runs as a full-stack app on Netlify, using Netlify Functions and the AI Gateway for secure, live AI features.
 
