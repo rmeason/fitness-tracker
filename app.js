@@ -590,6 +590,13 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
   const [selectedExercise, setSelectedExercise] = useState(allExerciseNames[0] || '');
   const [chartType, setChartType] = useState('weight');
 
+  // Auto-select first exercise when allExerciseNames updates
+  useEffect(() => {
+    if (!selectedExercise && allExerciseNames.length > 0) {
+      setSelectedExercise(allExerciseNames[0]);
+    }
+  }, [allExerciseNames, selectedExercise]);
+
   if (!entries || entries.length === 0) {
     return h('p', { className: 'text-slate-400' }, 'No workout data yet to display charts.');
   }
@@ -652,10 +659,17 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
         ? getMaxWeight(ex.weights)
         : (ex.weight || 0);
 
+      // Calculate volumeLoad on the fly if not stored (for backward compatibility)
+      let volumeLoad = ex.volumeLoad;
+      if (!volumeLoad && ex.reps) {
+        const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
+        volumeLoad = calculateVolumeLoad(weights, ex.reps);
+      }
+
       return {
         date: entry.date,
         weight: maxWeight,
-        volumeLoad: ex.volumeLoad || 0
+        volumeLoad: volumeLoad || 0
       };
     })
     .filter(Boolean)
