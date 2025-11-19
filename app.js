@@ -308,7 +308,19 @@ const getNutritionForDate = (nutritionLog, date) => {
   const entriesForDate = nutritionLog.filter(n => n.date === date);
   const totalProtein = entriesForDate.reduce((sum, entry) => sum + (entry.protein || 0), 0);
   const totalCalories = entriesForDate.reduce((sum, entry) => sum + (entry.calories || 0), 0);
-  return { totalProtein, totalCalories };
+
+  // Get latest entry for the date (for sleep, weight, recovery)
+  const latestEntry = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1] : null;
+
+  return {
+    totalProtein,
+    totalCalories,
+    sleepHours: latestEntry?.sleepHours || 0,
+    deepSleepPercent: latestEntry?.deepSleepPercent || 0,
+    deepSleepMinutes: latestEntry?.deepSleepMinutes || 0,
+    weight: latestEntry?.weight || 0,
+    recoveryRating: latestEntry?.recoveryRating || 0
+  };
 };
 
 // Helper to get *today's* nutrition totals
@@ -1037,24 +1049,31 @@ const PRDashboard = ({ prs }) => {
 };
 
 // --- 📊 STATS SUMMARY COMPONENT (UPGRADED) ---
-const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
+const StatsSummary = ({ entries, nutrition, liveProtein, liveCalories }) => {
   const totalWorkouts = entries.filter(e => e.trainingType !== 'REST').length;
-  const currentWeight = entries.length > 0 ? (entries[entries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight;
-  
-  const validSleepEntries = entries.filter(e => e.deepSleepPercent !== null && e.deepSleepPercent > 0);
-  const avgDeepSleep = validSleepEntries.length > 0 ? (validSleepEntries.reduce((sum, e) => sum + e.deepSleepPercent, 0) / validSleepEntries.length).toFixed(1) : 'N/A';
-  
+
+  // Get current weight from latest nutrition entry
+  const currentWeight = nutrition.length > 0
+    ? (nutrition[nutrition.length - 1].weight || USER_CONTEXT.startWeight)
+    : USER_CONTEXT.startWeight;
+
+  // Calculate average deep sleep from nutrition entries
+  const validSleepEntries = nutrition.filter(n => n.deepSleepPercent !== null && n.deepSleepPercent > 0);
+  const avgDeepSleep = validSleepEntries.length > 0
+    ? (validSleepEntries.reduce((sum, n) => sum + n.deepSleepPercent, 0) / validSleepEntries.length).toFixed(1)
+    : 'N/A';
+
   return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
     h('h3', { className: 'text-lg font-semibold mb-4' }, '🔥 Quick Stats'),
     h('div', { className: 'grid grid-cols-2 gap-4' },
       h('div', { className: 'text-center' }, h('div', { className: 'text-2xl font-bold' }, totalWorkouts), h('div', { className: 'text-sm text-slate-400' }, 'Workouts')),
       h('div', { className: 'text-center' }, h('div', { className: 'text-2xl font-bold' }, `${currentWeight} lbs`), h('div', { className: 'text-sm text-slate-400' }, 'Current')),
-      h('div', { className: 'text-center' }, 
+      h('div', { className: 'text-center' },
         h('div', { className: 'text-2xl font-bold' }, `${liveProtein}g`),
         h('div', { className: 'text-sm text-slate-400' }, "Today's Protein"),
         h('div', { className: 'text-xs' }, getProteinStatus(liveProtein))
       ),
-      h('div', { className: 'text-center' }, 
+      h('div', { className: 'text-center' },
         h('div', { className: 'text-2xl font-bold' }, `${liveCalories}`),
         h('div', { className: 'text-sm text-slate-400' }, "Today's Cals")
       )
@@ -1063,7 +1082,7 @@ const StatsSummary = ({ entries, liveProtein, liveCalories }) => {
 };
 
 // --- 🤖 AI SUGGESTION MODAL (UPGRADED) ---
-const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
+const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, nutrition, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] = useState(null);
   const [error, setError] = useState(null);
@@ -1073,9 +1092,11 @@ const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, onClose }) => {
       try {
         const last10Workouts = entries.slice(-10);
         const topPRs = prs.slice(0, 10);
-        const lastEntry = entries.length > 0 ? entries[entries.length - 1] : null;
-        const lastSleep = lastEntry ? lastEntry.deepSleepPercent : 15;
-        const hours = lastEntry ? lastEntry.sleepHours : 7;
+
+        // Get last night's sleep from nutrition array
+        const lastNutrition = nutrition.length > 0 ? nutrition[nutrition.length - 1] : null;
+        const lastSleep = lastNutrition ? lastNutrition.deepSleepPercent : 15;
+        const hours = lastNutrition ? lastNutrition.sleepHours : 7;
         // Use dynamic calendar logic for correct cycle position
         const { cycleDay, today: plannedWorkout } = Coach.getDynamicCalendar(entries, trainingCycle);
 
@@ -1138,9 +1159,9 @@ Provide recommendation as JSON:
         setLoading(false);
       }
     };
-    
+
     fetchRecommendation();
-  }, [entries, prs, trainingCycle]);
+  }, [entries, prs, trainingCycle, nutrition]);
   
   const renderContent = () => {
     if (loading) {
@@ -1422,7 +1443,7 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
 };
 
 // --- 📜 WORKOUT LOG FORM (UPDATED) ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay }) => {
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay }) => {
   const { showToast } = useToast();
   // Form state
   const [date, setDate] = useState(formatDate(new Date()));
@@ -1430,6 +1451,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, allExerciseNa
   const [exercises, setExercises] = useState([]);
   const [duration, setDuration] = useState(60);
   const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
+
+  // Get today's sleep data from nutrition array
+  const todaysNutritionData = getTodaysNutrition(nutrition);
+  const todaySleepPercent = todaysNutritionData.deepSleepPercent;
   const [isUploading, setIsUploading] = useState(false);
 
   // UI state for collapsible sections and quick log
@@ -1925,7 +1950,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
               h(CoachSuggestionBox, {
                 exerciseName: ex.name,
                 allEntries,
-                todaySleepPercent: deepSleepPercent,
+                todaySleepPercent: todaySleepPercent,
                 trainingType: trainingType
               }),
 
@@ -2017,9 +2042,8 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // 💡💡💡 THIS IS THE FIX 💡💡💡
-  // We are now dynamically calculating nutrition totals for THIS entry's date
-  const { totalProtein, totalCalories } = getNutritionForDate(nutrition, entry.date);
+  // Get all nutrition data for this entry's date
+  const nutritionData = getNutritionForDate(nutrition, entry.date);
 
   const totalVolume = entry.totalVolume || 0;
   const validExercises = (entry.exercises || []).filter(ex => ex.rpe > 0);
@@ -2080,14 +2104,22 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
       h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 text-center' },
         h('div', {},
           h('div', { className: 'font-bold' }, '🌙 Sleep'),
-          h('div', { className: 'text-xs' }, formatSleepTime(entry.sleepHours)),
-          h('div', { className: 'text-xs text-slate-400' }, `${formatSleepTime(entry.sleepHours * (entry.deepSleepPercent / 100))} deep (${entry.deepSleepPercent.toFixed(1)}%)`)
+          h('div', { className: 'text-xs' }, nutritionData.sleepHours > 0 ? formatSleepTime(nutritionData.sleepHours) : 'N/A'),
+          nutritionData.sleepHours > 0 && h('div', { className: 'text-xs text-slate-400' },
+            `${formatSleepTime(nutritionData.sleepHours * (nutritionData.deepSleepPercent / 100))} deep (${nutritionData.deepSleepPercent.toFixed(1)}%)`)
         ),
-        // 💡💡💡 THIS IS THE FIX 💡💡💡
-        // Using the live `totalProtein` and `totalCalories` variables
-        h('div', {}, h('div', { className: 'font-bold' }, '🥩 Protein'), h('div', { className: 'text-sm' }, `${totalProtein}g`)),
-        h('div', {}, h('div', { className: 'font-bold' }, '🔥 Calories'), h('div', { className: 'text-sm' }, `${totalCalories} kcal`)),
-        h('div', {}, h('div', { className: 'font-bold' }, '⚖️ Weight'), h('div', { className: 'text-sm' }, `${entry.weight} lbs`))
+        h('div', {},
+          h('div', { className: 'font-bold' }, '🥩 Protein'),
+          h('div', { className: 'text-sm' }, `${nutritionData.totalProtein}g`)
+        ),
+        h('div', {},
+          h('div', { className: 'font-bold' }, '🔥 Calories'),
+          h('div', { className: 'text-sm' }, `${nutritionData.totalCalories} kcal`)
+        ),
+        h('div', {},
+          h('div', { className: 'font-bold' }, '⚖️ Weight'),
+          h('div', { className: 'text-sm' }, nutritionData.weight > 0 ? `${nutritionData.weight} lbs` : 'N/A')
+        )
       ),
       entry.exercises && entry.exercises.length > 0 && h('div', {},
         h('h4', { className: 'text-md font-semibold mb-2' }, 'Exercises'),
@@ -2380,6 +2412,7 @@ const App = () => {
           onCancel: () => setView('dashboard'),
           entryToEdit: entryToEdit,
           allEntries: sortedEntries,
+          nutrition: nutrition,
           allExerciseNames: allExerciseNames,
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
@@ -2447,7 +2480,7 @@ const App = () => {
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
-                h('div', { className: 'text-2xl font-bold' }, `${sortedEntries.length > 0 ? (sortedEntries[sortedEntries.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight} lbs`)
+                h('div', { className: 'text-2xl font-bold' }, `${nutrition.length > 0 ? (nutrition[nutrition.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight} lbs`)
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Total Workouts'),
@@ -2500,11 +2533,12 @@ const App = () => {
       h('main', {}, renderView()),
       
       // Modals
-      showAIModal && h(AIWorkoutSuggestion, { 
-        entries: sortedEntries, 
-        prs: allPRs, 
-        trainingCycle, 
-        onClose: () => setShowAIModal(false) 
+      showAIModal && h(AIWorkoutSuggestion, {
+        entries: sortedEntries,
+        prs: allPRs,
+        trainingCycle,
+        nutrition: nutrition,
+        onClose: () => setShowAIModal(false)
       }),
       showDeleteModal && h(Modal, { show: !!showDeleteModal, onClose: () => setShowDeleteModal(null), title: "Confirm Deletion" },
         h('div', {},
