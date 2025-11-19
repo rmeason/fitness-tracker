@@ -149,13 +149,15 @@ const parseTimeString = (timeStr) => {
 // Parse numbers with 'k' suffix (e.g., "3k" -> 3000)
 const parseNumberWithSuffix = (value) => {
   if (typeof value === 'number') return value;
-  if (!value) return '';
+  if (!value) return 0;
   const str = value.toString().trim().toLowerCase();
   if (str.endsWith('k')) {
     const num = parseFloat(str.slice(0, -1));
-    return isNaN(num) ? '' : num * 1000;
+    return isNaN(num) ? 0 : num * 1000;
   }
-  return value;
+  // CRITICAL FIX: Always return a number, not the original string
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? 0 : parsed;
 };
 
 // Safely get max weight from weights array (handles empty arrays and edge cases)
@@ -319,8 +321,9 @@ const getPreviousPR = (exerciseName, allEntries, currentEntryId) => {
 // Helper to get nutrition totals for a *specific day*
 const getNutritionForDate = (nutritionLog, date) => {
   const entriesForDate = nutritionLog.filter(n => n.date === date);
-  const totalProtein = entriesForDate.reduce((sum, entry) => sum + (entry.protein || 0), 0);
-  const totalCalories = entriesForDate.reduce((sum, entry) => sum + (entry.calories || 0), 0);
+  // CRITICAL FIX: Explicitly convert to Number to prevent string concatenation
+  const totalProtein = entriesForDate.reduce((sum, entry) => sum + (Number(entry.protein) || 0), 0);
+  const totalCalories = entriesForDate.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
 
   // Get latest entry for the date (for sleep, weight, recovery)
   const latestEntry = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1] : null;
@@ -1221,8 +1224,9 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
   const { showToast } = useToast();
 
   const handleAdd = () => {
-    const prot = Number(protein) || 0;
-    const cals = Number(calories) || 0;
+    // CRITICAL FIX: Ensure parseNumberWithSuffix result is converted to Number
+    const prot = Number(parseNumberWithSuffix(protein)) || 0;
+    const cals = Number(parseNumberWithSuffix(calories)) || 0;
 
     if (prot === 0 && cals === 0) {
       showToast('Please enter protein or calories', 'error');
@@ -1231,7 +1235,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
 
     onSave({
       id: generateId(),
-      date: date, // 💡 Use the date from the state
+      date: date,
       protein: prot,
       calories: cals,
     });
@@ -1345,8 +1349,9 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
       sleepHours: totalSleepDecimal,
       deepSleepPercent: deepSleepPercent,
       deepSleepMinutes: deepSleepMinutesTotal,
-      protein: protein ? parseNumberWithSuffix(protein) : 0,
-      calories: calories ? parseNumberWithSuffix(calories) : 0,
+      // CRITICAL FIX: Wrap in Number() to ensure numeric values
+      protein: Number(protein ? parseNumberWithSuffix(protein) : 0),
+      calories: Number(calories ? parseNumberWithSuffix(calories) : 0),
       weight: Number(weight) || USER_CONTEXT.startWeight,
       recoveryRating: Number(recoveryRating)
     };
@@ -2123,12 +2128,12 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
         ),
         h('div', {},
           h('div', { className: 'font-bold' }, '🥩 Protein'),
-          h('div', { className: 'text-sm' }, `${nutritionData.totalProtein}g`)
+          h('div', { className: 'text-sm' }, `${Number(nutritionData.totalProtein).toLocaleString()}g`)
         ),
         h('div', {},
           h('div', { className: 'font-bold' }, '🔥 Calories'),
-          h('div', { className: 'text-sm' }, `${nutritionData.totalCalories} kcal`),
-          entry.caloriesBurned && h('div', { className: 'text-xs text-slate-400' }, `Burned: ${entry.caloriesBurned}`)
+          h('div', { className: 'text-sm' }, `${Number(nutritionData.totalCalories).toLocaleString()} kcal`),
+          entry.caloriesBurned && h('div', { className: 'text-xs text-slate-400' }, `Burned: ${Number(entry.caloriesBurned).toLocaleString()}`)
         ),
         h('div', {},
           h('div', { className: 'font-bold' }, '⚖️ Weight'),
@@ -2140,9 +2145,9 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
         h('div', { className: 'flex justify-between items-center' },
           h('span', { className: 'font-bold' }, '📊 Net Calories'),
           h('span', { className: 'text-lg' },
-            `${nutritionData.totalCalories - (entry.caloriesBurned || 0)} kcal`,
+            `${(Number(nutritionData.totalCalories) - Number(entry.caloriesBurned || 0)).toLocaleString()} kcal`,
             h('span', { className: 'text-xs text-slate-400 ml-2' },
-              `(${nutritionData.totalCalories} consumed - ${entry.caloriesBurned || 0} burned)`
+              `(${Number(nutritionData.totalCalories).toLocaleString()} consumed - ${Number(entry.caloriesBurned || 0).toLocaleString()} burned)`
             )
           )
         )
@@ -2599,12 +2604,12 @@ const App = () => {
             h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Protein'),
-                h('div', { className: 'text-2xl font-bold text-green-400' }, `${todaysNutrition.totalProtein}g`),
+                h('div', { className: 'text-2xl font-bold text-green-400' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
                 h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein))
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
-                h('div', { className: 'text-2xl font-bold text-orange-400' }, todaysNutrition.totalCalories)
+                h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString())
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
