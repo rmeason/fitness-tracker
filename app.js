@@ -328,9 +328,13 @@ const getNutritionForDate = (nutritionLog, date) => {
   // Get latest entry for the date (for sleep, weight, recovery)
   const latestEntry = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1] : null;
 
+  // Count meals (entries with protein or calories > 0)
+  const mealCount = entriesForDate.filter(e => (Number(e.protein) || 0) > 0 || (Number(e.calories) || 0) > 0).length;
+
   return {
     totalProtein,
     totalCalories,
+    mealCount,
     sleepHours: latestEntry?.sleepHours || 0,
     deepSleepPercent: latestEntry?.deepSleepPercent || 0,
     deepSleepMinutes: latestEntry?.deepSleepMinutes || 0,
@@ -1233,25 +1237,26 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
       return;
     }
 
+    // Create nutrition entry with only protein/calories (no sleep data)
     onSave({
       id: generateId(),
       date: date,
       protein: prot,
       calories: cals,
+      sleepHours: 0,
+      deepSleepPercent: 0,
+      deepSleepMinutes: 0,
+      weight: 0,
+      recoveryRating: 0
     });
 
     showToast(`Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
     onClose();
   };
 
-  return h(Modal, { show: true, onClose, title: "🥩 Quick Add Nutrition" },
+  return h(Modal, { show: true, onClose, title: "🍽️ Quick Add Meal" },
     h('div', { className: 'space-y-4' },
-      // 💡💡💡 THIS IS THE FIX 💡💡💡
-      // Add Date Input field
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-        h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
-      ),
+      h('p', { className: 'text-sm text-slate-400' }, `Adding to today (${date})`),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
         h(Input, {
@@ -1368,6 +1373,10 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
         onClick: onCancel,
         className: 'text-slate-400 hover:text-white text-2xl'
       }, '✕')
+    ),
+
+    h('p', { className: 'text-sm text-slate-400 bg-slate-800 p-3 rounded' },
+      '💡 Tip: All fields are optional. Log just sleep, just nutrition, or everything together. Multiple entries for the same day are aggregated.'
     ),
 
     // Date
@@ -2605,11 +2614,13 @@ const App = () => {
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Protein'),
                 h('div', { className: 'text-2xl font-bold text-green-400' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
-                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein))
+                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein)),
+                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
-                h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString())
+                h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString()),
+                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
@@ -2646,15 +2657,27 @@ const App = () => {
           ),
           h('div', { className: 'grid grid-cols-2 gap-4' },
             h(Button, {
+              onClick: () => setShowNutritionModal(true),
+              variant: 'primary',
+              className: 'text-lg'
+            }, '🍽️ Quick Add Meal'),
+            h(Button, {
               onClick: () => handleShowNutritionForm(),
               variant: 'secondary',
               className: 'text-lg'
-            }, '🌙 Log Sleep/Nutrition'),
-            sortedEntries.filter(e => e.trainingType !== 'REST').length > 0 && h(Button, {
+            }, '🌙 Log Sleep/Nutrition')
+          ),
+          sortedEntries.filter(e => e.trainingType !== 'REST').length > 0 && h('div', { className: 'grid grid-cols-2 gap-4' },
+            h(Button, {
               onClick: handleDuplicateLastWorkout,
               variant: 'secondary',
               className: 'text-lg'
-            }, '📋 Duplicate Last')
+            }, '📋 Duplicate Last Workout'),
+            h(Button, {
+              onClick: () => handleShowForm(null),
+              variant: 'secondary',
+              className: 'text-lg'
+            }, '💪 Log Workout')
           ),
           h(Button, {
             onClick: () => setShowAIModal(true),
