@@ -1256,7 +1256,10 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
 
   return h(Modal, { show: true, onClose, title: "🍽️ Quick Add Meal" },
     h('div', { className: 'space-y-4' },
-      h('p', { className: 'text-sm text-slate-400' }, `Adding to today (${date})`),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
+        h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
+      ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
         h(Input, {
