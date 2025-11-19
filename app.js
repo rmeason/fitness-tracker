@@ -2342,7 +2342,10 @@ const App = () => {
   const weeklyCaloriesBurned = sortedEntries
     .filter(e => new Date(e.date) >= sevenDaysAgo && e.caloriesBurned)
     .reduce((sum, e) => sum + (e.caloriesBurned || 0), 0);
-  
+
+  // Analyze recovery status from nutrition data
+  const recoveryAnalysis = Coach.analyzeRecoveryPattern(nutrition);
+
   // Modals
   const [showAIModal, setShowAIModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(null);
@@ -2506,6 +2509,28 @@ const App = () => {
                 h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
                 h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned),
                 h('div', { className: 'text-xs mt-1 text-slate-500' }, 'kcal (7 days)')
+              )
+            )
+          ),
+          // Recovery Status Indicator
+          h('div', { className: 'bg-slate-800 p-4 rounded-lg border-2', style: { borderColor: recoveryAnalysis.status === 'FRESH' ? '#10b981' : recoveryAnalysis.status === 'GOOD' ? '#3b82f6' : recoveryAnalysis.status === 'FATIGUED' ? '#f59e0b' : '#ef4444' } },
+            h('div', { className: 'flex items-center justify-between' },
+              h('div', {},
+                h('div', { className: 'flex items-center gap-2' },
+                  h('span', { className: 'text-3xl' }, recoveryAnalysis.emoji),
+                  h('div', {},
+                    h('h3', { className: 'text-lg font-bold' }, recoveryAnalysis.label),
+                    h('p', { className: 'text-xs text-slate-400' }, recoveryAnalysis.note)
+                  )
+                )
+              ),
+              h('div', { className: 'text-right text-sm' },
+                h('div', {}, `Sleep: ${recoveryAnalysis.avgSleep}%`),
+                h('div', {}, `Recovery: ${recoveryAnalysis.avgRecovery}/10`),
+                h('div', { className: 'text-xs mt-1' },
+                  recoveryAnalysis.trend === 'improving' ? '📈 Improving' :
+                  recoveryAnalysis.trend === 'declining' ? '📉 Declining' : '➡️ Stable'
+                )
               )
             )
           ),

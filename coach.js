@@ -214,9 +214,103 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     note = `You skipped ${lastPlannedWorkout} yesterday. Let's hit that today to stay on track.`;
   }
 
-  return { 
+  return {
     today: todayPlanned,
     note,
     cycleDay: nextCycleIndex // This is the index for today's plan
   };
+}
+
+/**
+ * Analyzes recovery patterns from nutrition data
+ * @param {Array} nutritionEntries - All nutrition entries (sorted oldest-to-newest)
+ * @returns {object} - Recovery analysis with status and recommendations
+ */
+export function analyzeRecoveryPattern(nutritionEntries) {
+  if (nutritionEntries.length < 3) {
+    return {
+      status: 'INSUFFICIENT_DATA',
+      label: 'Building Profile',
+      emoji: '📊',
+      note: 'Log more sleep data to unlock recovery insights.',
+      avgRecovery: 0,
+      avgSleep: 0,
+      trend: 'neutral'
+    };
+  }
+
+  // Get last 14 days of data
+  const last14Days = nutritionEntries.slice(-14);
+  const validEntries = last14Days.filter(e => e.sleepHours > 0 && e.recoveryRating > 0);
+
+  if (validEntries.length < 3) {
+    return {
+      status: 'INSUFFICIENT_DATA',
+      label: 'Building Profile',
+      emoji: '📊',
+      note: 'More data needed for recovery analysis.',
+      avgRecovery: 0,
+      avgSleep: 0,
+      trend: 'neutral'
+    };
+  }
+
+  // Calculate averages
+  const avgRecovery = validEntries.reduce((sum, e) => sum + e.recoveryRating, 0) / validEntries.length;
+  const avgSleep = validEntries.reduce((sum, e) => sum + e.deepSleepPercent, 0) / validEntries.length;
+
+  // Analyze trend (compare first half vs second half)
+  const midpoint = Math.floor(validEntries.length / 2);
+  const firstHalf = validEntries.slice(0, midpoint);
+  const secondHalf = validEntries.slice(midpoint);
+
+  const firstHalfAvg = firstHalf.reduce((sum, e) => sum + e.recoveryRating, 0) / firstHalf.length;
+  const secondHalfAvg = secondHalf.reduce((sum, e) => sum + e.recoveryRating, 0) / secondHalf.length;
+
+  let trend = 'neutral';
+  if (secondHalfAvg > firstHalfAvg + 0.5) trend = 'improving';
+  if (secondHalfAvg < firstHalfAvg - 0.5) trend = 'declining';
+
+  // Determine recovery status
+  if (avgRecovery >= 8.5 && avgSleep >= 18) {
+    return {
+      status: 'FRESH',
+      label: 'Fresh & Ready',
+      emoji: '🔥',
+      note: 'Recovery is excellent. Perfect time to push for PRs.',
+      avgRecovery: avgRecovery.toFixed(1),
+      avgSleep: avgSleep.toFixed(1),
+      trend
+    };
+  } else if (avgRecovery >= 7.5 && avgSleep >= 15) {
+    return {
+      status: 'GOOD',
+      label: 'Well Recovered',
+      emoji: '💪',
+      note: 'Good recovery. Maintain volume and intensity.',
+      avgRecovery: avgRecovery.toFixed(1),
+      avgSleep: avgSleep.toFixed(1),
+      trend
+    };
+  } else if (avgRecovery >= 6.5 || avgSleep >= 12) {
+    return {
+      status: 'FATIGUED',
+      label: 'Fatigued',
+      emoji: '⚠️',
+      note: 'Recovery is declining. Consider reducing volume or taking a rest day.',
+      avgRecovery: avgRecovery.toFixed(1),
+      avgSleep: avgSleep.toFixed(1),
+      trend
+    };
+  } else {
+    return {
+      status: 'OVERTRAINED',
+      label: 'Overtrained',
+      emoji: '🛑',
+      note: 'Severe fatigue detected. Prioritize rest and recovery.',
+      avgRecovery: avgRecovery.toFixed(1),
+      avgSleep: avgSleep.toFixed(1),
+      trend
+    };
+  }
 }
