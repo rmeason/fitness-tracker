@@ -2713,12 +2713,12 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   };
 
   const exportData = () => {
-    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition }, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `hypertrophy-backup-v6-${formatDate(new Date())}.json`; // v6 data structure
+    link.download = `hypertrophy-backup-v7-${formatDate(new Date())}.json`; // v7 data structure (includes sleep)
     link.click();
     URL.revokeObjectURL(url);
     showToast('Data exported successfully!');
@@ -2734,14 +2734,24 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         if (Array.isArray(imported)) {
           setEntries(imported); // Old v1 format
         } else {
-          // New v2-v6 format
-          if (imported.entries) setEntries(imported.entries);
+          // New v2-v7 format
+          if (imported.entries) {
+            setEntries(imported.entries);
+            localStorage.setItem(DB_KEY, JSON.stringify(imported.entries));
+          }
           if (imported.trainingCycle) setTrainingCycle(imported.trainingCycle);
           if (imported.customCycles) {
             setCustomCycles(imported.customCycles);
             localStorage.setItem(CUSTOM_CYCLES_KEY, JSON.stringify(imported.customCycles));
           }
-          if (imported.nutrition) setNutrition(imported.nutrition);
+          if (imported.nutrition) {
+            setNutrition(imported.nutrition);
+            localStorage.setItem(NUTRITION_KEY, JSON.stringify(imported.nutrition));
+          }
+          if (imported.sleep) {
+            setSleepEntries(imported.sleep);
+            localStorage.setItem(SLEEP_KEY, JSON.stringify(imported.sleep));
+          }
         }
         showToast('Data imported successfully!');
       } catch (err) {
@@ -2759,10 +2769,12 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       setTrainingCycle(CYCLE_PRESETS['current-14-day'].days);
       setCustomCycles({});
       setNutrition([]);
+      setSleepEntries([]);
       localStorage.removeItem(DB_KEY);
       localStorage.removeItem(CYCLE_KEY);
       localStorage.removeItem(CUSTOM_CYCLES_KEY);
       localStorage.removeItem(NUTRITION_KEY);
+      localStorage.removeItem(SLEEP_KEY);
       showToast('All data deleted.', 'danger');
     }
   };
