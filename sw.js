@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v9'; // Emergency fix for nutrition number concatenation
+const CACHE_NAME = 'hypertrophy-pwa-cache-v10'; // Quick meal logging UX overhaul
 
 const FILES_TO_CACHE = [
   './',

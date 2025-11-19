@@ -2707,7 +2707,7 @@ const App = () => {
     // The Nav Bar is now *outside* the main scrolling container.
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
       h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA V 0.8')
+        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA V 1.0')
       ),
       h('main', {}, renderView()),
       
