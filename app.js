@@ -2114,11 +2114,24 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
         ),
         h('div', {},
           h('div', { className: 'font-bold' }, '🔥 Calories'),
-          h('div', { className: 'text-sm' }, `${nutritionData.totalCalories} kcal`)
+          h('div', { className: 'text-sm' }, `${nutritionData.totalCalories} kcal`),
+          entry.caloriesBurned && h('div', { className: 'text-xs text-slate-400' }, `Burned: ${entry.caloriesBurned}`)
         ),
         h('div', {},
           h('div', { className: 'font-bold' }, '⚖️ Weight'),
           h('div', { className: 'text-sm' }, nutritionData.weight > 0 ? `${nutritionData.weight} lbs` : 'N/A')
+        )
+      ),
+      // Net Calories row (if both consumed and burned exist)
+      (nutritionData.totalCalories > 0 || entry.caloriesBurned) && h('div', { className: 'bg-slate-900 p-3 rounded-lg' },
+        h('div', { className: 'flex justify-between items-center' },
+          h('span', { className: 'font-bold' }, '📊 Net Calories'),
+          h('span', { className: 'text-lg' },
+            `${nutritionData.totalCalories - (entry.caloriesBurned || 0)} kcal`,
+            h('span', { className: 'text-xs text-slate-400 ml-2' },
+              `(${nutritionData.totalCalories} consumed - ${entry.caloriesBurned || 0} burned)`
+            )
+          )
         )
       ),
       entry.exercises && entry.exercises.length > 0 && h('div', {},
@@ -2320,8 +2333,15 @@ const App = () => {
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
   const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
   const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
-  
+
   const todaysNutrition = getTodaysNutrition(nutrition);
+
+  // Calculate weekly calories burned (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const weeklyCaloriesBurned = sortedEntries
+    .filter(e => new Date(e.date) >= sevenDaysAgo && e.caloriesBurned)
+    .reduce((sum, e) => sum + (e.caloriesBurned || 0), 0);
   
   // Modals
   const [showAIModal, setShowAIModal] = useState(false);
@@ -2483,8 +2503,9 @@ const App = () => {
                 h('div', { className: 'text-2xl font-bold' }, `${nutrition.length > 0 ? (nutrition[nutrition.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight} lbs`)
               ),
               h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Total Workouts'),
-                h('div', { className: 'text-2xl font-bold text-purple-400' }, sortedEntries.filter(e => e.trainingType !== 'REST').length)
+                h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
+                h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned),
+                h('div', { className: 'text-xs mt-1 text-slate-500' }, 'kcal (7 days)')
               )
             )
           ),
