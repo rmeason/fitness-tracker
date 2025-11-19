@@ -328,6 +328,9 @@ const getNutritionForDate = (nutritionLog, date) => {
   // Get latest entry for the date (for sleep, weight, recovery)
   const latestEntry = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1] : null;
 
+  // Get latest entry with weight > 0 (Quick Add Meals have weight: 0)
+  const latestWeightEntry = [...entriesForDate].reverse().find(e => Number(e.weight) > 0);
+
   // Count meals (entries with protein or calories > 0)
   const mealCount = entriesForDate.filter(e => (Number(e.protein) || 0) > 0 || (Number(e.calories) || 0) > 0).length;
 
@@ -338,7 +341,7 @@ const getNutritionForDate = (nutritionLog, date) => {
     sleepHours: latestEntry?.sleepHours || 0,
     deepSleepPercent: latestEntry?.deepSleepPercent || 0,
     deepSleepMinutes: latestEntry?.deepSleepMinutes || 0,
-    weight: latestEntry?.weight || 0,
+    weight: latestWeightEntry?.weight || 0,
     recoveryRating: latestEntry?.recoveryRating || 0
   };
 };
@@ -346,6 +349,13 @@ const getNutritionForDate = (nutritionLog, date) => {
 // Helper to get *today's* nutrition totals
 const getTodaysNutrition = (nutritionLog) => {
   return getNutritionForDate(nutritionLog, formatDate(new Date()));
+};
+
+// Helper to get current weight from all nutrition entries
+const getCurrentWeight = (nutritionLog) => {
+  // Find the most recent entry with weight > 0
+  const latestWeightEntry = [...nutritionLog].reverse().find(e => Number(e.weight) > 0);
+  return latestWeightEntry?.weight || USER_CONTEXT.startWeight;
 };
 
 // --- 🍞 TOAST COMPONENT ---
@@ -2541,7 +2551,9 @@ const App = () => {
   };
 
   const handleDeleteNutrition = (id) => {
-    setNutrition(prev => prev.filter(e => e.id !== id));
+    if (window.confirm('Are you sure you want to delete this nutrition entry?')) {
+      setNutrition(prev => prev.filter(e => e.id !== id));
+    }
   };
 
   const openDeleteModal = (id) => {
@@ -2627,7 +2639,7 @@ const App = () => {
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
-                h('div', { className: 'text-2xl font-bold' }, `${nutrition.length > 0 ? (nutrition[nutrition.length - 1].weight || USER_CONTEXT.startWeight) : USER_CONTEXT.startWeight} lbs`)
+                h('div', { className: 'text-2xl font-bold' }, `${getCurrentWeight(nutrition)} lbs`)
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
@@ -2688,6 +2700,43 @@ const App = () => {
             className: 'w-full text-lg'
           }, '🤖 Get Full Workout (REAL AI)'),
           h(PRDashboard, { prs: allPRs }),
+
+          // Today's Nutrition Log
+          nutrition.filter(n => n.date === formatDate(new Date())).length > 0 && h('div', { className: 'space-y-4' },
+            h('h2', { className: 'text-xl font-bold' }, 'Today\'s Nutrition Log'),
+            h('div', { className: 'space-y-2' },
+              nutrition.filter(n => n.date === formatDate(new Date())).map(entry =>
+                h('div', { key: entry.id, className: 'bg-slate-800 p-4 rounded-lg flex justify-between items-center' },
+                  h('div', {},
+                    h('div', { className: 'font-semibold' },
+                      [
+                        entry.protein > 0 ? `${Number(entry.protein).toLocaleString()}g protein` : null,
+                        entry.calories > 0 ? `${Number(entry.calories).toLocaleString()} kcal` : null,
+                        entry.weight > 0 ? `${entry.weight} lbs` : null,
+                        entry.sleepHours > 0 ? `${formatSleepTime(entry.sleepHours)} sleep` : null
+                      ].filter(Boolean).join(' • ')
+                    ),
+                    h('div', { className: 'text-xs text-slate-400 mt-1' },
+                      new Date(entry.id).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                    )
+                  ),
+                  h('div', { className: 'flex gap-2' },
+                    h(Button, {
+                      variant: 'secondary',
+                      onClick: () => handleShowNutritionForm(entry),
+                      className: 'text-sm px-3 py-1'
+                    }, 'Edit'),
+                    h(Button, {
+                      variant: 'danger',
+                      onClick: () => handleDeleteNutrition(entry.id),
+                      className: 'text-sm px-3 py-1'
+                    }, 'Delete')
+                  )
+                )
+              )
+            )
+          ),
+
           h('h2', { className: 'text-xl font-bold' }, 'Recent Entries'),
           h('div', { className: 'space-y-4' },
             sortedEntries.length > 0
