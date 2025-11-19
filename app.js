@@ -265,14 +265,16 @@ const migrateToSplitSleepNutrition = () => {
 
       // Only add if no sleep for this date yet, or this entry has more complete data
       if (!existingSleepForDate || (entry.sleepHours > existingSleepForDate.sleepHours)) {
-        sleepByDate.set(entry.date, {
+        const sleepEntry = {
           id: generateId(),
           date: entry.date,
           sleepHours: entry.sleepHours || 0,
           deepSleepPercent: entry.deepSleepPercent || 0,
           weight: entry.weight || 0,
           recoveryRating: entry.recoveryRating || 0
-        });
+        };
+        console.log(`[Migration V3] Creating sleep entry for ${entry.date}:`, sleepEntry);
+        sleepByDate.set(entry.date, sleepEntry);
       }
     }
 
@@ -2655,7 +2657,7 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
 };
 
 // --- ⚙️ SETTINGS COMPONENT (UPGRADED) ---
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries }) => {
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -2713,6 +2715,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   };
 
   const exportData = () => {
+    console.log(`[Export] Exporting data: ${entries.length} workouts, ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
     const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
@@ -2731,13 +2734,22 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     reader.onload = (event) => {
       try {
         const imported = JSON.parse(event.target.result);
+        console.log('[Import] Imported data:', {
+          entries: imported.entries?.length || 0,
+          nutrition: imported.nutrition?.length || 0,
+          sleep: imported.sleep?.length || 0,
+          isArray: Array.isArray(imported)
+        });
+
         if (Array.isArray(imported)) {
           setEntries(imported); // Old v1 format
+          console.log('[Import] Loaded v1 format (array only)');
         } else {
           // New v2-v7 format
           if (imported.entries) {
             setEntries(imported.entries);
             localStorage.setItem(DB_KEY, JSON.stringify(imported.entries));
+            console.log(`[Import] Restored ${imported.entries.length} workout entries`);
           }
           if (imported.trainingCycle) setTrainingCycle(imported.trainingCycle);
           if (imported.customCycles) {
@@ -2747,16 +2759,20 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
           if (imported.nutrition) {
             setNutrition(imported.nutrition);
             localStorage.setItem(NUTRITION_KEY, JSON.stringify(imported.nutrition));
+            console.log(`[Import] Restored ${imported.nutrition.length} nutrition entries`);
           }
           if (imported.sleep) {
             setSleepEntries(imported.sleep);
             localStorage.setItem(SLEEP_KEY, JSON.stringify(imported.sleep));
+            console.log(`[Import] Restored ${imported.sleep.length} sleep entries`);
+          } else {
+            console.warn('[Import] No sleep data found in import file');
           }
         }
         showToast('Data imported successfully!');
       } catch (err) {
         showToast('Failed to import data.', 'error');
-        console.error(err);
+        console.error('[Import] Error:', err);
       }
     };
     reader.readAsText(file);
@@ -2875,7 +2891,9 @@ const App = () => {
 
   const [sleepEntries, setSleepEntries] = useState(() => {
     const saved = localStorage.getItem(SLEEP_KEY);
-    return saved ? JSON.parse(saved) : [];
+    const parsed = saved ? JSON.parse(saved) : [];
+    console.log(`[App Init] Sleep entries loaded from localStorage: ${parsed.length} entries`);
+    return parsed;
   });
 
   const [view, setView] = useState('dashboard');
@@ -2887,7 +2905,7 @@ const App = () => {
   useEffect(() => {
     const result = migrateToSeparatedData();
     if (result.migrated) {
-      console.log(`Migration successful: ${result.nutritionCreated} nutrition entries created`);
+      console.log(`[Migration V2] Successful: ${result.nutritionCreated} nutrition entries created`);
       // Force reload data after migration
       window.location.reload();
     }
@@ -2897,11 +2915,22 @@ const App = () => {
   useEffect(() => {
     const result = migrateToSplitSleepNutrition();
     if (result.migrated) {
-      console.log(`Migration V3 successful: ${result.sleepCreated} sleep entries and ${result.nutritionCreated} nutrition entries created`);
+      console.log(`[Migration V3] Successful: ${result.sleepCreated} sleep entries and ${result.nutritionCreated} nutrition entries created`);
       // Force reload data after migration
       window.location.reload();
     }
   }, []); // Empty deps = run once on mount
+
+  // Debug: Log localStorage state on mount
+  useEffect(() => {
+    console.log('[Debug] LocalStorage state:', {
+      workouts: localStorage.getItem(DB_KEY) ? JSON.parse(localStorage.getItem(DB_KEY)).length : 0,
+      nutrition: localStorage.getItem(NUTRITION_KEY) ? JSON.parse(localStorage.getItem(NUTRITION_KEY)).length : 0,
+      sleep: localStorage.getItem(SLEEP_KEY) ? JSON.parse(localStorage.getItem(SLEEP_KEY)).length : 0,
+      migrationV2Done: localStorage.getItem(MIGRATION_FLAG_KEY),
+      migrationV3Done: localStorage.getItem(MIGRATION_FLAG_V3_KEY)
+    });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(DB_KEY, JSON.stringify(entries));
@@ -3121,7 +3150,8 @@ const App = () => {
           setTrainingCycle,
           nutrition: nutrition,
           setNutrition: setNutrition,
-          sleepEntries: sleepEntries
+          sleepEntries: sleepEntries,
+          setSleepEntries: setSleepEntries
         });
       case 'dashboard':
       default:
@@ -3344,6 +3374,35 @@ const NavButton = ({ icon, label, active, onClick }) => {
     h('span', { className: 'text-xs' }, label)
   );
 };
+
+// --- 🔍 DEBUG HELPERS (accessible from browser console) ---
+window.debugSleepData = () => {
+  const sleep = localStorage.getItem(SLEEP_KEY);
+  const nutrition = localStorage.getItem(NUTRITION_KEY);
+  const workouts = localStorage.getItem(DB_KEY);
+
+  console.log('=== DEBUG: Sleep Data ===');
+  console.log('Raw localStorage (SLEEP_KEY):', sleep);
+  console.log('Parsed sleep entries:', sleep ? JSON.parse(sleep) : null);
+  console.log('Sleep count:', sleep ? JSON.parse(sleep).length : 0);
+  console.log('\n=== Migration Status ===');
+  console.log('Migration V2 done:', localStorage.getItem(MIGRATION_FLAG_KEY));
+  console.log('Migration V3 done:', localStorage.getItem(MIGRATION_FLAG_V3_KEY));
+  console.log('\n=== All Data Counts ===');
+  console.log('Workouts:', workouts ? JSON.parse(workouts).length : 0);
+  console.log('Nutrition:', nutrition ? JSON.parse(nutrition).length : 0);
+  console.log('Sleep:', sleep ? JSON.parse(sleep).length : 0);
+
+  return {
+    sleepCount: sleep ? JSON.parse(sleep).length : 0,
+    nutritionCount: nutrition ? JSON.parse(nutrition).length : 0,
+    workoutsCount: workouts ? JSON.parse(workouts).length : 0,
+    migrationV2: localStorage.getItem(MIGRATION_FLAG_KEY),
+    migrationV3: localStorage.getItem(MIGRATION_FLAG_V3_KEY)
+  };
+};
+
+console.log('💡 Debug helper available: Type debugSleepData() in console to check sleep data state');
 
 // --- 🚀 MOUNT THE APP ---
 const root = ReactDOM.createRoot(document.getElementById('root'));
