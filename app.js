@@ -252,6 +252,19 @@ const getSleepQualityStars = (deepSleepPercent) => {
 };
 
 const getProteinStatus = (protein) => {
+  // Check for custom diet goals
+  const savedGoals = localStorage.getItem(DIET_GOALS_KEY);
+  const customGoals = savedGoals ? JSON.parse(savedGoals) : null;
+
+  if (customGoals && customGoals.enabled) {
+    const target = customGoals.protein;
+    if (protein >= target * 1.2) return h('span', { className: 'text-cyan-400 font-bold' }, 'Outstanding');
+    if (protein >= target * 1.1) return h('span', { className: 'text-green-400 font-bold' }, 'Excellent');
+    if (protein >= target) return h('span', { className: 'text-green-500' }, 'Target Met');
+    return h('span', { className: 'text-yellow-500' }, `${target - protein}g short`);
+  }
+
+  // Use default USER_CONTEXT targets
   if (protein >= USER_CONTEXT.proteinOutstanding) return h('span', { className: 'text-cyan-400 font-bold' }, 'Outstanding');
   if (protein >= USER_CONTEXT.proteinExcellent) return h('span', { className: 'text-green-400 font-bold' }, 'Excellent');
   if (protein >= USER_CONTEXT.proteinTarget) return h('span', { className: 'text-green-500' }, 'Target Met');
@@ -2189,6 +2202,55 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Diet Goals state
+  const [dietGoals, setDietGoals] = useState(() => {
+    const saved = localStorage.getItem(DIET_GOALS_KEY);
+    return saved ? JSON.parse(saved) : { protein: 140, calories: 2200, enabled: false };
+  });
+  const [showDietGoals, setShowDietGoals] = useState(false);
+  const [goalType, setGoalType] = useState('maintain');
+  const [activityLevel, setActivityLevel] = useState('moderate');
+  const [currentWeight, setCurrentWeight] = useState(() => {
+    return nutrition.length > 0 ? nutrition[nutrition.length - 1].weight : USER_CONTEXT.startWeight;
+  });
+
+  const calculateDietGoals = () => {
+    const weight = currentWeight || USER_CONTEXT.startWeight;
+
+    // Protein: 1g per lb minimum
+    const protein = Math.round(weight * 1.0);
+
+    // Calculate BMR (simplified Mifflin-St Jeor for males)
+    const bmr = 10 * (weight * 0.453592) + 6.25 * (USER_CONTEXT.height || 175) - 5 * USER_CONTEXT.age + 5;
+
+    // Activity multipliers
+    const activityMultipliers = {
+      sedentary: 1.2,
+      light: 1.375,
+      moderate: 1.55,
+      active: 1.725,
+      veryActive: 1.9
+    };
+
+    const tdee = Math.round(bmr * activityMultipliers[activityLevel]);
+
+    // Goal adjustments
+    const goalAdjustments = {
+      cut: -500,          // 1 lb/week loss
+      maintain: 0,
+      leanBulk: +250,     // 0.5 lb/week gain
+      bulk: +500          // 1 lb/week gain
+    };
+
+    const calories = tdee + goalAdjustments[goalType];
+
+    const newGoals = { protein, calories, enabled: true };
+    setDietGoals(newGoals);
+    localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(newGoals));
+    showToast(`Diet goals set: ${protein}g protein, ${calories} kcal`, 'success');
+    setShowDietGoals(false);
+  };
+
   const exportData = () => {
     const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
@@ -2260,6 +2322,49 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             setShowCycleEditor(false);
           }
         })
+      )
+    ),
+    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold' }, '🎯 Diet Goals'),
+      dietGoals.enabled && h('div', { className: 'text-sm text-slate-300 mb-2' },
+        `Current: ${dietGoals.protein}g protein, ${dietGoals.calories} kcal`
+      ),
+      h(Button, { onClick: () => setShowDietGoals(!showDietGoals), variant: 'primary' },
+        showDietGoals ? 'Hide Calculator' : 'Set Diet Goals'
+      ),
+      showDietGoals && h('div', { className: 'mt-4 space-y-3' },
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Current Weight (lbs)'),
+          h(Input, { type: 'number', step: 0.1, value: currentWeight, onChange: (e) => setCurrentWeight(Number(e.target.value)) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Goal Type'),
+          h('select', {
+            className: 'w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-white',
+            value: goalType,
+            onChange: (e) => setGoalType(e.target.value)
+          },
+            h('option', { value: 'cut' }, 'Cut (-500 kcal/day)'),
+            h('option', { value: 'maintain' }, 'Maintain'),
+            h('option', { value: 'leanBulk' }, 'Lean Bulk (+250 kcal/day)'),
+            h('option', { value: 'bulk' }, 'Bulk (+500 kcal/day)')
+          )
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Activity Level'),
+          h('select', {
+            className: 'w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-white',
+            value: activityLevel,
+            onChange: (e) => setActivityLevel(e.target.value)
+          },
+            h('option', { value: 'sedentary' }, 'Sedentary (little/no exercise)'),
+            h('option', { value: 'light' }, 'Light (1-3 days/week)'),
+            h('option', { value: 'moderate' }, 'Moderate (3-5 days/week)'),
+            h('option', { value: 'active' }, 'Active (6-7 days/week)'),
+            h('option', { value: 'veryActive' }, 'Very Active (2x/day)')
+          )
+        ),
+        h(Button, { onClick: calculateDietGoals, variant: 'primary', className: 'w-full' }, 'Calculate & Save Goals')
       )
     ),
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
