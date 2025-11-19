@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v10'; // Quick meal logging UX overhaul
+const CACHE_NAME = 'hypertrophy-pwa-cache-v11'; // Fix weight calculation + nutrition entry management
 
 const FILES_TO_CACHE = [
   './',
