@@ -782,9 +782,9 @@ const CycleEditor = ({ currentCycle, onSave, onClose, entries }) => {
   );
 };
 
-// --- 📈 CHART COMPONENT (UPGRADED) ---
+// --- 📈 CHART COMPONENT (FIXED FOR MOBILE) ---
 const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
-  const [selectedExercise, setSelectedExercise] = useState(allExerciseNames[0] || '');
+  const [selectedExercise, setSelectedExercise] = useState('');
   const [chartType, setChartType] = useState('weight');
 
   // Auto-select first exercise when allExerciseNames updates
@@ -794,38 +794,66 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
     }
   }, [allExerciseNames, selectedExercise]);
 
+  // No data state
   if (!entries || entries.length === 0) {
-    return h('p', { className: 'text-slate-400' }, 'No workout data yet to display charts.');
+    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
+      h('p', { className: 'text-slate-400' }, 'No workout data yet. Log a workout to see charts!')
+    );
   }
 
-  // Session volume chart shows total volume for each workout
+  // No exercises logged state
+  if (allExerciseNames.length === 0) {
+    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
+      h('p', { className: 'text-slate-400' }, 'No exercises logged yet. Add exercises to your workouts!')
+    );
+  }
+
+  // Session volume chart
   if (chartType === 'sessionVolume') {
     const sessionData = entries
       .filter(e => e.trainingType !== 'REST' && e.totalVolume > 0)
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+    if (sessionData.length === 0) {
+      return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
+        h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
+        h('div', { className: 'mb-4' },
+          h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
+            h('option', { value: 'weight' }, 'Show Peak Weight'),
+            h('option', { value: 'volume' }, 'Show Volume Load'),
+            h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
+          )
+        ),
+        h('p', { className: 'text-slate-400' }, 'No session volume data yet.')
+      );
+    }
+
     const chartData = {
-      labels: sessionData.map(d => `${d.date} (${d.trainingType})`),
+      labels: sessionData.map(d => d.date.slice(5)), // Shorter labels for mobile (MM-DD)
       datasets: [
         {
-          label: 'Total Session Volume (lbs)',
+          label: 'Session Volume (lbs)',
           data: sessionData.map(d => d.totalVolume),
           borderColor: '#a78bfa',
-          backgroundColor: '#a78bfa',
+          backgroundColor: 'rgba(167, 139, 250, 0.1)',
           tension: 0.1,
+          fill: true,
         },
       ],
     };
 
     const chartOptions = {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'top', labels: { color: '#cbd5e1' } },
-        title: { display: true, text: 'Session Volume Progress', color: '#f1f5f9' },
+        legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
+        title: { display: true, text: 'Session Volume Progress', color: '#f1f5f9', font: { size: 14 } },
       },
       scales: {
-        x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+        x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
+        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
       }
     };
 
@@ -838,9 +866,9 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
           h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
         )
       ),
-      sessionData.length > 0
-        ? h(Line, { data: chartData, options: chartOptions })
-        : h('p', { className: 'text-slate-400' }, 'No workout data yet. Log a workout!')
+      h('div', { className: 'relative w-full', style: { height: '300px' } },
+        h(Line, { data: chartData, options: chartOptions })
+      )
     );
   }
 
@@ -851,12 +879,10 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
       const ex = entry.exercises.find(e => e.name === selectedExercise);
       if (!ex) return null;
 
-      // Get max weight from weights array
       const maxWeight = Array.isArray(ex.weights)
         ? getMaxWeight(ex.weights)
         : (ex.weight || 0);
 
-      // Calculate volumeLoad on the fly if not stored (for backward compatibility)
       let volumeLoad = ex.volumeLoad;
       if (!volumeLoad && ex.reps) {
         const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
@@ -873,33 +899,40 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
   const chartData = {
-    labels: exerciseData.map(d => d.date),
+    labels: exerciseData.map(d => d.date.slice(5)), // Shorter labels (MM-DD)
     datasets: [
       {
-        label: chartType === 'weight' ? `${selectedExercise} Weight (lbs)` : `${selectedExercise} Volume (lbs)`,
+        label: chartType === 'weight' ? `Weight (lbs)` : `Volume (lbs)`,
         data: exerciseData.map(d => chartType === 'weight' ? d.weight : d.volumeLoad),
         borderColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
-        backgroundColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
+        backgroundColor: chartType === 'weight' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(52, 211, 153, 0.1)',
         tension: 0.1,
+        fill: true,
       },
     ],
   };
 
   const chartOptions = {
     responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top', labels: { color: '#cbd5e1' } },
-      title: { display: true, text: `Progression for ${selectedExercise}`, color: '#f1f5f9' },
+      legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
+      title: { 
+        display: true, 
+        text: selectedExercise ? `${selectedExercise}` : 'Select an Exercise', 
+        color: '#f1f5f9',
+        font: { size: 14 }
+      },
     },
     scales: {
-      x: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } },
-      y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+      x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
+      y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
     }
   };
 
   return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
     h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-    h('div', { className: 'grid grid-cols-2 gap-4 mb-4' },
+    h('div', { className: 'grid grid-cols-1 gap-3 mb-4' },
       h(Select, { value: selectedExercise, onChange: (e) => setSelectedExercise(e.target.value) },
         h('option', { value: '' }, 'Select Exercise...'),
         allExerciseNames.map(name => h('option', { key: name, value: name }, name))
@@ -910,9 +943,17 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
         h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
       )
     ),
-    exerciseData.length > 0 && selectedExercise
-      ? h(Line, { data: chartData, options: chartOptions })
-      : h('p', { className: 'text-slate-400' }, 'No data for this exercise yet. Log a workout!')
+    h('div', { className: 'relative w-full', style: { height: '300px' } },
+      exerciseData.length > 0 && selectedExercise
+        ? h(Line, { data: chartData, options: chartOptions })
+        : h('div', { className: 'flex items-center justify-center h-full' },
+            h('p', { className: 'text-slate-400 text-center' }, 
+              selectedExercise 
+                ? `No data for ${selectedExercise} yet.`
+                : 'Select an exercise to view progress.'
+            )
+          )
+    )
   );
 };
 
