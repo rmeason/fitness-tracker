@@ -410,6 +410,33 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Neutral grip: 7.4% higher rear delt, 13.6% higher infraspinatus"
   },
+
+  "Gym80 3025 Reverse Fly/ Rear Delt": {
+    // Alias for existing entry with space before slash
+    category: "isolation",
+    tier: 3,
+    variants: ["Neutral Grip", "Pronated Grip"],
+    primaryMuscles: {
+        deltsRear: 90,
+        infraspinatus: 50,
+        rhomboids: 40,
+        trapsMid: 45
+    },
+    secondaryMuscles: {
+        trapsLower: 25,
+        latsUpper: 12
+    },
+    variantAdjustments: {
+        "Pronated Grip": {
+        deltsRear: -7,
+        infraspinatus: -13,
+        rhomboids: +5,
+        trapsMid: +5
+        }
+    },
+    lengtheningPartials: false,
+    notes: "Neutral grip: 7.4% higher rear delt, 13.6% higher infraspinatus"
+  },
   
   "Standing Dumbbell Skull-Crushers": {
     category: "isolation",
@@ -557,6 +584,22 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Grip determines head recruitment; 90° abduction optimal"
   },
+
+  "Standing Dumbbell Lateral Raises": {
+    category: "isolation",
+    tier: 4,
+    primaryMuscles: {
+        deltsMid: 84,  // HIGHEST tested (from 45° raises research)
+        deltsFront: 29
+    },
+    secondaryMuscles: {
+        deltsRear: 15,
+        trapsUpper: 25,
+        serratusAnterior: 15
+    },
+    lengtheningPartials: false,
+    notes: "Neutral thumbs-up grip recommended; avoid momentum"
+    },
   
   "Cable Lateral Raises": {
     category: "isolation",
