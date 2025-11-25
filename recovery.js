@@ -53,6 +53,22 @@ export function calculateSleepMultiplier(totalSleepHours, deepSleepPercent) {
 }
 
 /**
+ * Calculate sleep-adjusted decay rate
+ * Better sleep = faster recovery
+ * 
+ * @param {number} baseDecayRate - Base decay rate from MUSCLES object
+ * @param {number} sleepMultiplier - Sleep quality modifier (from calculateSleepMultiplier)
+ * @returns {number} Adjusted decay rate
+ */
+function getSleepAdjustedDecayRate(baseDecayRate, sleepMultiplier) {
+  // Inverse relationship: lower sleep multiplier (better sleep) = higher decay rate (faster recovery)
+  // sleepMultiplier range: 0.8 (excellent) to 1.3 (poor)
+  // Adjusted decay: 1.44x faster (0.8 sleep) to 0.77x slower (1.3 sleep)
+  const adjustmentFactor = 2.0 - sleepMultiplier;
+  return baseDecayRate * adjustmentFactor;
+}
+
+/**
  * Calculate volume load for an exercise
  * Supports both new format (weights array) and old format (single weight)
  * 
@@ -81,7 +97,8 @@ function calculateVolumeLoad(exercise) {
 
 /**
  * Calculate fatigue contribution for a single exercise
- * Core formula: volumeLoad × activation% × RPE × tier × lengthening × sleep
+ * Core formula: (volumeLoad / 500) × activation% × RPE × tier × lengthening × sleep
+ * NORMALIZED TO 0-100 SCALE for meaningful baseline comparison
  * 
  * @param {object} exercise - Exercise from workout log
  * @param {number} sleepMultiplier - Sleep quality modifier (from calculateSleepMultiplier)
@@ -97,9 +114,14 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
   }
   
   // Calculate base volume load
-  const volumeLoad = calculateVolumeLoad(exercise);
+  const rawVolumeLoad = calculateVolumeLoad(exercise);
   
-  if (volumeLoad === 0) return {}; // No volume = no fatigue
+  if (rawVolumeLoad === 0) return {}; // No volume = no fatigue
+  
+  // NORMALIZE VOLUME LOAD TO 0-100 SCALE
+  // Dividing by 500 makes typical workout volumes (15,000-30,000 lbs) 
+  // result in 30-60 base points before multipliers
+  const volumeLoad = rawVolumeLoad / 500;
   
   // Get multipliers
   const rpeMultiplier = getRPEMultiplier(exercise.rpe || 8);
@@ -143,18 +165,23 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
 /**
  * Calculate current fatigue level after time has passed
  * Uses exponential decay: fatigue(t) = initial × e^(-decayRate × t / 100)
+ * Now includes sleep-adjusted decay rates for personalized recovery
  * 
  * @param {number} initialFatigue - Fatigue points at time of workout
  * @param {object} muscle - Muscle data from MUSCLES object
  * @param {number} hoursElapsed - Hours since workout
+ * @param {number} sleepMultiplier - Sleep quality for recovery period (default 1.0)
  * @returns {number} Current fatigue points (0-100+ scale)
  */
-export function calculateCurrentFatigue(initialFatigue, muscle, hoursElapsed) {
+export function calculateCurrentFatigue(initialFatigue, muscle, hoursElapsed, sleepMultiplier = 1.0) {
   if (initialFatigue <= 0 || hoursElapsed < 0) return 0;
+  
+  // Adjust decay rate based on sleep quality
+  const adjustedDecayRate = getSleepAdjustedDecayRate(muscle.decayRate, sleepMultiplier);
   
   // Exponential decay formula
   // decayRate is % per hour, divide by 100 to get proper constant
-  const currentFatigue = initialFatigue * Math.exp(-muscle.decayRate * hoursElapsed / 100);
+  const currentFatigue = initialFatigue * Math.exp(-adjustedDecayRate * hoursElapsed / 100);
   
   // Return 0 if essentially recovered (< 1% of initial)
   return currentFatigue < (initialFatigue * 0.01) ? 0 : currentFatigue;
@@ -228,6 +255,7 @@ export function getRecoveryStatus(fatiguePercent) {
 /**
  * Process workout history to calculate current recovery status
  * Analyzes last 7 days of training and applies time-based decay
+ * Now includes sleep-adjusted recovery rates for personalized tracking
  * 
  * @param {Array} workoutEntries - Workout entries (sorted oldest to newest)
  * @param {Array} sleepEntries - Sleep entries (sorted oldest to newest)  
@@ -277,16 +305,28 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
     const hoursAgo = (currentDate - workoutDate) / (1000 * 60 * 60);
     
     // Get sleep data for this workout (from night before)
-    const sleepData = sleepEntries.find(s => s.date === workout.date) || 
-                      sleepEntries[sleepEntries.length - 1]; // Fallback to most recent
-    
-    const sleepMultiplier = sleepData
-      ? calculateSleepMultiplier(sleepData.sleepHours, sleepData.deepSleepPercent)
+    // For fatigue accumulation during workout
+    const workoutSleep = sleepEntries.find(s => s.date === workout.date);
+    const workoutSleepMultiplier = workoutSleep
+      ? calculateSleepMultiplier(workoutSleep.sleepHours, workoutSleep.deepSleepPercent)
       : 1.0;
+    
+    // Get average sleep quality for recovery period (all sleep since workout)
+    const sleepsSinceWorkout = sleepEntries.filter(s => {
+      const sleepDate = new Date(s.date);
+      return sleepDate >= workoutDate && sleepDate <= currentDate;
+    });
+    
+    let avgRecoverySleepMultiplier = 1.0;
+    if (sleepsSinceWorkout.length > 0) {
+      const avgSleepHours = sleepsSinceWorkout.reduce((sum, s) => sum + (s.sleepHours || 8), 0) / sleepsSinceWorkout.length;
+      const avgDeepSleep = sleepsSinceWorkout.reduce((sum, s) => sum + (s.deepSleepPercent || 15), 0) / sleepsSinceWorkout.length;
+      avgRecoverySleepMultiplier = calculateSleepMultiplier(avgSleepHours, avgDeepSleep);
+    }
     
     // Process each exercise in the workout
     for (const exercise of workout.exercises) {
-      const muscleFatigue = calculateMuscleFatigue(exercise, sleepMultiplier);
+      const muscleFatigue = calculateMuscleFatigue(exercise, workoutSleepMultiplier);
       
       // Add fatigue to each affected muscle
       for (const [muscleName, initialFatigue] of Object.entries(muscleFatigue)) {
@@ -294,8 +334,8 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
         
         const muscle = MUSCLES[muscleName];
         
-        // Calculate current fatigue after decay
-        const currentFatigue = calculateCurrentFatigue(initialFatigue, muscle, hoursAgo);
+        // Calculate current fatigue after decay (with sleep-adjusted recovery)
+        const currentFatigue = calculateCurrentFatigue(initialFatigue, muscle, hoursAgo, avgRecoverySleepMultiplier);
         
         // Accumulate total current fatigue
         muscleRecovery[muscleName].totalFatigue += currentFatigue;

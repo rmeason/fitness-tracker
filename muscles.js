@@ -1707,7 +1707,7 @@ export const EXERCISE_LIBRARY = {
 // Tier 4 (0.6x): Isolation - curls, extensions, raises, crunches
 
 export const EXERCISE_TIERS = {
-  1: { multiplier: 1.5, name: "High CNS Demand" },
+  1: { multiplier: 1.5, name: "High CNS Demand" },  // ← CHANGED from 1.3
   2: { multiplier: 1.2, name: "Multi-Muscle Compound" },
   3: { multiplier: 1.0, name: "Single-Joint Compound" },
   4: { multiplier: 0.6, name: "Isolation" }
