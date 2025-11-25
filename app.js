@@ -18,6 +18,22 @@ import {
 // --- Import our coach brain ---
 import * as Coach from './coach.js';
 
+// Add these imports after the existing imports
+import { 
+  MUSCLES, 
+  EXERCISE_LIBRARY, 
+  getAllExerciseNames as getAllLibraryExercises,
+  getExerciseData,
+  getExercisesForMuscle 
+} from './muscles.js';
+
+import { 
+  processWorkoutHistory,
+  getTrainingRecommendation,
+  getRecoveryStatus,
+  calculateSleepMultiplier
+} from './recovery.js';
+
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
 
@@ -1248,6 +1264,363 @@ const StatsSummary = ({ entries, nutrition, liveProtein, liveCalories }) => {
         h('div', { className: 'text-sm text-slate-400' }, "Today's Cals")
       )
     )
+  );
+};
+
+// --- 💪 RECOVERY DASHBOARD COMPONENT ---
+const RecoveryDashboard = ({ entries, sleepEntries, nutrition }) => {
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('all');
+  const [sortBy, setSortBy] = useState('fatigue'); // 'fatigue', 'name', 'lastTrained'
+  const [showDetails, setShowDetails] = useState(null);
+
+  // Calculate current recovery status
+  const recoveryStatus = processWorkoutHistory(entries, sleepEntries);
+  
+  // Get today's sleep for recommendations
+  const todayStr = formatDate(new Date());
+  const todaySleep = sleepEntries.find(s => s.date === todayStr) || 
+                     sleepEntries[sleepEntries.length - 1] || 
+                     { sleepHours: 8, deepSleepPercent: 15 };
+
+  // Muscle group categories
+  const muscleGroups = {
+    all: 'All Muscles',
+    chest: ['pectoralsUpper', 'pectoralsLower'],
+    shoulders: ['deltsFront', 'deltsMid', 'deltsRear', 'infraspinatus', 'supraspinatus'],
+    back: ['latsUpper', 'latsLower', 'trapsUpper', 'trapsMid', 'trapsLower', 'rhomboids', 'erectorSpinae'],
+    arms: ['bicepsLong', 'bicepsShort', 'brachialis', 'brachioradialis', 'tricepsLong', 'tricepsLateral', 'forearms'],
+    legs: ['vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'bicepsFemoris', 'semitendinosus', 'glutesUpper', 'glutesLower', 'gluteMed'],
+    calves: ['gastrocnemius', 'soleus'],
+    core: ['rectusAbdominis', 'obliqueExternal', 'obliqueInternal', 'serratusAnterior']
+  };
+
+  // Filter muscles by selected group
+  const visibleMuscles = selectedMuscleGroup === 'all'
+    ? Object.entries(recoveryStatus)
+    : Object.entries(recoveryStatus).filter(([key, _]) => 
+        muscleGroups[selectedMuscleGroup]?.includes(key)
+      );
+
+  // Sort muscles
+  const sortedMuscles = [...visibleMuscles].sort((a, b) => {
+    const [aKey, aData] = a;
+    const [bKey, bData] = b;
+    
+    if (sortBy === 'fatigue') {
+      return bData.currentFatiguePercent - aData.currentFatiguePercent;
+    } else if (sortBy === 'name') {
+      return aData.name.localeCompare(bData.name);
+    } else if (sortBy === 'lastTrained') {
+      if (!aData.lastTrained && !bData.lastTrained) return 0;
+      if (!aData.lastTrained) return 1;
+      if (!bData.lastTrained) return -1;
+      return new Date(bData.lastTrained) - new Date(aData.lastTrained);
+    }
+    return 0;
+  });
+
+  // Calculate summary stats
+  const avgFatigue = visibleMuscles.reduce((sum, [_, data]) => 
+    sum + data.currentFatiguePercent, 0) / visibleMuscles.length;
+  
+  const freshCount = visibleMuscles.filter(([_, data]) => 
+    data.currentFatiguePercent < 30).length;
+  
+  const fatiguedCount = visibleMuscles.filter(([_, data]) => 
+    data.currentFatiguePercent >= 70).length;
+
+  return h('div', { className: 'space-y-6' },
+    // Header with summary
+    h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
+      h('h2', { className: 'text-2xl font-bold mb-4' }, '💪 Muscle Recovery Status'),
+      h('div', { className: 'grid grid-cols-3 gap-4' },
+        h('div', { className: 'text-center' },
+          h('div', { className: 'text-3xl font-bold text-cyan-400' }, avgFatigue.toFixed(0) + '%'),
+          h('div', { className: 'text-sm text-slate-400' }, 'Avg Fatigue')
+        ),
+        h('div', { className: 'text-center' },
+          h('div', { className: 'text-3xl font-bold text-green-400' }, freshCount),
+          h('div', { className: 'text-sm text-slate-400' }, 'Fresh Muscles')
+        ),
+        h('div', { className: 'text-center' },
+          h('div', { className: 'text-3xl font-bold text-red-400' }, fatiguedCount),
+          h('div', { className: 'text-sm text-slate-400' }, 'Fatigued Muscles')
+        )
+      )
+    ),
+
+    // Filters
+    h('div', { className: 'bg-slate-800 p-4 rounded-lg space-y-3' },
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-2' }, 'Filter by Muscle Group'),
+        h('div', { className: 'grid grid-cols-4 gap-2' },
+          Object.entries(muscleGroups).map(([key, value]) =>
+            h('button', {
+              key,
+              onClick: () => setSelectedMuscleGroup(key),
+              className: `px-3 py-2 rounded text-sm transition-colors ${
+                selectedMuscleGroup === key 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`
+            }, typeof value === 'string' ? value : key.charAt(0).toUpperCase() + key.slice(1))
+          )
+        )
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-2' }, 'Sort By'),
+        h('div', { className: 'flex gap-2' },
+          ['fatigue', 'name', 'lastTrained'].map(sort =>
+            h('button', {
+              key: sort,
+              onClick: () => setSortBy(sort),
+              className: `px-3 py-2 rounded text-sm transition-colors ${
+                sortBy === sort 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`
+            }, sort === 'fatigue' ? 'Fatigue Level' : 
+               sort === 'name' ? 'Muscle Name' : 'Last Trained')
+          )
+        )
+      )
+    ),
+
+    // Muscle list
+    h('div', { className: 'space-y-2' },
+      sortedMuscles.map(([muscleKey, muscleData]) => {
+        const muscleInfo = MUSCLES[muscleKey];
+        const isExpanded = showDetails === muscleKey;
+        
+        return h('div', { 
+          key: muscleKey,
+          className: 'bg-slate-800 rounded-lg overflow-hidden border-2',
+          style: { 
+            borderColor: muscleData.color === 'red' ? '#ef4444' : 
+                        muscleData.color === 'yellow' ? '#f59e0b' : '#10b981'
+          }
+        },
+          // Muscle header (clickable)
+          h('div', {
+            className: 'p-4 flex items-center justify-between cursor-pointer hover:bg-slate-700',
+            onClick: () => setShowDetails(isExpanded ? null : muscleKey)
+          },
+            h('div', { className: 'flex items-center gap-3 flex-1' },
+              h('span', { className: 'text-2xl' }, muscleData.recoveryStatus.emoji),
+              h('div', { className: 'flex-1' },
+                h('div', { className: 'font-bold text-lg' }, muscleData.name),
+                h('div', { className: 'text-xs text-slate-400' },
+                  muscleData.lastTrained 
+                    ? `Last trained: ${muscleData.lastTrained}`
+                    : 'Not trained recently'
+                )
+              )
+            ),
+            h('div', { className: 'text-right mr-4' },
+              h('div', { className: 'text-2xl font-bold', style: { 
+                color: muscleData.color === 'red' ? '#ef4444' : 
+                       muscleData.color === 'yellow' ? '#f59e0b' : '#10b981'
+              }}, muscleData.currentFatiguePercent.toFixed(0) + '%'),
+              h('div', { className: 'text-xs text-slate-400' }, muscleData.recoveryStatus.status)
+            ),
+            h('span', { className: 'text-2xl' }, isExpanded ? '▼' : '▶')
+          ),
+          
+          // Expanded details
+          isExpanded && muscleData.fatigueHistory.length > 0 && h('div', { 
+            className: 'p-4 pt-0 border-t border-slate-700' 
+          },
+            h('div', { className: 'mb-3' },
+              h('div', { className: 'text-sm font-semibold mb-1' }, 'Recovery Info'),
+              h('div', { className: 'text-xs text-slate-300' }, muscleData.recoveryStatus.description),
+              h('div', { className: 'text-xs text-slate-400 mt-1' },
+                `Recovery time: ${muscleInfo.hours}hrs | Decay rate: ${muscleInfo.decayRate}% per hour`
+              )
+            ),
+            h('div', { className: 'mb-2' },
+              h('div', { className: 'text-sm font-semibold mb-2' }, 'Recent Training'),
+              h('div', { className: 'space-y-1' },
+                muscleData.fatigueHistory.slice(-5).reverse().map((history, idx) =>
+                  h('div', { 
+                    key: idx,
+                    className: 'text-xs bg-slate-900 p-2 rounded flex justify-between'
+                  },
+                    h('div', {},
+                      h('span', { className: 'font-medium' }, history.exercise),
+                      h('span', { className: 'text-slate-400 ml-2' }, `(${history.hoursAgo}h ago)`)
+                    ),
+                    h('div', {},
+                      h('span', { className: 'text-slate-400' }, 
+                        `${history.currentFatigue.toFixed(0)} pts`
+                      )
+                    )
+                  )
+                )
+              )
+            ),
+            // Find exercises that target this muscle
+            h('div', {},
+              h('div', { className: 'text-sm font-semibold mb-2' }, 'Best Exercises'),
+              h('div', { className: 'flex flex-wrap gap-2' },
+                getExercisesForMuscle(muscleKey, 60).slice(0, 5).map(ex =>
+                  h('div', {
+                    key: ex.name,
+                    className: 'text-xs bg-blue-900 px-2 py-1 rounded'
+                  }, `${ex.name} (${ex.activation}%)`)
+                )
+              )
+            )
+          )
+        );
+      })
+    )
+  );
+};
+
+// --- 🧠 SMART RECOVERY CARD ---
+const SmartRecoveryCard = ({ entries, sleepEntries, plannedWorkout }) => {
+  const recoveryStatus = processWorkoutHistory(entries, sleepEntries);
+  
+  const todayStr = formatDate(new Date());
+  const todaySleep = sleepEntries.find(s => s.date === todayStr) || 
+                     sleepEntries[sleepEntries.length - 1] || 
+                     { sleepHours: 8, deepSleepPercent: 15 };
+
+  const recommendation = getTrainingRecommendation(recoveryStatus, todaySleep, plannedWorkout);
+
+  return h('div', { 
+    className: 'bg-slate-800 p-4 rounded-lg border-2',
+    style: { borderColor: recommendation.proceed ? '#10b981' : '#ef4444' }
+  },
+    h('h3', { className: 'text-lg font-semibold mb-3 flex items-center gap-2' },
+      h('span', {}, '🧠'),
+      'Smart Recovery Analysis'
+    ),
+    
+    // Recommendation
+    h('div', { className: 'mb-4 p-3 rounded', style: {
+      backgroundColor: recommendation.proceed ? '#064e3b' : '#7f1d1d'
+    }},
+      h('div', { className: 'font-bold mb-1' },
+        recommendation.proceed 
+          ? '✅ Good to train ' + plannedWorkout
+          : '🛑 Consider rest day'
+      ),
+      h('div', { className: 'text-sm' }, recommendation.reasoning)
+    ),
+
+    // Sleep impact
+    todaySleep && h('div', { className: 'mb-3 p-3 bg-slate-900 rounded' },
+      h('div', { className: 'text-sm font-semibold mb-1' }, 'Sleep Quality'),
+      h('div', { className: 'text-sm' }, recommendation.sleepImpact || 
+        `${todaySleep.sleepHours.toFixed(1)}h total, ${todaySleep.deepSleepPercent.toFixed(1)}% deep`)
+    ),
+
+    // Fatigue warning
+    recommendation.fatigueWarning && h('div', { className: 'mb-3 p-3 bg-slate-900 rounded' },
+      h('div', { className: 'text-sm' }, recommendation.fatigueWarning)
+    ),
+
+    // Suggested sets
+    h('div', { className: 'flex justify-between items-center' },
+      h('div', { className: 'text-sm text-slate-400' }, 'Recommended Volume'),
+      h('div', { className: 'text-2xl font-bold text-cyan-400' }, 
+        `${recommendation.suggestedSets} sets`
+      )
+    )
+  );
+};
+
+// --- 💪 EXERCISE SELECTOR WITH RECOVERY ---
+const ExerciseSelectorWithRecovery = ({ 
+  exerciseName, 
+  onSelect, 
+  recoveryStatus, 
+  allExerciseNames 
+}) => {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(exerciseName || '');
+
+  // Get exercise data
+  const exerciseData = exerciseName ? getExerciseData(exerciseName) : null;
+
+  // Calculate affected muscles and their recovery
+  const affectedMuscles = exerciseData ? Object.keys({
+    ...exerciseData.primaryMuscles,
+    ...exerciseData.secondaryMuscles
+  }).map(muscleKey => ({
+    key: muscleKey,
+    name: MUSCLES[muscleKey]?.name,
+    fatigue: recoveryStatus[muscleKey]?.currentFatiguePercent || 0,
+    color: recoveryStatus[muscleKey]?.color || 'green'
+  })).sort((a, b) => b.fatigue - a.fatigue) : [];
+
+  // Filter exercises by search
+  const filteredExercises = allExerciseNames.filter(name =>
+    name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return h('div', { className: 'space-y-2' },
+    // Search input
+    h('div', { className: 'relative' },
+      h(Input, {
+        type: 'text',
+        value: searchTerm,
+        onChange: (e) => {
+          setSearchTerm(e.target.value);
+          setShowSuggestions(true);
+        },
+        onFocus: () => setShowSuggestions(true),
+        placeholder: 'Search exercises...',
+        list: 'exercise-suggestions'
+      }),
+      
+      // Dropdown suggestions
+      showSuggestions && filteredExercises.length > 0 && h('div', {
+        className: 'absolute z-10 w-full mt-1 bg-slate-900 border border-slate-700 rounded-lg max-h-60 overflow-y-auto'
+      },
+        filteredExercises.slice(0, 10).map(name =>
+          h('button', {
+            key: name,
+            type: 'button',
+            className: 'w-full text-left px-3 py-2 hover:bg-slate-800 text-sm',
+            onClick: () => {
+              setSearchTerm(name);
+              onSelect(name);
+              setShowSuggestions(false);
+            }
+          }, name)
+        )
+      )
+    ),
+
+    // Affected muscles display
+    exerciseName && affectedMuscles.length > 0 && h('div', { 
+      className: 'p-3 bg-slate-900 rounded-lg'
+    },
+      h('div', { className: 'text-xs font-semibold mb-2 text-slate-400' }, 
+        'Muscles Targeted:'
+      ),
+      h('div', { className: 'flex flex-wrap gap-2' },
+        affectedMuscles.map(muscle =>
+          h('div', {
+            key: muscle.key,
+            className: 'text-xs px-2 py-1 rounded',
+            style: {
+              backgroundColor: muscle.color === 'red' ? '#7f1d1d' :
+                             muscle.color === 'yellow' ? '#78350f' : '#064e3b',
+              color: 'white'
+            }
+          }, `${muscle.name} (${muscle.fatigue.toFixed(0)}%)`)
+        )
+      )
+    ),
+
+    // Close suggestions when clicking outside
+    showSuggestions && h('div', {
+      className: 'fixed inset-0 z-0',
+      onClick: () => setShowSuggestions(false)
+    })
   );
 };
 
@@ -3194,6 +3567,14 @@ const App = () => {
           sleepEntries: sleepEntries,
           setSleepEntries: setSleepEntries
         });
+
+        case 'recovery':
+          return h(RecoveryDashboard, { 
+            entries: sortedEntries,
+            sleepEntries: sleepEntries,
+            nutrition: nutrition
+          });
+
       case 'dashboard':
       default:
         return h('div', { className: 'space-y-6' },
@@ -3227,6 +3608,15 @@ const App = () => {
               )
             )
           ),
+
+          // In the dashboard view, add the SmartRecoveryCard after the plan card:
+
+          h(SmartRecoveryCard, {
+            entries: sortedEntries,
+            sleepEntries: sleepEntries,
+            plannedWorkout: nextWorkout
+          }),
+
           // Recovery Status Indicator
           h('div', { className: 'bg-slate-800 p-4 rounded-lg border-2', style: { borderColor: recoveryAnalysis.status === 'FRESH' ? '#10b981' : recoveryAnalysis.status === 'GOOD' ? '#3b82f6' : recoveryAnalysis.status === 'FATIGUED' ? '#f59e0b' : '#ef4444' } },
             h('div', { className: 'flex items-center justify-between' },
@@ -3390,7 +3780,7 @@ const App = () => {
     ), // <-- Main scrolling div closes here
     
     // Bottom Nav Bar is now a sibling to the scrolling div
-    h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-5' },
+    h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-6' }, // 👈 Changed from cols-5 to cols-6
       h(NavButton, { icon: '🔥', label: 'Log', active: view === 'dashboard', onClick: () => setView('dashboard') }),
       h(NavButton, { icon: '📅', label: 'Calendar', active: view === 'calendar', onClick: () => setView('calendar') }),
       h('div', { className: 'relative' },
@@ -3399,6 +3789,8 @@ const App = () => {
           onClick: () => handleShowForm(null)
         }, '+')
       ),
+      // 👇 NEW Recovery tab
+      h(NavButton, { icon: '💪', label: 'Recovery', active: view === 'recovery', onClick: () => setView('recovery') }),
       h(NavButton, { icon: '📊', label: 'Charts', active: view === 'charts', onClick: () => setView('charts') }),
       h(NavButton, { icon: '⚙️', label: 'Settings', active: view === 'settings', onClick: () => setView('settings') })
     )
