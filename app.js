@@ -126,7 +126,21 @@ const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tr
 
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
-const formatDate = (date) => date.toISOString().split('T')[0];
+
+// Normalize date to midnight local time (removes time component)
+const normalizeDate = (date) => {
+  const normalized = new Date(date);
+  normalized.setHours(0, 0, 0, 0);
+  return normalized;
+};
+
+// Format date as YYYY-MM-DD using LOCAL timezone (not UTC)
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 // Time conversion helpers
 const decimalToTime = (decimalHours) => {
@@ -974,7 +988,7 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
 };
 
 // --- 📅 CALENDAR COMPONENT (UPGRADED) ---
-const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, onSetCycleDay }) => {
+const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDay, onEditCycle, onSetCycleDay }) => {
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
   const [weekStartDay, setWeekStartDay] = useState(0); // 0 = Sunday, 1 = Monday
   const [contextMenuDate, setContextMenuDate] = useState(null);
@@ -1018,18 +1032,21 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, o
 
     // Find the most recent logged entry before or on this date
     const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const targetDate = normalizeDate(new Date(dateStr));
     const lastEntryBeforeDate = sortedEntries
-      .filter(e => new Date(e.date) <= new Date(dateStr))
+      .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
       .pop();
 
     if (!lastEntryBeforeDate) {
       // No entries yet, start from beginning of cycle
-      const daysSinceEpoch = Math.floor((new Date(dateStr) - new Date('2025-01-01')) / (1000 * 60 * 60 * 24));
+      const epoch = normalizeDate(new Date('2025-01-01'));
+      const daysSinceEpoch = Math.floor((targetDate - epoch) / (1000 * 60 * 60 * 24));
       return trainingCycle[daysSinceEpoch % cycleLength];
     }
 
-    // Calculate days difference from last logged entry
-    const daysDiff = Math.floor((new Date(dateStr) - new Date(lastEntryBeforeDate.date)) / (1000 * 60 * 60 * 24));
+    // Calculate days difference from last logged entry (using normalized dates)
+    const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
+    const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
 
     // Use cycleDay from last entry if available, otherwise infer it
     const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
@@ -1049,22 +1066,8 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, o
     return trainingCycle[nextCycleDay];
   };
 
-  // Get cycle position for current plan
-  const getCurrentCycleDay = () => {
-    if (entries.length === 0) return 1;
-    const lastEntry = [...entries].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
-    if (lastEntry.cycleDay !== undefined) {
-      const lastCycleDay = lastEntry.cycleDay;
-      // Check if they skipped
-      if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType !== 'REST') {
-        return lastCycleDay + 1; // Still on the same day they skipped
-      }
-      return ((lastCycleDay + 1) % cycleLength) + 1; // +1 for display (1-indexed)
-    }
-    return 1;
-  };
-
-  const currentCycleDay = getCurrentCycleDay();
+  // currentCycleDay is now passed from parent (from getDynamicCalendar)
+  // It's 0-indexed, so we add 1 when displaying
 
   return h('div', { className: 'bg-slate-800 p-4 rounded-lg relative' },
     // Context menu for setting cycle day
@@ -1089,7 +1092,7 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, o
     h('div', { className: 'flex justify-between items-center mb-4' },
       h('div', {},
         h('h3', { className: 'text-lg font-semibold' }, `📅 ${cycleLength}-Day Training Cycle`),
-        h('p', { className: 'text-sm text-slate-400' }, `Day ${currentCycleDay} of ${cycleLength}`)
+        h('p', { className: 'text-sm text-slate-400' }, `Day ${currentCycleDay + 1} of ${cycleLength}`)
       ),
       h('div', { className: 'flex gap-2 items-center' },
         onEditCycle && h(Button, {
@@ -1145,16 +1148,19 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, onEditCycle, o
         // Calculate cycle day for this date
         const getCycleDayForDate = (date) => {
           const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
+          const targetDate = normalizeDate(new Date(date));
           const lastEntryBeforeDate = sortedEntries
-            .filter(e => new Date(e.date) <= new Date(date))
+            .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
             .pop();
 
           if (!lastEntryBeforeDate) {
-            const daysSinceEpoch = Math.floor((new Date(date) - new Date('2025-01-01')) / (1000 * 60 * 60 * 24));
+            const epoch = normalizeDate(new Date('2025-01-01'));
+            const daysSinceEpoch = Math.floor((targetDate - epoch) / (1000 * 60 * 60 * 24));
             return (daysSinceEpoch % cycleLength) + 1;
           }
 
-          const daysDiff = Math.floor((new Date(date) - new Date(lastEntryBeforeDate.date)) / (1000 * 60 * 60 * 24));
+          const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
+          const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
           const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
             ? lastEntryBeforeDate.cycleDay
             : 0;
@@ -3540,6 +3546,7 @@ const App = () => {
             entries: sortedEntries,
             trainingCycle,
             dynamicToday: nextWorkout,
+            currentCycleDay: cycleDay,
             onEditCycle: () => setShowCycleEditor(true),
             onSetCycleDay: (date, dayNumber) => {
               // Handle manual cycle day setting
