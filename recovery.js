@@ -121,7 +121,7 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
   // NORMALIZE VOLUME LOAD TO 0-100 SCALE
   // Dividing by 500 makes typical workout volumes (15,000-30,000 lbs) 
   // result in 30-60 base points before multipliers
-  const volumeLoad = rawVolumeLoad / 250;
+  const volumeLoad = rawVolumeLoad / 175;
   
   // Get multipliers
   const rpeMultiplier = getRPEMultiplier(exercise.rpe || 8);
