@@ -359,7 +359,7 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
   
   // Calculate final recovery percentages and status
   // Baseline fatigue for comparison: 100 points = moderate single workout worth
-  const BASELINE_FATIGUE = 100;
+  const BASELINE_FATIGUE = 50;
   
   for (const [muscleName, recovery] of Object.entries(muscleRecovery)) {
     const fatiguePercent = (recovery.totalFatigue / BASELINE_FATIGUE) * 100;
