@@ -3577,13 +3577,19 @@ const App = () => {
 
       case 'dashboard':
       default:
+        const cycleLength = trainingCycle.length;  // ADD THIS LINE at the top of the case
+        
         return h('div', { className: 'space-y-6' },
           // Enhanced Header with Planned Workout + Today's Stats
           h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
             h('div', { className: 'mb-4' },
               h('h3', { className: 'text-sm font-semibold text-slate-400 mb-1' }, planTitle),
               h('p', { className: 'text-3xl font-bold text-cyan-400' }, nextWorkout),
-              h('p', { className: 'text-sm text-slate-300 mt-1' }, coachNote)
+              // ADD THESE 2 LINES:
+              h('p', { className: 'text-sm text-blue-300 mt-1' }, 
+                `Day ${cycleDay + 1} of ${cycleLength} in your ${cycleLength}-day cycle`
+              ),
+              h('p', { className: 'text-sm text-slate-300 mt-2' }, coachNote)
             ),
             h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
               h('div', { className: 'text-center' },
