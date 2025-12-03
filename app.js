@@ -3466,7 +3466,27 @@ const App = () => {
 
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
-  const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+  const { today: nextWorkout, note: coachNote } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+
+  // Calculate today's cycle day using same logic as migration (simple date progression)
+  let cycleDay = 0;
+  if (sortedEntries.length > 0) {
+    const lastEntry = sortedEntries[sortedEntries.length - 1];
+    const lastDate = normalizeDate(new Date(lastEntry.date));
+    const today = normalizeDate(new Date());
+    const daysDiff = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
+
+    const lastCycleDay = lastEntry.cycleDay !== undefined ? lastEntry.cycleDay : 0;
+
+    if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType !== 'REST') {
+      // Skipped workout, don't advance cycle
+      cycleDay = (lastCycleDay + (daysDiff - 1)) % trainingCycle.length;
+    } else {
+      // Normal progression
+      cycleDay = (lastCycleDay + daysDiff) % trainingCycle.length;
+    }
+  }
+
   const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
 
   const todaysNutrition = getTodaysNutrition(nutrition);

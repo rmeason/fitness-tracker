@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v16'; // Fix calendar skip workout calculation
+const CACHE_NAME = 'hypertrophy-pwa-cache-v17'; // Fix today's cycleDay calculation
 
 const FILES_TO_CACHE = [
   './',
