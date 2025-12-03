@@ -339,14 +339,20 @@ const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
 const MIGRATION_V4_VERSION = 'v4'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
+  // TEMPORARY: Force migration to run regardless of version flag
+  const FORCE_RUN = true;
+
   // Check if migration already completed with current version
   const currentVersion = localStorage.getItem(MIGRATION_FLAG_V4_KEY);
   console.log(`[Migration V4] Current flag value: "${currentVersion}", expected: "${MIGRATION_V4_VERSION}"`);
+  console.log(`[Migration V4] FORCE_RUN is ${FORCE_RUN ? 'ENABLED' : 'DISABLED'}`);
 
-  if (currentVersion === MIGRATION_V4_VERSION) {
+  if (!FORCE_RUN && currentVersion === MIGRATION_V4_VERSION) {
     console.log('CycleDay recalculation migration already completed, skipping...');
     return { migrated: false };
   }
+
+  console.log('*** FORCING MIGRATION TO RUN ***');
 
   console.log('Starting migration to recalculate cycle days...');
 
