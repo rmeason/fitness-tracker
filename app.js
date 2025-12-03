@@ -333,6 +333,64 @@ const migrateToSplitSleepNutrition = () => {
   return { migrated: true, sleepCreated: newSleepEntries.length, nutritionCreated: newNutritionEntries.length };
 };
 
+// --- 🔄 DATA MIGRATION V4 FUNCTION ---
+// Recalculates cycleDay for all existing entries using simple progression
+const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
+
+const recalculateCycleDays = (trainingCycle) => {
+  // Check if migration already completed
+  if (localStorage.getItem(MIGRATION_FLAG_V4_KEY)) {
+    console.log('CycleDay recalculation migration already completed, skipping...');
+    return { migrated: false };
+  }
+
+  console.log('Starting migration to recalculate cycle days...');
+
+  const existingData = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  if (existingData.length === 0) {
+    console.log('No entries to migrate');
+    localStorage.setItem(MIGRATION_FLAG_V4_KEY, 'true');
+    return { migrated: false };
+  }
+
+  const cycleLength = trainingCycle.length;
+
+  // Sort entries by date
+  const sortedEntries = [...existingData].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // Recalculate cycleDay for each entry
+  sortedEntries.forEach((entry, index) => {
+    if (index === 0) {
+      // First entry starts at cycle day 0
+      entry.cycleDay = 0;
+    } else {
+      const prevEntry = sortedEntries[index - 1];
+      const prevDate = normalizeDate(new Date(prevEntry.date));
+      const currDate = normalizeDate(new Date(entry.date));
+      const daysDiff = Math.floor((currDate - prevDate) / (1000 * 60 * 60 * 24));
+
+      // Calculate next cycle day
+      let nextCycleDay;
+      if (prevEntry.trainingType === 'REST' && prevEntry.plannedTrainingType !== 'REST') {
+        // Previous entry skipped a workout, stay on same cycle day
+        nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
+      } else {
+        // Normal progression
+        nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
+      }
+
+      entry.cycleDay = nextCycleDay;
+    }
+  });
+
+  // Save the corrected entries
+  localStorage.setItem(DB_KEY, JSON.stringify(sortedEntries));
+  localStorage.setItem(MIGRATION_FLAG_V4_KEY, 'true');
+
+  console.log(`Migration V4 complete! Recalculated cycle days for ${sortedEntries.length} entries.`);
+  return { migrated: true, entriesUpdated: sortedEntries.length };
+};
+
 const getGrade = (deepSleepPercent, totalSets) => {
   if (deepSleepPercent === null || totalSets === null) return 'N/A';
   if (deepSleepPercent >= 20 && totalSets >= 22) return 'S++';
@@ -3329,6 +3387,16 @@ const App = () => {
     }
   }, []); // Empty deps = run once on mount
 
+  // Run V4 migration to recalculate cycle days (only once)
+  useEffect(() => {
+    const result = recalculateCycleDays(trainingCycle);
+    if (result.migrated) {
+      console.log(`[Migration V4] Successful: Recalculated cycle days for ${result.entriesUpdated} entries`);
+      // Force reload data after migration
+      window.location.reload();
+    }
+  }, []); // Empty deps = run once on mount
+
   // Debug: Log localStorage state on mount
   useEffect(() => {
     console.log('[Debug] LocalStorage state:', {
@@ -3336,7 +3404,8 @@ const App = () => {
       nutrition: localStorage.getItem(NUTRITION_KEY) ? JSON.parse(localStorage.getItem(NUTRITION_KEY)).length : 0,
       sleep: localStorage.getItem(SLEEP_KEY) ? JSON.parse(localStorage.getItem(SLEEP_KEY)).length : 0,
       migrationV2Done: localStorage.getItem(MIGRATION_FLAG_KEY),
-      migrationV3Done: localStorage.getItem(MIGRATION_FLAG_V3_KEY)
+      migrationV3Done: localStorage.getItem(MIGRATION_FLAG_V3_KEY),
+      migrationV4Done: localStorage.getItem(MIGRATION_FLAG_V4_KEY)
     });
   }, []);
 
