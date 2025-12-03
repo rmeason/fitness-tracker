@@ -817,6 +817,9 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
   const [selectedExercise, setSelectedExercise] = useState('');
   const [chartType, setChartType] = useState('weight');
 
+  // DEBUG: Log what we received
+  console.log('[Charts Debug] entries:', entries.length, 'exercises:', allExerciseNames);
+
   // Auto-select first exercise when allExerciseNames updates
   useEffect(() => {
     if (!selectedExercise && allExerciseNames.length > 0) {
