@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v13'; // Force reload after migration fix
+const CACHE_NAME = 'hypertrophy-pwa-cache-v14'; // Remove auto-reload after migration
 
 const FILES_TO_CACHE = [
   './',

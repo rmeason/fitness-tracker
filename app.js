@@ -3420,8 +3420,10 @@ const App = () => {
     const result = recalculateCycleDays(trainingCycle);
     if (result.migrated) {
       console.log(`[Migration V4] Successful: Recalculated cycle days for ${result.entriesUpdated} entries`);
-      // Force reload data after migration
-      window.location.reload();
+      // Reload entries from localStorage after migration
+      const updated = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+      setEntries(updated);
+      console.log(`[Migration V4] Reloaded ${updated.length} entries into state`);
     }
   }, []); // Empty deps = run once on mount
 
