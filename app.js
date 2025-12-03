@@ -336,7 +336,7 @@ const migrateToSplitSleepNutrition = () => {
 // --- 🔄 DATA MIGRATION V4 FUNCTION ---
 // Recalculates cycleDay for all existing entries using simple progression
 const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
-const MIGRATION_V4_VERSION = 'v2'; // Increment this to force re-run
+const MIGRATION_V4_VERSION = 'v3'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
   // Check if migration already completed with current version
@@ -360,15 +360,25 @@ const recalculateCycleDays = (trainingCycle) => {
   const sortedEntries = [...existingData].sort((a, b) => new Date(a.date) - new Date(b.date));
 
   // Recalculate cycleDay for each entry
+  console.log('[Migration V4] Starting cycle day recalculation...');
+  console.log('[Migration V4] Cycle length:', cycleLength);
+  console.log('[Migration V4] Training cycle:', trainingCycle);
+
   sortedEntries.forEach((entry, index) => {
     if (index === 0) {
       // First entry starts at cycle day 0
       entry.cycleDay = 0;
+      console.log(`[Migration V4] Entry ${index}: ${entry.date} (${entry.trainingType}) -> cycleDay: 0 (first entry)`);
     } else {
       const prevEntry = sortedEntries[index - 1];
       const prevDate = normalizeDate(new Date(prevEntry.date));
       const currDate = normalizeDate(new Date(entry.date));
       const daysDiff = Math.floor((currDate - prevDate) / (1000 * 60 * 60 * 24));
+
+      console.log(`[Migration V4] Entry ${index}: ${entry.date} (${entry.trainingType})`);
+      console.log(`  Previous: ${prevEntry.date} (${prevEntry.trainingType}), cycleDay: ${prevEntry.cycleDay}`);
+      console.log(`  Days difference: ${daysDiff}`);
+      console.log(`  Prev planned: ${prevEntry.plannedTrainingType}, actual: ${prevEntry.trainingType}`);
 
       // Calculate next cycle day based on whether previous workout was completed
       let nextCycleDay;
@@ -376,12 +386,17 @@ const recalculateCycleDays = (trainingCycle) => {
         // Previous entry skipped a workout, don't advance the cycle
         // Stay on the same cycle position, then add daysDiff - 1
         nextCycleDay = (prevEntry.cycleDay + (daysDiff - 1)) % cycleLength;
+        console.log(`  Skipped workout detected! Staying on same cycle day`);
+        console.log(`  Calculation: (${prevEntry.cycleDay} + ${daysDiff - 1}) % ${cycleLength} = ${nextCycleDay}`);
       } else {
         // Normal progression: advance by the number of days
         nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
+        console.log(`  Normal progression`);
+        console.log(`  Calculation: (${prevEntry.cycleDay} + ${daysDiff}) % ${cycleLength} = ${nextCycleDay}`);
       }
 
       entry.cycleDay = nextCycleDay;
+      console.log(`  -> New cycleDay: ${nextCycleDay} (${trainingCycle[nextCycleDay]})`);
     }
   });
 
