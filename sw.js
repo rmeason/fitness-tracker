@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v12'; // Unified daily cards with separate sleep/nutrition storage
+const CACHE_NAME = 'hypertrophy-pwa-cache-v13'; // Force reload after migration fix
 
 const FILES_TO_CACHE = [
   './',
