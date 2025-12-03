@@ -1040,14 +1040,40 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
       };
     }
 
-    // For dates without entries, calculate based on entries up to that date
+    // For dates without entries, we need to calculate forward from the most recent entry
     const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const entriesUpToDate = sortedEntries.filter(e => new Date(e.date) <= new Date(dateStr));
+    const targetDate = normalizeDate(new Date(dateStr));
 
-    // Use Coach.getDynamicCalendar for consistent calculation
-    const result = Coach.getDynamicCalendar(entriesUpToDate, trainingCycle);
+    // Find the last entry before or on this date
+    const lastEntryBeforeDate = sortedEntries
+      .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
+      .pop();
 
-    return { planned: result.today, cycleDay: result.cycleDay };
+    if (!lastEntryBeforeDate) {
+      // No entries before this date, start from cycle day 0
+      return { planned: trainingCycle[0], cycleDay: 0 };
+    }
+
+    // Calculate days forward from the last entry
+    const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
+    const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
+
+    // Get the cycle day from the last entry
+    const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
+      ? lastEntryBeforeDate.cycleDay
+      : 0;
+
+    // Calculate the next cycle day, accounting for skipped workouts
+    let nextCycleDay;
+    if (lastEntryBeforeDate.trainingType === 'REST' && lastEntryBeforeDate.plannedTrainingType !== 'REST') {
+      // They skipped the planned workout, so stay on the same cycle day
+      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
+    } else {
+      // Normal progression
+      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
+    }
+
+    return { planned: trainingCycle[nextCycleDay], cycleDay: nextCycleDay };
   };
 
   // currentCycleDay is now passed from parent (from getDynamicCalendar)
