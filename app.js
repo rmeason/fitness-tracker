@@ -3374,8 +3374,15 @@ const App = () => {
   const [allExerciseNames, setAllExerciseNames] = useState(() =>
     Array.from(new Set(entries.flatMap(e => e.exercises || []).map(ex => ex.name)))
   );
+
+  // Add this useEffect right after the useState above
+  useEffect(() => {
+    const names = Array.from(new Set(entries.flatMap(e => e.exercises || []).map(ex => ex.name)));
+    setAllExerciseNames(names);
+  }, [entries]);
+
   const allPRs = calculateAllPRs(entries);
-  
+
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
   const { today: nextWorkout, note: coachNote, cycleDay } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
