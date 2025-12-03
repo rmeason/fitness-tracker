@@ -339,20 +339,14 @@ const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
 const MIGRATION_V4_VERSION = 'v4'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
-  // TEMPORARY: Force migration to run regardless of version flag
-  const FORCE_RUN = true;
-
   // Check if migration already completed with current version
   const currentVersion = localStorage.getItem(MIGRATION_FLAG_V4_KEY);
   console.log(`[Migration V4] Current flag value: "${currentVersion}", expected: "${MIGRATION_V4_VERSION}"`);
-  console.log(`[Migration V4] FORCE_RUN is ${FORCE_RUN ? 'ENABLED' : 'DISABLED'}`);
 
-  if (!FORCE_RUN && currentVersion === MIGRATION_V4_VERSION) {
+  if (currentVersion === MIGRATION_V4_VERSION) {
     console.log('CycleDay recalculation migration already completed, skipping...');
     return { migrated: false };
   }
-
-  console.log('*** FORCING MIGRATION TO RUN ***');
 
   console.log('Starting migration to recalculate cycle days...');
 
@@ -1152,8 +1146,8 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
     // Calculate the next cycle day, accounting for skipped workouts
     let nextCycleDay;
     if (lastEntryBeforeDate.trainingType === 'REST' && lastEntryBeforeDate.plannedTrainingType !== 'REST') {
-      // They skipped the planned workout, so stay on the same cycle day
-      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
+      // They skipped the planned workout, so don't advance the cycle
+      nextCycleDay = (lastCycleDay + (daysDiff - 1)) % cycleLength;
     } else {
       // Normal progression
       nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v14'; // Remove auto-reload after migration
+const CACHE_NAME = 'hypertrophy-pwa-cache-v16'; // Fix calendar skip workout calculation
 
 const FILES_TO_CACHE = [
   './',
