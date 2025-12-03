@@ -4,30 +4,31 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Line } from 'react-chartjs-2';
-import { 
-  Chart, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
 } from 'chart.js';
-  
+
 // --- Import our coach brain ---
 import * as Coach from './coach.js';
 
 // Add these imports after the existing imports
-import { 
-  MUSCLES, 
-  EXERCISE_LIBRARY, 
+import {
+  MUSCLES,
+  EXERCISE_LIBRARY,
   getAllExerciseNames as getAllLibraryExercises,
   getExerciseData,
-  getExercisesForMuscle 
+  getExercisesForMuscle
 } from './muscles.js';
 
-import { 
+import {
   processWorkoutHistory,
   getTrainingRecommendation,
   getRecoveryStatus,
@@ -41,7 +42,7 @@ const h = React.createElement;
 const { useState, useEffect, useRef, Fragment } = React;
 
 // Register Chart.js components
-Chart.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 // --- 🎯 USER & TRAINING CONTEXT (from prompt) ---
 const USER_CONTEXT = {
