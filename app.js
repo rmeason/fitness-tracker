@@ -4,17 +4,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-} from 'chart.js';
+import 'chart.js/auto';
 
 // --- Import our coach brain ---
 import * as Coach from './coach.js';
@@ -40,9 +30,6 @@ const h = React.createElement;
 
 // Get React hooks
 const { useState, useEffect, useRef, Fragment } = React;
-
-// Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 // --- 🎯 USER & TRAINING CONTEXT (from prompt) ---
 const USER_CONTEXT = {
