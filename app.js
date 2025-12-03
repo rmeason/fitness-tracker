@@ -188,16 +188,28 @@ const getMaxWeight = (weights) => {
   return validWeights.length > 0 ? Math.max(...validWeights) : 0;
 };
 
-const calculateVolumeLoad = (weights, reps) => {
+// Helper to check if an exercise is a pull-up variant
+const isPullUpExercise = (exerciseName) => {
+  if (!exerciseName) return false;
+  const name = exerciseName.toLowerCase();
+  return name.includes('pull-up') || name.includes('pullup') || name.includes('pull up');
+};
+
+const calculateVolumeLoad = (weights, reps, exerciseName = null, sleepEntries = []) => {
   if (!weights || !reps || reps.length === 0) return 0;
   // Support both old format (single weight) and new format (array of weights)
   const weightsArray = Array.isArray(weights) ? weights : Array(reps.length).fill(weights);
+
+  // For pull-ups, automatically add bodyweight to volume calculations
+  // When logging: enter 0 for bodyweight pull-ups, or just the added weight for weighted pull-ups
+  // Volume will automatically include your bodyweight from the most recent sleep entry
+  const bodyweightBonus = isPullUpExercise(exerciseName) ? getCurrentWeight(sleepEntries) : 0;
 
   let totalVolume = 0;
   for (let i = 0; i < reps.length; i++) {
     const weight = Number(weightsArray[i]) || 0;
     const rep = Number(reps[i]) || 0;
-    totalVolume += weight * rep;
+    totalVolume += (weight + bodyweightBonus) * rep;
   }
   return totalVolume;
 };
@@ -801,12 +813,9 @@ const CycleEditor = ({ currentCycle, onSave, onClose, entries }) => {
 };
 
 // --- 📈 CHART COMPONENT (FIXED FOR MOBILE) ---
-const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
+const ExerciseProgressChart = ({ entries, allExerciseNames, sleepEntries }) => {
   const [selectedExercise, setSelectedExercise] = useState('');
   const [chartType, setChartType] = useState('weight');
-
-  // DEBUG: Log what we received
-  console.log('[Charts Debug] entries:', entries.length, 'exercises:', allExerciseNames);
 
   // Auto-select first exercise when allExerciseNames updates
   useEffect(() => {
@@ -907,7 +916,7 @@ const ExerciseProgressChart = ({ entries, allExerciseNames }) => {
       let volumeLoad = ex.volumeLoad;
       if (!volumeLoad && ex.reps) {
         const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
-        volumeLoad = calculateVolumeLoad(weights, ex.reps);
+        volumeLoad = calculateVolumeLoad(weights, ex.reps, ex.name, sleepEntries);
       }
 
       return {
@@ -1014,47 +1023,31 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
     dates.push(date);
   }
 
-  // Calculate planned workout for a given date using Coach logic
-  const getPlannedWorkout = (dateStr) => {
+  // Calculate planned workout and cycle day for a given date using Coach logic (single source of truth)
+  const getPlannedWorkoutAndCycleDay = (dateStr) => {
     // If this is today and we have dynamicToday, use it
     if (dateStr === todayStr) {
-      return dynamicToday;
+      return { planned: dynamicToday, cycleDay: currentCycleDay };
     }
 
-    // Find the most recent logged entry before or on this date
+    // Check if this date already has a logged entry
+    const entry = entriesByDate[dateStr];
+    if (entry) {
+      // Use the saved cycleDay from the entry
+      return {
+        planned: entry.plannedTrainingType || entry.trainingType,
+        cycleDay: entry.cycleDay !== undefined ? entry.cycleDay : 0
+      };
+    }
+
+    // For dates without entries, calculate based on entries up to that date
     const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const targetDate = normalizeDate(new Date(dateStr));
-    const lastEntryBeforeDate = sortedEntries
-      .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
-      .pop();
+    const entriesUpToDate = sortedEntries.filter(e => new Date(e.date) <= new Date(dateStr));
 
-    if (!lastEntryBeforeDate) {
-      // No entries yet, start from beginning of cycle
-      const epoch = normalizeDate(new Date('2025-01-01'));
-      const daysSinceEpoch = Math.floor((targetDate - epoch) / (1000 * 60 * 60 * 24));
-      return trainingCycle[daysSinceEpoch % cycleLength];
-    }
+    // Use Coach.getDynamicCalendar for consistent calculation
+    const result = Coach.getDynamicCalendar(entriesUpToDate, trainingCycle);
 
-    // Calculate days difference from last logged entry (using normalized dates)
-    const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
-    const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
-
-    // Use cycleDay from last entry if available, otherwise infer it
-    const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
-      ? lastEntryBeforeDate.cycleDay
-      : trainingCycle.indexOf(lastEntryBeforeDate.plannedTrainingType);
-
-    // Handle skipped days: if user logged REST on a training day, don't advance cycle
-    let nextCycleDay = lastCycleDay;
-    if (lastEntryBeforeDate.trainingType === 'REST' && lastEntryBeforeDate.plannedTrainingType !== 'REST') {
-      // They skipped, so the planned workout stays the same
-      nextCycleDay = lastCycleDay;
-    } else {
-      // Normal progression
-      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
-    }
-
-    return trainingCycle[nextCycleDay];
+    return { planned: result.today, cycleDay: result.cycleDay };
   };
 
   // currentCycleDay is now passed from parent (from getDynamicCalendar)
@@ -1134,32 +1127,10 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
         const dayOfWeek = date.toLocaleDateString('en-US', { weekday: 'short' });
         const dayOfMonth = date.getDate();
         const actual = entriesByDate[dateStr];
-        const planned = getPlannedWorkout(dateStr);
 
-        // Calculate cycle day for this date
-        const getCycleDayForDate = (date) => {
-          const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
-          const targetDate = normalizeDate(new Date(date));
-          const lastEntryBeforeDate = sortedEntries
-            .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
-            .pop();
-
-          if (!lastEntryBeforeDate) {
-            const epoch = normalizeDate(new Date('2025-01-01'));
-            const daysSinceEpoch = Math.floor((targetDate - epoch) / (1000 * 60 * 60 * 24));
-            return (daysSinceEpoch % cycleLength) + 1;
-          }
-
-          const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
-          const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
-          const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
-            ? lastEntryBeforeDate.cycleDay
-            : 0;
-
-          return ((lastCycleDay + daysDiff) % cycleLength) + 1;
-        };
-
-        const cycleDayNumber = getCycleDayForDate(dateStr);
+        // Get planned workout and cycle day from single source of truth
+        const { planned, cycleDay } = getPlannedWorkoutAndCycleDay(dateStr);
+        const cycleDayNumber = cycleDay + 1; // Convert 0-indexed to 1-indexed for display
         const isCycleBoundary = cycleDayNumber === 1 || cycleDayNumber === cycleLength;
 
         let bgColor = 'bg-slate-700';
@@ -2124,7 +2095,7 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
 };
 
 // --- 📜 WORKOUT LOG FORM (UPDATED) ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay }) => {
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries }) => {
   const { showToast } = useToast();
   // Form state
   const [date, setDate] = useState(formatDate(new Date()));
@@ -2324,14 +2295,14 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
           sets: Number(ex.sets),
           reps: reps,
           rpe: Number(ex.rpe),
-          volumeLoad: calculateVolumeLoad(weights, reps)
+          volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries)
         };
       }),
       totalSets,
       totalVolume: exercises.reduce((sum, ex) => {
         const weights = (ex.weights || []).map(w => Number(w) || 0);
         const reps = ex.reps.map(r => Number(r) || 0);
-        return sum + calculateVolumeLoad(weights, reps);
+        return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries);
       }, 0),
       duration: Number(duration),
       caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
@@ -2702,7 +2673,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
               const totalVolume = exercises.reduce((sum, ex) => {
                 const weights = (ex.weights || []).map(w => Number(w) || 0);
                 const reps = ex.reps.map(r => Number(r) || 0);
-                return sum + calculateVolumeLoad(weights, reps);
+                return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries);
               }, 0);
               return `${totalVolume.toLocaleString()} lbs`;
             })()
@@ -3521,7 +3492,8 @@ const App = () => {
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
           plannedToday: nextWorkout,
-          cycleDay: cycleDay
+          cycleDay: cycleDay,
+          sleepEntries: sleepEntries
         });
       case 'nutritionForm':
         return h(NutritionLogForm, {
@@ -3560,7 +3532,7 @@ const App = () => {
           })
         );
       case 'charts':
-        return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames });
+        return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames, sleepEntries });
       case 'settings':
         return h(Settings, {
           entries: sortedEntries,
