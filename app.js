@@ -336,7 +336,7 @@ const migrateToSplitSleepNutrition = () => {
 // --- 🔄 DATA MIGRATION V4 FUNCTION ---
 // Recalculates cycleDay for all existing entries using simple progression
 const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
-const MIGRATION_V4_VERSION = 'v3'; // Increment this to force re-run
+const MIGRATION_V4_VERSION = 'v4'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
   // Check if migration already completed with current version
