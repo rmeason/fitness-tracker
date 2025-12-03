@@ -336,10 +336,11 @@ const migrateToSplitSleepNutrition = () => {
 // --- 🔄 DATA MIGRATION V4 FUNCTION ---
 // Recalculates cycleDay for all existing entries using simple progression
 const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
+const MIGRATION_V4_VERSION = 'v2'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
-  // Check if migration already completed
-  if (localStorage.getItem(MIGRATION_FLAG_V4_KEY)) {
+  // Check if migration already completed with current version
+  if (localStorage.getItem(MIGRATION_FLAG_V4_KEY) === MIGRATION_V4_VERSION) {
     console.log('CycleDay recalculation migration already completed, skipping...');
     return { migrated: false };
   }
@@ -369,13 +370,14 @@ const recalculateCycleDays = (trainingCycle) => {
       const currDate = normalizeDate(new Date(entry.date));
       const daysDiff = Math.floor((currDate - prevDate) / (1000 * 60 * 60 * 24));
 
-      // Calculate next cycle day
+      // Calculate next cycle day based on whether previous workout was completed
       let nextCycleDay;
       if (prevEntry.trainingType === 'REST' && prevEntry.plannedTrainingType !== 'REST') {
-        // Previous entry skipped a workout, stay on same cycle day
-        nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
+        // Previous entry skipped a workout, don't advance the cycle
+        // Stay on the same cycle position, then add daysDiff - 1
+        nextCycleDay = (prevEntry.cycleDay + (daysDiff - 1)) % cycleLength;
       } else {
-        // Normal progression
+        // Normal progression: advance by the number of days
         nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
       }
 
@@ -385,7 +387,7 @@ const recalculateCycleDays = (trainingCycle) => {
 
   // Save the corrected entries
   localStorage.setItem(DB_KEY, JSON.stringify(sortedEntries));
-  localStorage.setItem(MIGRATION_FLAG_V4_KEY, 'true');
+  localStorage.setItem(MIGRATION_FLAG_V4_KEY, MIGRATION_V4_VERSION);
 
   console.log(`Migration V4 complete! Recalculated cycle days for ${sortedEntries.length} entries.`);
   return { migrated: true, entriesUpdated: sortedEntries.length };
