@@ -340,7 +340,10 @@ const MIGRATION_V4_VERSION = 'v3'; // Increment this to force re-run
 
 const recalculateCycleDays = (trainingCycle) => {
   // Check if migration already completed with current version
-  if (localStorage.getItem(MIGRATION_FLAG_V4_KEY) === MIGRATION_V4_VERSION) {
+  const currentVersion = localStorage.getItem(MIGRATION_FLAG_V4_KEY);
+  console.log(`[Migration V4] Current flag value: "${currentVersion}", expected: "${MIGRATION_V4_VERSION}"`);
+
+  if (currentVersion === MIGRATION_V4_VERSION) {
     console.log('CycleDay recalculation migration already completed, skipping...');
     return { migrated: false };
   }
@@ -348,9 +351,11 @@ const recalculateCycleDays = (trainingCycle) => {
   console.log('Starting migration to recalculate cycle days...');
 
   const existingData = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+  console.log(`[Migration V4] Found ${existingData.length} entries in localStorage`);
+
   if (existingData.length === 0) {
-    console.log('No entries to migrate');
-    localStorage.setItem(MIGRATION_FLAG_V4_KEY, 'true');
+    console.log('[Migration V4] No entries to migrate');
+    localStorage.setItem(MIGRATION_FLAG_V4_KEY, MIGRATION_V4_VERSION);
     return { migrated: false };
   }
 
