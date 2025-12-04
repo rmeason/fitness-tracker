@@ -8,7 +8,8 @@
       "Bash(cat:*)",
       "Bash(node:*)",
       "Bash(move:*)",
-      "Bash(git config:*)"
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
