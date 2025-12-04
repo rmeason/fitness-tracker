@@ -7,7 +7,8 @@
       "Bash(git push:*)",
       "Bash(cat:*)",
       "Bash(node:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(git config:*)"
     ],
     "deny": [],
     "ask": []
