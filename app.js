@@ -115,11 +115,22 @@ const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tr
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
 
+// Parse a YYYY-MM-DD string as LOCAL time (not UTC)
+// This fixes the timezone issue where "2025-12-02" parsed as UTC becomes Dec 1 in some timezones
+const parseLocalDate = (dateStr) => {
+  if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day); // month is 0-indexed
+  }
+  return new Date(dateStr);
+};
+
 // Normalize date to midnight local time (removes time component)
 const normalizeDate = (date) => {
-  const normalized = new Date(date);
-  normalized.setHours(0, 0, 0, 0);
-  return normalized;
+  // If it's a string, parse as local time
+  const d = typeof date === 'string' ? parseLocalDate(date) : new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
 };
 
 // Format date as YYYY-MM-DD using LOCAL timezone (not UTC)

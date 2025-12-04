@@ -206,11 +206,15 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   // PRIMARY METHOD: Use stored cycleDay from last entry + days elapsed
   // This is the most reliable method when we have cycleDay data
   if (lastEntry.cycleDay !== undefined) {
-    const lastEntryDate = new Date(lastEntry.date);
+    // Parse date as local time (YYYY-MM-DD format parsed as local, not UTC)
+    const [year, month, day] = lastEntry.date.split('-').map(Number);
+    const lastEntryDate = new Date(year, month - 1, day); // month is 0-indexed
     lastEntryDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const daysSinceLastEntry = Math.round((today - lastEntryDate) / (1000 * 60 * 60 * 24));
+
+    console.log('Date parsing debug: lastEntry.date=', lastEntry.date, ', parsed=', lastEntryDate.toDateString(), ', today=', today.toDateString());
 
     console.log('Using stored cycleDay method');
     console.log('lastEntry.cycleDay:', lastEntry.cycleDay);

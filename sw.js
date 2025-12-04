@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v20'; // Fix cycle day calculation - use stored cycleDay + days elapsed
+const CACHE_NAME = 'hypertrophy-pwa-cache-v21'; // Fix timezone issue with date parsing
 
 const FILES_TO_CACHE = [
   './',
