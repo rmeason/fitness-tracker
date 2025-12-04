@@ -1103,57 +1103,49 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
     dates.push(date);
   }
 
-  // Calculate planned workout and cycle day for a given date using Coach logic (single source of truth)
+  // DEBUG: Log what TrainingCalendar receives
+  console.log('=== CALENDAR DEBUG ===');
+  console.log('currentCycleDay (from parent):', currentCycleDay);
+  console.log('dynamicToday:', dynamicToday);
+  console.log('cycleLength:', cycleLength);
+  console.log('todayStr:', todayStr);
+  console.log('entries count:', entries.length);
+  console.log('======================');
+
+  // Calculate planned workout and cycle day for a given date
+  // Uses today's cycle day (from Coach) as the anchor point and calculates relative to it
   const getPlannedWorkoutAndCycleDay = (dateStr) => {
-    // If this is today and we have dynamicToday, use it
-    if (dateStr === todayStr) {
-      return { planned: dynamicToday, cycleDay: currentCycleDay };
-    }
+    const targetDate = normalizeDate(new Date(dateStr));
+    const today = normalizeDate(new Date());
 
     // Check if this date already has a logged entry
     const entry = entriesByDate[dateStr];
-    if (entry) {
-      // Use the saved cycleDay from the entry
+    if (entry && entry.cycleDay !== undefined) {
+      // Use the saved cycleDay from the entry (historical data)
+      console.log(`[Calendar] ${dateStr}: Using logged entry cycleDay=${entry.cycleDay}, trainingType=${entry.trainingType}`);
       return {
-        planned: entry.plannedTrainingType || entry.trainingType,
-        cycleDay: entry.cycleDay !== undefined ? entry.cycleDay : 0
+        planned: entry.plannedTrainingType || trainingCycle[entry.cycleDay],
+        cycleDay: entry.cycleDay
       };
     }
 
-    // For dates without entries, we need to calculate forward from the most recent entry
-    const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const targetDate = normalizeDate(new Date(dateStr));
+    // For today and all unlogged dates, calculate relative to today's cycle day
+    // Today's cycle day comes from Coach.getDynamicCalendar (the single source of truth)
+    const daysDiffFromToday = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
 
-    // Find the last entry before or on this date
-    const lastEntryBeforeDate = sortedEntries
-      .filter(e => normalizeDate(new Date(e.date)) <= targetDate)
-      .pop();
-
-    if (!lastEntryBeforeDate) {
-      // No entries before this date, start from cycle day 0
-      return { planned: trainingCycle[0], cycleDay: 0 };
+    // Calculate cycle day: today's cycle day + days offset, wrapped around cycle length
+    // Use proper modulo that handles negative numbers correctly
+    let calculatedCycleDay = (currentCycleDay + daysDiffFromToday) % cycleLength;
+    if (calculatedCycleDay < 0) {
+      calculatedCycleDay += cycleLength;
     }
 
-    // Calculate days forward from the last entry
-    const lastEntryDate = normalizeDate(new Date(lastEntryBeforeDate.date));
-    const daysDiff = Math.floor((targetDate - lastEntryDate) / (1000 * 60 * 60 * 24));
+    console.log(`[Calendar] ${dateStr}: daysDiff=${daysDiffFromToday}, currentCycleDay=${currentCycleDay}, calculated=${calculatedCycleDay}, planned=${trainingCycle[calculatedCycleDay]}`);
 
-    // Get the cycle day from the last entry
-    const lastCycleDay = lastEntryBeforeDate.cycleDay !== undefined
-      ? lastEntryBeforeDate.cycleDay
-      : 0;
-
-    // Calculate the next cycle day, accounting for skipped workouts
-    let nextCycleDay;
-    if (lastEntryBeforeDate.trainingType === 'REST' && lastEntryBeforeDate.plannedTrainingType !== 'REST') {
-      // They skipped the planned workout, so don't advance the cycle
-      nextCycleDay = (lastCycleDay + (daysDiff - 1)) % cycleLength;
-    } else {
-      // Normal progression
-      nextCycleDay = (lastCycleDay + daysDiff) % cycleLength;
-    }
-
-    return { planned: trainingCycle[nextCycleDay], cycleDay: nextCycleDay };
+    return {
+      planned: trainingCycle[calculatedCycleDay],
+      cycleDay: calculatedCycleDay
+    };
   };
 
   // currentCycleDay is now passed from parent (from getDynamicCalendar)
@@ -3466,26 +3458,27 @@ const App = () => {
 
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
-  const { today: nextWorkout, note: coachNote } = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
 
-  // Calculate today's cycle day using same logic as migration (simple date progression)
-  let cycleDay = 0;
+  // Use Coach.getDynamicCalendar as THE SINGLE SOURCE OF TRUTH for today's cycle position
+  const coachResult = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+  const { today: nextWorkout, note: coachNote, cycleDay: coachCycleDay } = coachResult;
+
+  // Use the coach's cycle day - this is the authoritative source
+  const cycleDay = coachCycleDay;
+
+  // DEBUG: Log cycle day calculation
+  console.log('=== CYCLE DAY DEBUG (Main App) ===');
+  console.log('Coach.getDynamicCalendar result:', coachResult);
+  console.log('coachCycleDay:', coachCycleDay);
+  console.log('cycleDay (used):', cycleDay);
+  console.log('trainingCycle:', trainingCycle);
+  console.log('trainingCycle[cycleDay]:', trainingCycle[cycleDay]);
+  console.log('sortedEntries count:', sortedEntries.length);
   if (sortedEntries.length > 0) {
     const lastEntry = sortedEntries[sortedEntries.length - 1];
-    const lastDate = normalizeDate(new Date(lastEntry.date));
-    const today = normalizeDate(new Date());
-    const daysDiff = Math.floor((today - lastDate) / (1000 * 60 * 60 * 24));
-
-    const lastCycleDay = lastEntry.cycleDay !== undefined ? lastEntry.cycleDay : 0;
-
-    if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType !== 'REST') {
-      // Skipped workout, don't advance cycle
-      cycleDay = (lastCycleDay + (daysDiff - 1)) % trainingCycle.length;
-    } else {
-      // Normal progression
-      cycleDay = (lastCycleDay + daysDiff) % trainingCycle.length;
-    }
+    console.log('Last entry:', { date: lastEntry.date, trainingType: lastEntry.trainingType, cycleDay: lastEntry.cycleDay, plannedTrainingType: lastEntry.plannedTrainingType });
   }
+  console.log('=================================');
 
   const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
 
