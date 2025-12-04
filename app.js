@@ -1126,7 +1126,8 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
   // Calculate planned workout and cycle day for a given date
   // Uses today's cycle day (from Coach) as the anchor point and calculates relative to it
   const getPlannedWorkoutAndCycleDay = (dateStr) => {
-    const targetDate = normalizeDate(new Date(dateStr));
+    // Parse dates as local time to avoid timezone issues
+    const targetDate = normalizeDate(dateStr); // Pass string directly, normalizeDate handles it
     const today = normalizeDate(new Date());
 
     // Check if this date already has a logged entry
@@ -1151,7 +1152,7 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
       calculatedCycleDay += cycleLength;
     }
 
-    console.log(`[Calendar] ${dateStr}: daysDiff=${daysDiffFromToday}, currentCycleDay=${currentCycleDay}, calculated=${calculatedCycleDay}, planned=${trainingCycle[calculatedCycleDay]}`);
+    console.log(`[Calendar] ${dateStr}: targetDate=${targetDate.toDateString()}, today=${today.toDateString()}, daysDiff=${daysDiffFromToday}, currentCycleDay=${currentCycleDay}, calculated=${calculatedCycleDay}, planned=${trainingCycle[calculatedCycleDay]}`);
 
     return {
       planned: trainingCycle[calculatedCycleDay],
