@@ -296,6 +296,40 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: false
   },
+
+  "Gym80 Pure Kraft High Row Dual": {
+    category: "compound",
+    tier: 2,
+    variants: ["Narrow Grip", "Wide Grip", "Neutral Grip"],
+    primaryMuscles: {
+      // Default narrow/neutral grip
+      latsUpper: 90,
+      latsLower: 90,
+      trapsMid: 105,  // Exceeds 100% MVIC
+      rhomboids: 45
+    },
+    secondaryMuscles: {
+      trapsLower: 50,
+      trapsUpper: 40,
+      deltsRear: 55,  // Increases with elbow flare
+      bicepsLong: 61,
+      bicepsShort: 61,
+      brachialis: 45,
+      infraspinatus: 50,
+      erectorSpinae: 25
+    },
+    variantAdjustments: {
+      "Wide Grip": {
+        trapsMid: +3,      // 108% vs 105%
+        trapsUpper: +10,   // 50% vs 40%
+        deltsRear: +15,    // 70% vs 55%
+        latsUpper: -2,     // 88% vs 90%
+        latsLower: -2
+      }
+    },
+    lengtheningPartials: false,
+    notes: "Elevated pull angle; plate-loaded; independent arms; 365 lb machine"
+  },
   
   "Dumbbell Incline Bench Press": {
     category: "compound",
@@ -312,6 +346,25 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: true,
     lengtheningMultiplier: 1.3
+  },
+
+  "Gym80 3042 Dual Incline Chest Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      pectoralsUpper: 70,  // 30° angle optimal for upper pec
+      pectoralsLower: 55,
+      deltsFront: 80
+    },
+    secondaryMuscles: {
+      tricepsLong: 50,
+      tricepsLateral: 50,
+      deltsMid: 20,
+      serratusAnterior: 18
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.3,
+    notes: "Independent arms; 30° incline optimal; 1,091 lb machine with 231 lb stack"
   },
   
   "Standing EZ-Bar Shoulder Press": {
@@ -481,6 +534,48 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: false,
     notes: "Pendulum arc: easier at bottom, harder at lockout; 5-position footplate critical"
+  },
+
+  "Hack Squats": {
+    category: "compound",
+    tier: 2,
+    variants: ["Standard", "High Foot", "Low Foot", "Wide Stance", "Narrow Stance"],
+    primaryMuscles: {
+      vastusLateralis: 55,
+      vastusMedialis: 58,
+      rectusFemoris: 32,
+      glutesUpper: 30,
+      glutesLower: 30
+    },
+    secondaryMuscles: {
+      bicepsFemoris: 17,
+      semitendinosus: 15,
+      erectorSpinae: 20,  // Dramatically lower than barbell squat
+      gastrocnemius: 15,
+      rectusAbdominis: 20
+    },
+    variantAdjustments: {
+      "High Foot": {
+        glutesUpper: +10,
+        glutesLower: +10,
+        bicepsFemoris: +8,
+        vastusLateralis: -5
+      },
+      "Low Foot": {
+        vastusLateralis: +10,
+        vastusMedialis: +10,
+        rectusFemoris: +5,
+        glutesUpper: -5
+      },
+      "Wide Stance": {
+        glutesUpper: +15,
+        glutesLower: +15,
+        vastusMedialis: +5
+      }
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.5,
+    notes: "45° angle; spine-sparing; emphasize deep/bottom position for lengthened stimulus"
   },
   
   "Gym80 3018 Standing Calf Raise Machine": {
@@ -1637,6 +1732,21 @@ export const EXERCISE_LIBRARY = {
     lengtheningMultiplier: 1.4,
     notes: "Eccentric emphasis extends recovery 24-48hrs"
   },
+
+  "Seated Leg Curl": {
+    category: "isolation",
+    tier: 4,
+    primaryMuscles: {
+      bicepsFemoris: 82,  // 75-87% MVIC acute, 2.2x growth advantage long head
+      semitendinosus: 82  // 1.2x growth advantage vs prone
+    },
+    secondaryMuscles: {
+      gastrocnemius: 25
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.5,  // Conservative estimate; up to 2.2x for BF long head
+    notes: "Hip flexion places hamstrings at longer length; 1.5-2.2x growth vs prone curls"
+  },
   
   "Lying Leg Curls": {
     category: "isolation",
@@ -1732,16 +1842,41 @@ export const EXERCISE_LIBRARY = {
   "Seated Calf Raises": {
     category: "isolation",
     tier: 4,
+    variants: ["Full ROM", "Lower-End Partials"],
     primaryMuscles: {
       soleus: 65,  // 90° knee shifts to soleus
       gastrocnemius: 25  // Active insufficiency at 90° knee
     },
     secondaryMuscles: {},
+    variantAdjustments: {
+      "Lower-End Partials": {
+        // Activation same, but hypertrophy multiplier increases
+        soleus: 0,
+        gastrocnemius: 0
+      }
+    },
     lengtheningPartials: true,
-    lengtheningMultiplier: 2.2,
-    notes: "+2.1% soleus growth only; inferior for gastrocnemius"
-  }
+    lengtheningMultiplier: 2.0,  // For lower-end partials variant
+    notes: "+2.1% soleus growth only; inferior for gastrocnemius vs standing; 2x advantage with lengthened partials"
+  },
+
+  "Seated Calf Raises Lower-End Partials": {
+    category: "isolation",
+    tier: 4,
+    primaryMuscles: {
+      soleus: 65,  // 90° knee = soleus emphasis
+      gastrocnemius: 25  // Active insufficiency at bent knee
+    },
+    secondaryMuscles: {},
+    lengtheningPartials: true,
+    lengtheningMultiplier: 2.0,  // 2x growth advantage for lengthened partials
+    isPartialVariant: true,
+    notes: "Bottom 50% ROM emphasis; 1-3 sec stretch holds; soleus-dominant"
+  },
+
 };
+
+
 
 // --- EXERCISE TIER SYSTEM (for fatigue calculation) ---
 // Tier 1 (1.5x): High CNS demand - squats, deadlifts, Olympic lifts
