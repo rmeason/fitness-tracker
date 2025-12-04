@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v22'; // Fix calendar date parsing for timezone
+const CACHE_NAME = 'hypertrophy-pwa-cache-v23'; // Force re-run migration v5 to fix cycleDay values
 
 const FILES_TO_CACHE = [
   './',
