@@ -184,7 +184,14 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
 export function getDynamicCalendar(allEntries, trainingCycle) {
   const cycleLength = trainingCycle.length;
 
+  console.log('=== COACH getDynamicCalendar DEBUG ===');
+  console.log('allEntries count:', allEntries.length);
+  console.log('trainingCycle:', trainingCycle);
+  console.log('cycleLength:', cycleLength);
+
   if (allEntries.length === 0) {
+    console.log('No entries - returning cycleDay: 0');
+    console.log('======================================');
     return {
       today: trainingCycle[0],
       note: 'Starting your first cycle!',
@@ -197,11 +204,16 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
     .slice(-3);
 
+  console.log('Last 3 non-REST workouts:', nonRestWorkouts.map(e => ({ date: e.date, type: e.trainingType, cycleDay: e.cycleDay })));
+
   // --- FALLBACK: Less than 3 workouts logged ---
   if (nonRestWorkouts.length < 3) {
     const lastLog = allEntries[allEntries.length - 1];
     const lastPlannedWorkout = lastLog.plannedTrainingType;
     const lastActualWorkout = lastLog.trainingType;
+
+    console.log('Less than 3 workouts - using fallback');
+    console.log('lastLog:', { date: lastLog.date, trainingType: lastLog.trainingType, plannedTrainingType: lastLog.plannedTrainingType, cycleDay: lastLog.cycleDay });
 
     const lastCycleIndex = lastLog.cycleDay !== undefined
       ? lastLog.cycleDay
@@ -218,6 +230,9 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
       note = `You skipped ${lastPlannedWorkout}. Let's hit that today to stay on track.`;
     }
 
+    console.log('Fallback result: cycleDay =', nextCycleIndex, ', today =', todayPlanned);
+    console.log('======================================');
+
     return {
       today: todayPlanned,
       note,
@@ -227,11 +242,13 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
 
   // --- STEP 2: Extract training types from last 3 workouts ---
   const last3Types = nonRestWorkouts.map(entry => entry.trainingType);
+  console.log('last3Types pattern:', last3Types);
 
   // --- STEP 3: Create a map of cycle positions to NON-REST workouts ---
   // This helps us find patterns while tracking original cycle positions
   const cycleWithPositions = trainingCycle.map((type, index) => ({ type, index }));
   const nonRestCycle = cycleWithPositions.filter(item => item.type !== 'REST');
+  console.log('nonRestCycle (workout positions):', nonRestCycle);
 
   // --- STEP 4: Find the pattern in NON-REST cycle items ---
   let patternFoundAt = -1;
@@ -252,12 +269,17 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     }
   }
 
+  console.log('patternFoundAt:', patternFoundAt);
+
   // --- STEP 5: Pattern found - determine next workout ---
   if (patternFoundAt !== -1) {
     // Get the position in the original cycle after the last matched workout
     const lastMatchedPosition = nonRestCycle[patternFoundAt + patternLength - 1].index;
     const nextCycleIndex = (lastMatchedPosition + 1) % cycleLength;
     const todayPlanned = trainingCycle[nextCycleIndex];
+
+    console.log('Pattern found! lastMatchedPosition:', lastMatchedPosition, ', nextCycleIndex:', nextCycleIndex, ', todayPlanned:', todayPlanned);
+    console.log('======================================');
 
     return {
       today: todayPlanned,
@@ -270,6 +292,8 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   // Use frequency-based suggestion: find which workout types are underrepresented
   const lastLog = allEntries[allEntries.length - 1];
 
+  console.log('Pattern NOT found - using frequency fallback');
+
   // Count recent workout frequency (last 7 workouts)
   const recentWorkouts = allEntries
     .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
@@ -280,6 +304,8 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     const type = entry.trainingType;
     workoutCounts[type] = (workoutCounts[type] || 0) + 1;
   });
+
+  console.log('workoutCounts:', workoutCounts);
 
   // Find the least frequent workout type from the cycle
   const nonRestCycleTypes = trainingCycle.filter(type => type !== 'REST');
@@ -299,6 +325,9 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   // Find this type in the cycle
   const suggestedIndex = trainingCycle.indexOf(leastFrequentType);
   const todayPlanned = leastFrequentType;
+
+  console.log('Frequency fallback: leastFrequentType:', leastFrequentType, ', suggestedIndex:', suggestedIndex);
+  console.log('======================================');
 
   return {
     today: todayPlanned,
