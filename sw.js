@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v21'; // Fix timezone issue with date parsing
+const CACHE_NAME = 'hypertrophy-pwa-cache-v22'; // Fix calendar date parsing for timezone
 
 const FILES_TO_CACHE = [
   './',
