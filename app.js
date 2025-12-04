@@ -3247,6 +3247,18 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             setEntries(imported.entries);
             localStorage.setItem(DB_KEY, JSON.stringify(imported.entries));
             console.log(`[Import] Restored ${imported.entries.length} workout entries`);
+
+            // Force recalculate cycle days for imported data
+            console.log('[Import] Recalculating cycle days for imported entries...');
+            localStorage.removeItem(MIGRATION_FLAG_V4_KEY); // Clear migration flag to force re-run
+            const cycle = imported.trainingCycle || trainingCycle;
+            const migrationResult = recalculateCycleDays(cycle);
+            if (migrationResult.migrated) {
+              // Reload the updated entries from localStorage
+              const updatedEntries = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
+              setEntries(updatedEntries);
+              console.log(`[Import] Cycle days recalculated for ${migrationResult.entriesUpdated} entries`);
+            }
           }
           if (imported.trainingCycle) setTrainingCycle(imported.trainingCycle);
           if (imported.customCycles) {
