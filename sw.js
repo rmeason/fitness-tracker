@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v19'; // Add debug logging for cycle day issues
+const CACHE_NAME = 'hypertrophy-pwa-cache-v20'; // Fix cycle day calculation - use stored cycleDay + days elapsed
 
 const FILES_TO_CACHE = [
   './',

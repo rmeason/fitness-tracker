@@ -199,26 +199,79 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     };
   }
 
-  // --- STEP 1: Get last 3 NON-REST workouts ---
+  // Get the last entry (most recent log)
+  const lastEntry = allEntries[allEntries.length - 1];
+  console.log('Last entry:', { date: lastEntry.date, trainingType: lastEntry.trainingType, plannedTrainingType: lastEntry.plannedTrainingType, cycleDay: lastEntry.cycleDay });
+
+  // PRIMARY METHOD: Use stored cycleDay from last entry + days elapsed
+  // This is the most reliable method when we have cycleDay data
+  if (lastEntry.cycleDay !== undefined) {
+    const lastEntryDate = new Date(lastEntry.date);
+    lastEntryDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const daysSinceLastEntry = Math.round((today - lastEntryDate) / (1000 * 60 * 60 * 24));
+
+    console.log('Using stored cycleDay method');
+    console.log('lastEntry.cycleDay:', lastEntry.cycleDay);
+    console.log('daysSinceLastEntry:', daysSinceLastEntry);
+
+    // Calculate today's cycle day
+    let todayCycleDay;
+
+    // Check if last entry was a skipped workout (logged REST when workout was planned)
+    if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType && lastEntry.plannedTrainingType !== 'REST') {
+      // They skipped the planned workout - stay on same cycle position, then add remaining days
+      // If they skipped yesterday, we want them to do that workout today
+      if (daysSinceLastEntry === 1) {
+        todayCycleDay = lastEntry.cycleDay; // Same day - redo the skipped workout
+        console.log('Skipped workout yesterday - suggesting same cycle day');
+      } else {
+        // Multiple days passed - advance but subtract 1 for the skip
+        todayCycleDay = (lastEntry.cycleDay + daysSinceLastEntry - 1) % cycleLength;
+        console.log('Skipped workout, multiple days passed');
+      }
+    } else {
+      // Normal progression: add days since last entry
+      todayCycleDay = (lastEntry.cycleDay + daysSinceLastEntry) % cycleLength;
+      console.log('Normal progression');
+    }
+
+    const todayPlanned = trainingCycle[todayCycleDay];
+
+    // Get last 3 non-REST workouts for the note
+    const nonRestWorkouts = allEntries
+      .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
+      .slice(-3);
+    const last3Types = nonRestWorkouts.map(entry => entry.trainingType);
+
+    console.log('Result: todayCycleDay:', todayCycleDay, ', todayPlanned:', todayPlanned);
+    console.log('======================================');
+
+    return {
+      today: todayPlanned,
+      note: `Based on last 3 workouts pattern: [${last3Types.join(', ')}]`,
+      cycleDay: todayCycleDay
+    };
+  }
+
+  // FALLBACK: No cycleDay stored - use pattern matching (legacy behavior)
+  console.log('No cycleDay stored - using pattern matching fallback');
+
+  // --- Get last 3 NON-REST workouts ---
   const nonRestWorkouts = allEntries
     .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
     .slice(-3);
 
   console.log('Last 3 non-REST workouts:', nonRestWorkouts.map(e => ({ date: e.date, type: e.trainingType, cycleDay: e.cycleDay })));
 
-  // --- FALLBACK: Less than 3 workouts logged ---
   if (nonRestWorkouts.length < 3) {
-    const lastLog = allEntries[allEntries.length - 1];
-    const lastPlannedWorkout = lastLog.plannedTrainingType;
-    const lastActualWorkout = lastLog.trainingType;
+    const lastPlannedWorkout = lastEntry.plannedTrainingType;
+    const lastActualWorkout = lastEntry.trainingType;
 
-    console.log('Less than 3 workouts - using fallback');
-    console.log('lastLog:', { date: lastLog.date, trainingType: lastLog.trainingType, plannedTrainingType: lastLog.plannedTrainingType, cycleDay: lastLog.cycleDay });
+    console.log('Less than 3 workouts - using simple progression');
 
-    const lastCycleIndex = lastLog.cycleDay !== undefined
-      ? lastLog.cycleDay
-      : trainingCycle.indexOf(lastPlannedWorkout);
-
+    const lastCycleIndex = trainingCycle.indexOf(lastPlannedWorkout);
     let nextCycleIndex = (lastCycleIndex + 1) % cycleLength;
     let todayPlanned = trainingCycle[nextCycleIndex];
     let note = `Less than 3 workouts logged. Using simple progression. Next up: ${todayPlanned}`;
@@ -240,21 +293,19 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     };
   }
 
-  // --- STEP 2: Extract training types from last 3 workouts ---
+  // Extract training types from last 3 workouts for pattern matching
   const last3Types = nonRestWorkouts.map(entry => entry.trainingType);
   console.log('last3Types pattern:', last3Types);
 
-  // --- STEP 3: Create a map of cycle positions to NON-REST workouts ---
-  // This helps us find patterns while tracking original cycle positions
+  // Create a map of cycle positions to NON-REST workouts
   const cycleWithPositions = trainingCycle.map((type, index) => ({ type, index }));
   const nonRestCycle = cycleWithPositions.filter(item => item.type !== 'REST');
   console.log('nonRestCycle (workout positions):', nonRestCycle);
 
-  // --- STEP 4: Find the pattern in NON-REST cycle items ---
+  // Find the pattern in NON-REST cycle items
   let patternFoundAt = -1;
   const patternLength = last3Types.length;
 
-  // Search for exact match of last 3 workouts in the NON-REST cycle
   for (let i = 0; i <= nonRestCycle.length - patternLength; i++) {
     let match = true;
     for (let j = 0; j < patternLength; j++) {
@@ -271,9 +322,7 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
 
   console.log('patternFoundAt:', patternFoundAt);
 
-  // --- STEP 5: Pattern found - determine next workout ---
   if (patternFoundAt !== -1) {
-    // Get the position in the original cycle after the last matched workout
     const lastMatchedPosition = nonRestCycle[patternFoundAt + patternLength - 1].index;
     const nextCycleIndex = (lastMatchedPosition + 1) % cycleLength;
     const todayPlanned = trainingCycle[nextCycleIndex];
@@ -288,13 +337,9 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     };
   }
 
-  // --- FALLBACK: Pattern not found (user went off-cycle) ---
-  // Use frequency-based suggestion: find which workout types are underrepresented
-  const lastLog = allEntries[allEntries.length - 1];
-
+  // Pattern not found - use frequency-based suggestion
   console.log('Pattern NOT found - using frequency fallback');
 
-  // Count recent workout frequency (last 7 workouts)
   const recentWorkouts = allEntries
     .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
     .slice(-7);
@@ -307,7 +352,6 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
 
   console.log('workoutCounts:', workoutCounts);
 
-  // Find the least frequent workout type from the cycle
   const nonRestCycleTypes = trainingCycle.filter(type => type !== 'REST');
   const uniqueTypes = [...new Set(nonRestCycleTypes)];
 
@@ -322,7 +366,6 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
     }
   }
 
-  // Find this type in the cycle
   const suggestedIndex = trainingCycle.indexOf(leastFrequentType);
   const todayPlanned = leastFrequentType;
 

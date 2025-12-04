@@ -7,7 +7,9 @@
       "Bash(git push:*)",
       "Bash(cat:*)",
       "Bash(node:*)",
-      "Bash(move:*)"
+      "Bash(move:*)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []
