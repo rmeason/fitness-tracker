@@ -345,9 +345,22 @@ const migrateToSplitSleepNutrition = () => {
 };
 
 // --- 🔄 DATA MIGRATION V4 FUNCTION ---
-// Recalculates cycleDay for all existing entries using simple progression
+// Recalculates cycleDay for all existing entries, anchored to Sundays
+// D0 always falls on a Sunday, so any date's cycleDay = daysSinceSunday % cycleLength
 const MIGRATION_FLAG_V4_KEY = 'hypertrophy-pwa-migrationV4Done';
-const MIGRATION_V4_VERSION = 'v5'; // Increment this to force re-run (v5 fixes timezone issues)
+const MIGRATION_V4_VERSION = 'v6'; // v6 anchors cycle days to Sundays
+
+// Helper: Get cycle day for any date, anchored to Sundays
+// Uses a fixed reference Sunday (Jan 5, 2025) so D0 always falls on Sunday
+// For a 14-day cycle: Week 1 = D0-D6, Week 2 = D7-D13
+const getCycleDayForDate = (dateInput, cycleLength) => {
+  const date = typeof dateInput === 'string' ? parseLocalDate(dateInput) : new Date(dateInput);
+  const refSunday = new Date(2025, 0, 5); // Jan 5, 2025 = Sunday
+  refSunday.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  const daysSinceRef = Math.round((date - refSunday) / (1000 * 60 * 60 * 24));
+  return ((daysSinceRef % cycleLength) + cycleLength) % cycleLength; // Handle negative values
+};
 
 const recalculateCycleDays = (trainingCycle) => {
   // Check if migration already completed with current version
@@ -359,7 +372,7 @@ const recalculateCycleDays = (trainingCycle) => {
     return { migrated: false };
   }
 
-  console.log('Starting migration to recalculate cycle days...');
+  console.log('Starting migration to recalculate cycle days (anchored to Sundays)...');
 
   const existingData = JSON.parse(localStorage.getItem(DB_KEY) || '[]');
   console.log(`[Migration V4] Found ${existingData.length} entries in localStorage`);
@@ -379,46 +392,32 @@ const recalculateCycleDays = (trainingCycle) => {
     return dateA - dateB;
   });
 
-  // Recalculate cycleDay for each entry
-  console.log('[Migration V4] Starting cycle day recalculation...');
+  // Recalculate cycleDay for each entry based on day of week
+  // This ensures D0 always falls on Sunday
+  console.log('[Migration V4] Starting cycle day recalculation (Sunday-anchored)...');
   console.log('[Migration V4] Cycle length:', cycleLength);
   console.log('[Migration V4] Training cycle:', trainingCycle);
 
   sortedEntries.forEach((entry, index) => {
-    if (index === 0) {
-      // First entry starts at cycle day 0
-      entry.cycleDay = 0;
-      console.log(`[Migration V4] Entry ${index}: ${entry.date} (${entry.trainingType}) -> cycleDay: 0 (first entry)`);
-    } else {
-      const prevEntry = sortedEntries[index - 1];
-      // Use parseLocalDate to avoid timezone issues with YYYY-MM-DD strings
-      const prevDate = normalizeDate(prevEntry.date);
-      const currDate = normalizeDate(entry.date);
-      const daysDiff = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+    const date = parseLocalDate(entry.date);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
-      console.log(`[Migration V4] Entry ${index}: ${entry.date} (${entry.trainingType})`);
-      console.log(`  Previous: ${prevEntry.date} (${prevEntry.trainingType}), cycleDay: ${prevEntry.cycleDay}`);
-      console.log(`  Days difference: ${daysDiff}`);
-      console.log(`  Prev planned: ${prevEntry.plannedTrainingType}, actual: ${prevEntry.trainingType}`);
+    // For a 14-day cycle, we need to also consider which week we're in
+    // Week 1: Sun=D0, Mon=D1, Tue=D2, Wed=D3, Thu=D4, Fri=D5, Sat=D6
+    // Week 2: Sun=D7, Mon=D8, Tue=D9, Wed=D10, Thu=D11, Fri=D12, Sat=D13
+    // To determine which week, we use the week number since a reference point
 
-      // Calculate next cycle day based on whether previous workout was completed
-      let nextCycleDay;
-      if (prevEntry.trainingType === 'REST' && prevEntry.plannedTrainingType && prevEntry.plannedTrainingType !== 'REST') {
-        // Previous entry skipped a workout, don't advance the cycle
-        // Stay on the same cycle position, then add daysDiff - 1
-        nextCycleDay = (prevEntry.cycleDay + Math.max(0, daysDiff - 1)) % cycleLength;
-        console.log(`  Skipped workout detected! Staying on same cycle day`);
-        console.log(`  Calculation: (${prevEntry.cycleDay} + ${Math.max(0, daysDiff - 1)}) % ${cycleLength} = ${nextCycleDay}`);
-      } else {
-        // Normal progression: advance by the number of days
-        nextCycleDay = (prevEntry.cycleDay + daysDiff) % cycleLength;
-        console.log(`  Normal progression`);
-        console.log(`  Calculation: (${prevEntry.cycleDay} + ${daysDiff}) % ${cycleLength} = ${nextCycleDay}`);
-      }
+    // Use a fixed reference Sunday (e.g., Jan 5, 2025 which is a Sunday)
+    const refSunday = new Date(2025, 0, 5); // Jan 5, 2025 = Sunday
+    refSunday.setHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
 
-      entry.cycleDay = nextCycleDay;
-      console.log(`  -> New cycleDay: ${nextCycleDay} (${trainingCycle[nextCycleDay]})`);
-    }
+    const daysSinceRef = Math.round((date - refSunday) / (1000 * 60 * 60 * 24));
+    const cycleDay = ((daysSinceRef % cycleLength) + cycleLength) % cycleLength; // Handle negative values
+
+    console.log(`[Migration V4] Entry ${index}: ${entry.date} (${date.toLocaleDateString('en-US', {weekday: 'short'})}) -> cycleDay: ${cycleDay} (days since ref Sunday: ${daysSinceRef})`);
+
+    entry.cycleDay = cycleDay;
   });
 
   // Save the corrected entries
@@ -1129,12 +1128,8 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
   console.log('======================');
 
   // Calculate planned workout and cycle day for a given date
-  // Uses today's cycle day (from Coach) as the anchor point and calculates relative to it
+  // Uses Sunday-anchored calculation: D0 always falls on a Sunday
   const getPlannedWorkoutAndCycleDay = (dateStr) => {
-    // Parse dates as local time to avoid timezone issues
-    const targetDate = normalizeDate(dateStr); // Pass string directly, normalizeDate handles it
-    const today = normalizeDate(new Date());
-
     // Check if this date already has a logged entry
     const entry = entriesByDate[dateStr];
     if (entry && entry.cycleDay !== undefined) {
@@ -1146,18 +1141,12 @@ const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDa
       };
     }
 
-    // For today and all unlogged dates, calculate relative to today's cycle day
-    // Today's cycle day comes from Coach.getDynamicCalendar (the single source of truth)
-    const daysDiffFromToday = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
+    // For unlogged dates, calculate cycle day based on Sunday anchor
+    // This ensures D0 always falls on a Sunday
+    const calculatedCycleDay = getCycleDayForDate(dateStr, cycleLength);
+    const targetDate = parseLocalDate(dateStr);
 
-    // Calculate cycle day: today's cycle day + days offset, wrapped around cycle length
-    // Use proper modulo that handles negative numbers correctly
-    let calculatedCycleDay = (currentCycleDay + daysDiffFromToday) % cycleLength;
-    if (calculatedCycleDay < 0) {
-      calculatedCycleDay += cycleLength;
-    }
-
-    console.log(`[Calendar] ${dateStr}: targetDate=${targetDate.toDateString()}, today=${today.toDateString()}, daysDiff=${daysDiffFromToday}, currentCycleDay=${currentCycleDay}, calculated=${calculatedCycleDay}, planned=${trainingCycle[calculatedCycleDay]}`);
+    console.log(`[Calendar] ${dateStr}: ${targetDate.toLocaleDateString('en-US', {weekday: 'short'})} -> cycleDay=${calculatedCycleDay}, planned=${trainingCycle[calculatedCycleDay]}`);
 
     return {
       planned: trainingCycle[calculatedCycleDay],

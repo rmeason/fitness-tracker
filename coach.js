@@ -181,6 +181,16 @@ export function getSmartSuggestion(exerciseName, allEntries, todaySleepPercent) 
  * @param {Array} trainingCycle - The user's defined cycle
  * @returns {object} - { today, note, cycleDay }
  */
+// Helper: Calculate cycle day for any date, anchored to Sundays
+// Uses a fixed reference Sunday (Jan 5, 2025) so D0 always falls on Sunday
+function getCycleDayForDate(date, cycleLength) {
+  const refSunday = new Date(2025, 0, 5); // Jan 5, 2025 = Sunday
+  refSunday.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  const daysSinceRef = Math.round((date - refSunday) / (1000 * 60 * 60 * 24));
+  return ((daysSinceRef % cycleLength) + cycleLength) % cycleLength; // Handle negative values
+}
+
 export function getDynamicCalendar(allEntries, trainingCycle) {
   const cycleLength = trainingCycle.length;
 
@@ -189,77 +199,46 @@ export function getDynamicCalendar(allEntries, trainingCycle) {
   console.log('trainingCycle:', trainingCycle);
   console.log('cycleLength:', cycleLength);
 
+  // PRIMARY METHOD: Calculate today's cycle day based on Sunday anchor
+  // D0 always falls on Sunday, D7 on next Sunday, etc.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayCycleDay = getCycleDayForDate(today, cycleLength);
+  const todayPlanned = trainingCycle[todayCycleDay];
+
+  console.log('Today:', today.toDateString(), '(', today.toLocaleDateString('en-US', {weekday: 'long'}), ')');
+  console.log('Today cycle day (Sunday-anchored):', todayCycleDay);
+  console.log('Today planned workout:', todayPlanned);
+
   if (allEntries.length === 0) {
-    console.log('No entries - returning cycleDay: 0');
+    console.log('No entries - using Sunday-anchored cycle day');
     console.log('======================================');
-    return {
-      today: trainingCycle[0],
-      note: 'Starting your first cycle!',
-      cycleDay: 0
-    };
-  }
-
-  // Get the last entry (most recent log)
-  const lastEntry = allEntries[allEntries.length - 1];
-  console.log('Last entry:', { date: lastEntry.date, trainingType: lastEntry.trainingType, plannedTrainingType: lastEntry.plannedTrainingType, cycleDay: lastEntry.cycleDay });
-
-  // PRIMARY METHOD: Use stored cycleDay from last entry + days elapsed
-  // This is the most reliable method when we have cycleDay data
-  if (lastEntry.cycleDay !== undefined) {
-    // Parse date as local time (YYYY-MM-DD format parsed as local, not UTC)
-    const [year, month, day] = lastEntry.date.split('-').map(Number);
-    const lastEntryDate = new Date(year, month - 1, day); // month is 0-indexed
-    lastEntryDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const daysSinceLastEntry = Math.round((today - lastEntryDate) / (1000 * 60 * 60 * 24));
-
-    console.log('Date parsing debug: lastEntry.date=', lastEntry.date, ', parsed=', lastEntryDate.toDateString(), ', today=', today.toDateString());
-
-    console.log('Using stored cycleDay method');
-    console.log('lastEntry.cycleDay:', lastEntry.cycleDay);
-    console.log('daysSinceLastEntry:', daysSinceLastEntry);
-
-    // Calculate today's cycle day
-    let todayCycleDay;
-
-    // Check if last entry was a skipped workout (logged REST when workout was planned)
-    if (lastEntry.trainingType === 'REST' && lastEntry.plannedTrainingType && lastEntry.plannedTrainingType !== 'REST') {
-      // They skipped the planned workout - stay on same cycle position, then add remaining days
-      // If they skipped yesterday, we want them to do that workout today
-      if (daysSinceLastEntry === 1) {
-        todayCycleDay = lastEntry.cycleDay; // Same day - redo the skipped workout
-        console.log('Skipped workout yesterday - suggesting same cycle day');
-      } else {
-        // Multiple days passed - advance but subtract 1 for the skip
-        todayCycleDay = (lastEntry.cycleDay + daysSinceLastEntry - 1) % cycleLength;
-        console.log('Skipped workout, multiple days passed');
-      }
-    } else {
-      // Normal progression: add days since last entry
-      todayCycleDay = (lastEntry.cycleDay + daysSinceLastEntry) % cycleLength;
-      console.log('Normal progression');
-    }
-
-    const todayPlanned = trainingCycle[todayCycleDay];
-
-    // Get last 3 non-REST workouts for the note
-    const nonRestWorkouts = allEntries
-      .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
-      .slice(-3);
-    const last3Types = nonRestWorkouts.map(entry => entry.trainingType);
-
-    console.log('Result: todayCycleDay:', todayCycleDay, ', todayPlanned:', todayPlanned);
-    console.log('======================================');
-
     return {
       today: todayPlanned,
-      note: `Based on last 3 workouts pattern: [${last3Types.join(', ')}]`,
+      note: 'Starting your first cycle!',
       cycleDay: todayCycleDay
     };
   }
 
-  // FALLBACK: No cycleDay stored - use pattern matching (legacy behavior)
+  // Get last 3 non-REST workouts for the note
+  const nonRestWorkouts = allEntries
+    .filter(entry => entry.trainingType && entry.trainingType !== 'REST')
+    .slice(-3);
+  const last3Types = nonRestWorkouts.map(entry => entry.trainingType);
+
+  console.log('Result: todayCycleDay:', todayCycleDay, ', todayPlanned:', todayPlanned);
+  console.log('======================================');
+
+  return {
+    today: todayPlanned,
+    note: `Based on last 3 workouts pattern: [${last3Types.join(', ')}]`,
+    cycleDay: todayCycleDay
+  };
+}
+
+// LEGACY FALLBACK (kept for reference but no longer used)
+function legacyPatternMatching(allEntries, trainingCycle, cycleLength) {
+  const lastEntry = allEntries[allEntries.length - 1];
   console.log('No cycleDay stored - using pattern matching fallback');
 
   // --- Get last 3 NON-REST workouts ---

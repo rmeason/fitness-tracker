@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v23'; // Force re-run migration v5 to fix cycleDay values
+const CACHE_NAME = 'hypertrophy-pwa-cache-v24'; // v6 anchors cycle days to Sundays (D0 = Sunday)
 
 const FILES_TO_CACHE = [
   './',
