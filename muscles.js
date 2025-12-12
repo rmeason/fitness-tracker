@@ -631,6 +631,35 @@ export const EXERCISE_LIBRARY = {
     lengtheningMultiplier: 1.5,
     notes: "Highest VMO/VL activation in final 60° ROM; 9-position foot pad"
   },
+  "Seated Leg Extension": {
+    // Generic name - same as Gym80 3001 Leg Extension Machine
+    category: "isolation",
+    tier: 4,
+    variants: ["Toes Neutral", "Toes In", "Toes Out"],
+    primaryMuscles: {
+      // Toes neutral default
+      vastusMedialis: 70,
+      vastusLateralis: 65,
+      rectusFemoris: 43
+    },
+    secondaryMuscles: {},
+    variantAdjustments: {
+      "Toes In": {
+        vastusMedialis: +10,   // 80% vs 70% (medial rotation)
+        vastusLateralis: +10,  // 75% vs 65%
+        rectusFemoris: -8      // 35% vs 43%
+      },
+      "Toes Out": {
+        vastusMedialis: -10,   // 60% vs 70%
+        vastusLateralis: -10,  // 55% vs 65%
+        rectusFemoris: +7      // 50% vs 43%
+      }
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.5,
+    notes: "Generic seated leg extension; highest VMO/VL activation in final 60° ROM"
+  },
+
   
   "Rope Cable Crunches": {
     category: "isolation",
@@ -1137,6 +1166,25 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: false
   },
+  "Bench Press": {
+    // Alias for Barbell Bench Press - most common name
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      pectoralsLower: 95,  // Sternal emphasis
+      pectoralsUpper: 60,
+      deltsFront: 79
+    },
+    secondaryMuscles: {
+      tricepsLong: 67,
+      tricepsLateral: 67,
+      deltsMid: 25,
+      serratusAnterior: 18
+    },
+    lengtheningPartials: false,
+    notes: "Standard flat barbell bench press; 95% MVIC lower pecs"
+  },
+
   
   "Incline Barbell Bench Press (30°)": {
     category: "compound",
