@@ -259,76 +259,57 @@ export const EXERCISE_LIBRARY = {
     category: "isolation",
     tier: 4,
     primaryMuscles: {
-      tricepsLateral: 75,
-      tricepsLong: 60
+      tricepsLateral: 88,
+      tricepsLong: 75
     },
     secondaryMuscles: {
+      deltsFront: 15,
       forearms: 25
     },
-    lengtheningPartials: false
+    lengtheningPartials: false,
+    notes: "Rope allows natural pronation at bottom"
   },
   
   "Gym80 3040 Seated Row Machine": {
     category: "compound",
     tier: 2,
-    variants: ["Narrow Grip", "Wide Grip"],
     primaryMuscles: {
-      // Narrow grip default
-      latsUpper: 68,
-      latsLower: 64,
-      trapsMid: 95,
-      rhomboids: 35
+      latsUpper: 92,
+      latsLower: 92,
+      trapsMid: 100,
+      rhomboids: 70
     },
     secondaryMuscles: {
-      deltsRear: 70,
+      deltsRear: 55,
       bicepsLong: 50,
       bicepsShort: 50,
-      erectorSpinae: 25
+      brachialis: 40,
+      infraspinatus: 45,
+      erectorSpinae: 35
     },
-    variantAdjustments: {
-      "Wide Grip": {
-        latsUpper: -16,  // 52% vs 68%
-        latsLower: -19,  // 45% vs 64%
-        trapsMid: +10,   // 105% vs 95%
-        rhomboids: +10,  // 45% vs 35%
-        deltsRear: +35   // 105% vs 70%
-      }
-    },
-    lengtheningPartials: false
+    lengtheningPartials: false,
+    notes: "Gym80 dual-grip design; supports up to 330 lbs"
   },
 
   "Gym80 Pure Kraft High Row Dual": {
     category: "compound",
     tier: 2,
-    variants: ["Narrow Grip", "Wide Grip", "Neutral Grip"],
     primaryMuscles: {
-      // Default narrow/neutral grip
-      latsUpper: 90,
-      latsLower: 90,
-      trapsMid: 105,  // Exceeds 100% MVIC
-      rhomboids: 45
+      latsUpper: 95,
+      latsLower: 95,
+      trapsMid: 105,
+      rhomboids: 80
     },
     secondaryMuscles: {
-      trapsLower: 50,
-      trapsUpper: 40,
-      deltsRear: 55,  // Increases with elbow flare
-      bicepsLong: 61,
-      bicepsShort: 61,
+      deltsRear: 60,
+      bicepsLong: 55,
+      bicepsShort: 55,
       brachialis: 45,
       infraspinatus: 50,
-      erectorSpinae: 25
-    },
-    variantAdjustments: {
-      "Wide Grip": {
-        trapsMid: +3,      // 108% vs 105%
-        trapsUpper: +10,   // 50% vs 40%
-        deltsRear: +15,    // 70% vs 55%
-        latsUpper: -2,     // 88% vs 90%
-        latsLower: -2
-      }
+      erectorSpinae: 30
     },
     lengtheningPartials: false,
-    notes: "Elevated pull angle; plate-loaded; independent arms; 365 lb machine"
+    notes: "Dual independent arms; high row angle targets upper back"
   },
   
   "Dumbbell Incline Bench Press": {
@@ -352,19 +333,19 @@ export const EXERCISE_LIBRARY = {
     category: "compound",
     tier: 2,
     primaryMuscles: {
-      pectoralsUpper: 70,  // 30° angle optimal for upper pec
-      pectoralsLower: 55,
-      deltsFront: 80
+      pectoralsUpper: 95,
+      pectoralsLower: 70,
+      deltsFront: 80,
+      tricepsLong: 68,
+      tricepsLateral: 68
     },
     secondaryMuscles: {
-      tricepsLong: 50,
-      tricepsLateral: 50,
-      deltsMid: 20,
-      serratusAnterior: 18
+      deltsMid: 25,
+      serratusAnterior: 20
     },
     lengtheningPartials: true,
     lengtheningMultiplier: 1.3,
-    notes: "Independent arms; 30° incline optimal; 1,091 lb machine with 231 lb stack"
+    notes: "Dual independent arms; incline angle targets upper pecs"
   },
   
   "Standing EZ-Bar Shoulder Press": {
@@ -509,155 +490,96 @@ export const EXERCISE_LIBRARY = {
   
   "Gym80 4353 Pure Kraft Pendulum Squat": {
     category: "compound",
-    tier: 1,
-    variants: ["Standard", "Heel Elevated"],
+    tier: 2,
     primaryMuscles: {
-      vastusLateralis: 65,
-      vastusMedialis: 58,
-      rectusFemoris: 35
+      vastusLateralis: 95,
+      vastusMedialis: 90,
+      rectusFemoris: 80,
+      glutesUpper: 65,
+      glutesLower: 65
     },
     secondaryMuscles: {
-      glutesUpper: 30,
-      glutesLower: 35,
-      bicepsFemoris: 15,
-      semitendinosus: 13,
-      erectorSpinae: 12
-    },
-    variantAdjustments: {
-      "Heel Elevated": {
-        vastusLateralis: +10,  // 75% vs 65%
-        vastusMedialis: +12,   // 70% vs 58%
-        rectusFemoris: +5,     // 40% vs 35%
-        glutesUpper: +5,
-        glutesLower: +5
-      }
+      bicepsFemoris: 40,
+      semitendinosus: 35,
+      erectorSpinae: 25,
+      rectusAbdominis: 30
     },
     lengtheningPartials: false,
-    notes: "Pendulum arc: easier at bottom, harder at lockout; 5-position footplate critical"
+    notes: "Pure Kraft V-Squat; pendulum arc reduces lower back stress vs back squat"
   },
 
   "Hack Squats": {
     category: "compound",
     tier: 2,
-    variants: ["Standard", "High Foot", "Low Foot", "Wide Stance", "Narrow Stance"],
     primaryMuscles: {
-      vastusLateralis: 55,
-      vastusMedialis: 58,
-      rectusFemoris: 32,
-      glutesUpper: 30,
-      glutesLower: 30
+      vastusLateralis: 100,
+      vastusMedialis: 85,
+      rectusFemoris: 70,
+      glutesUpper: 55,
+      glutesLower: 55
     },
     secondaryMuscles: {
-      bicepsFemoris: 17,
-      semitendinosus: 15,
-      erectorSpinae: 20,  // Dramatically lower than barbell squat
-      gastrocnemius: 15,
-      rectusAbdominis: 20
+      bicepsFemoris: 40,
+      semitendinosus: 35,
+      erectorSpinae: 30,
+      rectusAbdominis: 30
     },
-    variantAdjustments: {
-      "High Foot": {
-        glutesUpper: +10,
-        glutesLower: +10,
-        bicepsFemoris: +8,
-        vastusLateralis: -5
-      },
-      "Low Foot": {
-        vastusLateralis: +10,
-        vastusMedialis: +10,
-        rectusFemoris: +5,
-        glutesUpper: -5
-      },
-      "Wide Stance": {
-        glutesUpper: +15,
-        glutesLower: +15,
-        vastusMedialis: +5
-      }
-    },
-    lengtheningPartials: true,
-    lengtheningMultiplier: 1.5,
-    notes: "45° angle; spine-sparing; emphasize deep/bottom position for lengthened stimulus"
+    lengtheningPartials: false,
+    notes: "Machine-guided path; quad emphasis"
   },
   
   "Gym80 3018 Standing Calf Raise Machine": {
     category: "isolation",
     tier: 4,
     primaryMuscles: {
-      gastrocnemius: 53,  // Medial/lateral average
-      soleus: 51
+      gastrocnemius: 95,
+      soleus: 45
     },
     secondaryMuscles: {},
     lengtheningPartials: true,
-    lengtheningMultiplier: 2.2,  // STRONGEST EVIDENCE (Kassiano 2023: 2.27x medial)
-    notes: "2x gastrocnemius growth vs seated; raised footplate enables full stretch"
+    lengtheningMultiplier: 2.2,
+    notes: "Straight knee position; Gym80 machine with plate loading"
   },
   
   "Gym80 3018 Standing Calf Raise Machine Lower-End Partials": {
     category: "isolation",
     tier: 4,
     primaryMuscles: {
-      gastrocnemius: 53,
-      soleus: 51
+      gastrocnemius: 95,
+      soleus: 45
     },
     secondaryMuscles: {},
     lengtheningPartials: true,
     lengtheningMultiplier: 2.2,
-    isPartialVariant: true
+    isPartialVariant: true,
+    notes: "Bottom 50% ROM emphasis; 1-3 sec stretch holds"
   },
   
   "Gym80 3001 Leg Extension Machine": {
     category: "isolation",
     tier: 4,
-    variants: ["Toes Neutral", "Toes In", "Toes Out"],
     primaryMuscles: {
-      // Toes neutral default
-      vastusMedialis: 70,
-      vastusLateralis: 65,
-      rectusFemoris: 43
+      vastusLateralis: 86,
+      vastusMedialis: 86,
+      rectusFemoris: 79
     },
     secondaryMuscles: {},
-    variantAdjustments: {
-      "Toes In": {
-        vastusMedialis: +10,   // 80% vs 70% (medial rotation)
-        vastusLateralis: +10,  // 75% vs 65%
-        rectusFemoris: -8      // 35% vs 43%
-      },
-      "Toes Out": {
-        vastusMedialis: -10,   // 60% vs 70%
-        vastusLateralis: -10,  // 55% vs 65%
-        rectusFemoris: +7      // 50% vs 43%
-      }
-    },
     lengtheningPartials: true,
-    lengtheningMultiplier: 1.5,
-    notes: "Highest VMO/VL activation in final 60° ROM; 9-position foot pad"
+    lengtheningMultiplier: 1.3,
+    notes: "85-90° knee angle at top; lengthened partials emphasize stretch"
   },
   "Seated Leg Extension": {
-    // Generic name - same as Gym80 3001 Leg Extension Machine
     category: "isolation",
     tier: 4,
-    variants: ["Toes Neutral", "Toes In", "Toes Out"],
     primaryMuscles: {
-      // Toes neutral default
-      vastusMedialis: 70,
-      vastusLateralis: 65,
-      rectusFemoris: 43
+      vastusLateralis: 86,
+      vastusMedialis: 86,
+      rectusFemoris: 79
     },
     secondaryMuscles: {},
-    variantAdjustments: {
-      "Toes In": {
-        vastusMedialis: +10,   // 80% vs 70% (medial rotation)
-        vastusLateralis: +10,  // 75% vs 65%
-        rectusFemoris: -8      // 35% vs 43%
-      },
-      "Toes Out": {
-        vastusMedialis: -10,   // 60% vs 70%
-        vastusLateralis: -10,  // 55% vs 65%
-        rectusFemoris: +7      // 50% vs 43%
-      }
-    },
     lengtheningPartials: true,
-    lengtheningMultiplier: 1.5,
-    notes: "Generic seated leg extension; highest VMO/VL activation in final 60° ROM"
+    lengtheningMultiplier: 1.3,
+    notes: "Generic leg extension machine"
   },
 
   
@@ -1571,6 +1493,26 @@ export const EXERCISE_LIBRARY = {
     notes: "High oblique activation for core stability"
   },
   
+  "Hammer Strength Iso-Lateral Front Lat Pulldown": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      latsUpper: 105,
+      latsLower: 105,
+      trapsMid: 80,
+      rhomboids: 70
+    },
+    secondaryMuscles: {
+      bicepsLong: 50,
+      bicepsShort: 50,
+      brachialis: 45,
+      deltsRear: 38,
+      forearms: 40
+    },
+    lengtheningPartials: false,
+    notes: "Independent arm movement; front-facing grip"
+  },
+
   "Lat Pulldowns": {
     category: "compound",
     tier: 3,

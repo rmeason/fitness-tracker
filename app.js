@@ -206,24 +206,20 @@ const isPullUpExercise = (exerciseName) => {
   return name.includes('pull-up') || name.includes('pullup') || name.includes('pull up');
 };
 
-const calculateVolumeLoad = (weights, reps, exerciseName = null, sleepEntries = []) => {
-  if (!weights || !reps || reps.length === 0) return 0;
-  // Support both old format (single weight) and new format (array of weights)
-  const weightsArray = Array.isArray(weights) ? weights : Array(reps.length).fill(weights);
+  // Helper to calculate volume load with eachHand support
+  const calculateVolumeLoad = (weights, reps, exerciseName = null, sleepEntries = [], eachHand = false) => {
+    const weightMultiplier = eachHand ? 2 : 1; // Double weight if using each hand
 
-  // For pull-ups, automatically add bodyweight to volume calculations
-  // When logging: enter 0 for bodyweight pull-ups, or just the added weight for weighted pull-ups
-  // Volume will automatically include your bodyweight from the most recent sleep entry
-  const bodyweightBonus = isPullUpExercise(exerciseName) ? getCurrentWeight(sleepEntries) : 0;
+    if (!Array.isArray(weights) || !Array.isArray(reps)) return 0;
 
-  let totalVolume = 0;
-  for (let i = 0; i < reps.length; i++) {
-    const weight = Number(weightsArray[i]) || 0;
-    const rep = Number(reps[i]) || 0;
-    totalVolume += (weight + bodyweightBonus) * rep;
-  }
-  return totalVolume;
-};
+    let totalVolume = 0;
+    for (let i = 0; i < Math.min(weights.length, reps.length); i++) {
+      const weight = Number(weights[i]) || 0;
+      const rep = Number(reps[i]) || 0;
+      totalVolume += (weight * weightMultiplier) * rep;
+    }
+    return totalVolume;
+  };
 
 // --- 🔄 DATA MIGRATION FUNCTION ---
 // Migrates old entries (with sleep/nutrition in workout) to separated structure
@@ -1011,7 +1007,7 @@ const ExerciseProgressChart = ({ entries, allExerciseNames, sleepEntries }) => {
       let volumeLoad = ex.volumeLoad;
       if (!volumeLoad && ex.reps) {
         const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
-        volumeLoad = calculateVolumeLoad(weights, ex.reps, ex.name, sleepEntries);
+        volumeLoad = calculateVolumeLoad(weights, ex.reps, ex.name, sleepEntries, ex.eachHand);
       }
 
       return {
@@ -2399,14 +2395,14 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
           sets: Number(ex.sets),
           reps: reps,
           rpe: Number(ex.rpe),
-          volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries)
+          volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand)
         };
       }),
       totalSets,
       totalVolume: exercises.reduce((sum, ex) => {
         const weights = (ex.weights || []).map(w => Number(w) || 0);
         const reps = ex.reps.map(r => Number(r) || 0);
-        return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries);
+        return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
       }, 0),
       duration: Number(duration),
       caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
@@ -2777,7 +2773,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
               const totalVolume = exercises.reduce((sum, ex) => {
                 const weights = (ex.weights || []).map(w => Number(w) || 0);
                 const reps = ex.reps.map(r => Number(r) || 0);
-                return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries);
+                return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
               }, 0);
               return `${totalVolume.toLocaleString()} lbs`;
             })()

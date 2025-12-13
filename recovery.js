@@ -71,28 +71,30 @@ function getSleepAdjustedDecayRate(baseDecayRate, sleepMultiplier) {
 /**
  * Calculate volume load for an exercise
  * Supports both new format (weights array) and old format (single weight)
- * 
+ * NOW SUPPORTS eachHand property for dumbbell exercises
+ *
  * @param {object} exercise - Exercise data from workout log
  * @returns {number} Total volume load in lbs
  */
 function calculateVolumeLoad(exercise) {
   const reps = exercise.reps || [];
-  
+  const weightMultiplier = exercise.eachHand ? 2 : 1; // Double weight if using each hand
+
   // New format: array of weights per set
   if (Array.isArray(exercise.weights)) {
     let totalVolume = 0;
     for (let i = 0; i < reps.length; i++) {
       const weight = Number(exercise.weights[i]) || 0;
       const rep = Number(reps[i]) || 0;
-      totalVolume += weight * rep;
+      totalVolume += (weight * weightMultiplier) * rep;
     }
     return totalVolume;
   }
-  
+
   // Old format: single weight for all sets
   const weight = Number(exercise.weight) || 0;
   const totalReps = reps.reduce((sum, r) => sum + (Number(r) || 0), 0);
-  return weight * totalReps;
+  return (weight * weightMultiplier) * totalReps;
 }
 
 /**
