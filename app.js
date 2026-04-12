@@ -1291,13 +1291,20 @@ const PRDashboard = ({ prs }) => {
     topPRs.length === 0
       ? h('p', { className: 'text-slate-400' }, 'No PRs logged yet. Start training!')
       : h('ul', { className: 'space-y-2' },
-        topPRs.map(pr =>
-          h('li', { key: pr.name, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
+        topPRs.map(pr => {
+          const isDumbbell = /dumbbell|^db\b|\bdb\s/i.test(pr.name);
+          const isPerHand = isDumbbell && pr.weight < 100;
+          return h('li', { key: pr.name, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
             h('span', { className: 'font-semibold' }, pr.name),
-            h('span', { className: 'text-cyan-400 font-bold' }, `${pr.weight} lbs`),
+            h('div', { className: 'text-right' },
+              h('span', { className: 'text-cyan-400 font-bold' },
+                isPerHand ? `${pr.weight} lbs / hand` : `${pr.weight} lbs`
+              ),
+              isPerHand && h('div', { className: 'text-xs text-slate-400' }, `(${pr.weight * 2} lbs total)`)
+            ),
             h('span', { className: 'text-xs text-slate-400' }, `${pr.sets}x${pr.reps}`)
-          )
-        )
+          );
+        })
       )
   );
 };
@@ -1336,7 +1343,7 @@ const StatsSummary = ({ entries, nutrition, liveProtein, liveCalories }) => {
 };
 
 // --- 💪 RECOVERY DASHBOARD COMPONENT ---
-const RecoveryDashboard = ({ entries, sleepEntries, nutrition }) => {
+const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm }) => {
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('all');
   const [sortBy, setSortBy] = useState('fatigue'); // 'fatigue', 'name', 'lastTrained'
   const [showDetails, setShowDetails] = useState(null);
@@ -1397,7 +1404,24 @@ const RecoveryDashboard = ({ entries, sleepEntries, nutrition }) => {
   const fatiguedCount = visibleMuscles.filter(([_, data]) => 
     data.currentFatiguePercent >= 70).length;
 
+  // Check for sleep data within last 48 hours
+  const now = new Date();
+  const cutoff48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+  const hasRecentSleep = sleepEntries.some(s => new Date(s.date) >= cutoff48h);
+
   return h('div', { className: 'space-y-6' },
+    // Sleep prompt banner if no recent sleep data
+    !hasRecentSleep && h('div', {
+      className: 'flex items-center gap-3 p-4 bg-slate-800 border border-blue-500 rounded-lg text-blue-300 text-sm mb-4'
+    },
+      '💤 No recent sleep data — recovery forecasts are using baseline estimates. Log tonight\'s sleep for accurate muscle readiness predictions.',
+      onShowSleepForm && h('button', {
+        type: 'button',
+        onClick: onShowSleepForm,
+        className: 'ml-auto px-3 py-1 bg-slate-700 hover:bg-slate-600 text-blue-200 rounded text-xs border border-blue-500 transition-colors whitespace-nowrap'
+      }, 'Log Sleep')
+    ),
+
     // Header with summary
     h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
       h('h2', { className: 'text-2xl font-bold mb-4' }, '💪 Muscle Recovery Status'),
@@ -1662,8 +1686,13 @@ const ExerciseSelectorWithRecovery = ({
       )
     ),
 
+    // Warning: exercise not in muscle library
+    exerciseName && !exerciseData && h('span', {
+      className: 'text-yellow-400 text-xs mt-1 block'
+    }, '⚠️ Exercise not in muscle library — volume won\'t count toward recovery'),
+
     // Affected muscles display
-    exerciseName && affectedMuscles.length > 0 && h('div', { 
+    exerciseName && affectedMuscles.length > 0 && h('div', {
       className: 'p-3 bg-slate-900 rounded-lg'
     },
       h('div', { className: 'text-xs font-semibold mb-2 text-slate-400' }, 
@@ -2566,6 +2595,10 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         )
       )
     ),
+
+    (!todaySleepPercent || todaySleepPercent <= 0) && h('div', {
+      className: 'flex items-center gap-2 p-3 bg-slate-700 border border-yellow-600 rounded-lg text-yellow-300 text-sm mb-3'
+    }, '🌙 No sleep data logged for today — recovery estimates will use baseline averages. Log sleep for personalized accuracy.'),
 
     trainingType !== 'REST' && h(CollapsibleSection, {
       title: 'Training',
@@ -3692,10 +3725,11 @@ const App = () => {
         });
 
         case 'recovery':
-          return h(RecoveryDashboard, { 
+          return h(RecoveryDashboard, {
             entries: sortedEntries,
             sleepEntries: sleepEntries,
-            nutrition: nutrition
+            nutrition: nutrition,
+            onShowSleepForm: handleShowSleepForm
           });
 
       case 'dashboard':

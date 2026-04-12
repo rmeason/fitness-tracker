@@ -121,8 +121,8 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
   if (rawVolumeLoad === 0) return {}; // No volume = no fatigue
   
   // NORMALIZE VOLUME LOAD TO 0-100 SCALE
-  // Dividing by 500 makes typical workout volumes (15,000-30,000 lbs) 
-  // result in 30-60 base points before multipliers
+  // NOTE: Divisor tuned to 175 (not 500) — recovery color thresholds calibrated accordingly
+  // Dividing by 175 makes typical workout volumes produce 85-170 base points before multipliers; thresholds in getRecoveryColor() are calibrated to this scale
   const volumeLoad = rawVolumeLoad / 175;
   
   // Get multipliers

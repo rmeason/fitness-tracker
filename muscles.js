@@ -291,6 +291,28 @@ export const EXERCISE_LIBRARY = {
     notes: "Gym80 dual-grip design; supports up to 330 lbs"
   },
 
+  "Life Fitness Seated Row": {
+    category: "compound",
+    tier: 2,
+    eachHand: false,
+    primaryMuscles: {
+      latsUpper: 91,
+      latsLower: 91,
+      trapsMid: 98,
+      rhomboids: 68
+    },
+    secondaryMuscles: {
+      deltsRear: 54,
+      bicepsLong: 50,
+      bicepsShort: 50,
+      brachialis: 40,
+      infraspinatus: 44,
+      erectorSpinae: 34
+    },
+    lengtheningPartials: false,
+    notes: "Life Fitness cable seated row; functionally equivalent to Gym80 3040 with slight variation in chest pad positioning"
+  },
+
   "Gym80 Pure Kraft High Row Dual": {
     category: "compound",
     tier: 2,
@@ -446,7 +468,7 @@ export const EXERCISE_LIBRARY = {
   },
 
   "Gym80 3025 Reverse Fly/ Rear Delt": {
-    // Alias for existing entry with space before slash
+    // CANONICAL entry (spaced name appears in backup data); identical to non-spaced alias above
     category: "isolation",
     tier: 3,
     variants: ["Neutral Grip", "Pronated Grip"],
@@ -526,6 +548,27 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: false,
     notes: "Machine-guided path; quad emphasis"
+  },
+
+  "Hammer Strength V-Squat": {
+    category: "compound",
+    tier: 2,
+    eachHand: false,
+    primaryMuscles: {
+      vastusLateralis: 98,
+      vastusMedialis: 88,
+      rectusFemoris: 73,
+      glutesUpper: 58,
+      glutesLower: 58
+    },
+    secondaryMuscles: {
+      bicepsFemoris: 40,
+      semitendinosus: 35,
+      erectorSpinae: 28,
+      rectusAbdominis: 28
+    },
+    lengtheningPartials: false,
+    notes: "Hammer Strength plate-loaded V-squat; fixed angled path reduces lower back stress; similar to Gym80 4353 but with plate loading"
   },
   
   "Gym80 3018 Standing Calf Raise Machine": {
@@ -697,6 +740,25 @@ export const EXERCISE_LIBRARY = {
     },
     lengtheningPartials: false
   },
+
+  "Seated Arnold Press": {
+    category: "compound",
+    tier: 2,
+    eachHand: true,
+    primaryMuscles: {
+      deltsFront: 92,
+      deltsMid: 68,
+      pectoralsUpper: 28
+    },
+    secondaryMuscles: {
+      deltsRear: 12,
+      tricepsLong: 58,
+      tricepsLateral: 58,
+      trapsUpper: 22
+    },
+    lengtheningPartials: false,
+    notes: "Seated variant reduces core demand vs standing; rotation from pronated to supinated grip adds ~28% front delt activation over standard DB press; back support increases strict deltoid isolation"
+  },
   
   "Front Raises": {
     category: "isolation",
@@ -792,6 +854,23 @@ export const EXERCISE_LIBRARY = {
   // ARMS - BICEPS
   // ============================================
   
+  "Seated Dumbbell Concentration Curl": {
+    category: "isolation",
+    tier: 4,
+    eachHand: true,
+    primaryMuscles: {
+      bicepsLong: 95,
+      bicepsShort: 78,
+      brachialis: 55
+    },
+    secondaryMuscles: {
+      brachioradialis: 48,
+      forearms: 35
+    },
+    lengtheningPartials: false,
+    notes: "Highest biceps long head EMG isolation; elbow-on-inner-thigh eliminates momentum; ~88% MVIC long head"
+  },
+
   "Concentration Curls": {
     category: "isolation",
     tier: 4,
@@ -990,6 +1069,23 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: true,
     lengtheningMultiplier: 1.5,
     notes: "~40% more growth than pushdowns per training studies"
+  },
+
+  "Seated Single Arm Dumbbell Tricep Extension": {
+    category: "isolation",
+    tier: 4,
+    eachHand: true,
+    primaryMuscles: {
+      tricepsLong: 88,
+      tricepsLateral: 72
+    },
+    secondaryMuscles: {
+      deltsFront: 18,
+      pectoralsUpper: 10
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.4,
+    notes: "Overhead position maximizes triceps long head stretch; single arm allows full ROM without bilateral interference"
   },
   
   "Incline Dumbbell Kickbacks": {
@@ -1513,6 +1609,27 @@ export const EXERCISE_LIBRARY = {
     notes: "Independent arm movement; front-facing grip"
   },
 
+  "Nautilus XPload Lat Pull-Downs": {
+    category: "compound",
+    tier: 2,
+    eachHand: true,
+    primaryMuscles: {
+      latsUpper: 108,
+      latsLower: 108,
+      trapsMid: 82,
+      rhomboids: 72
+    },
+    secondaryMuscles: {
+      bicepsLong: 48,
+      bicepsShort: 48,
+      brachialis: 43,
+      deltsRear: 36,
+      forearms: 38
+    },
+    lengtheningPartials: false,
+    notes: "Nautilus cam-based independent arm pulldown; similar to Hammer Strength but with weight-stack resistance curve"
+  },
+
   "Lat Pulldowns": {
     category: "compound",
     tier: 3,
@@ -1737,7 +1854,22 @@ export const EXERCISE_LIBRARY = {
     lengtheningMultiplier: 1.5,  // Conservative estimate; up to 2.2x for BF long head
     notes: "Hip flexion places hamstrings at longer length; 1.5-2.2x growth vs prone curls"
   },
-  
+
+  "Gym80 3003 Seated Leg Curl": {
+    category: "isolation",
+    tier: 4,
+    primaryMuscles: {
+      bicepsFemoris: 82,
+      semitendinosus: 82
+    },
+    secondaryMuscles: {
+      gastrocnemius: 25
+    },
+    lengtheningPartials: true,
+    lengtheningMultiplier: 1.5,
+    notes: "Gym80 model 3003 seated leg curl; identical activation profile to Seated Leg Curl; hip flexion provides lengthened position advantage"
+  },
+
   "Lying Leg Curls": {
     category: "isolation",
     tier: 4,
