@@ -1870,6 +1870,41 @@ export const EXERCISE_LIBRARY = {
     notes: "Gym80 model 3003 seated leg curl; identical activation profile to Seated Leg Curl; hip flexion provides lengthened position advantage"
   },
 
+  "Gym80 3028 Abduction Machine": {
+    category: "isolation",
+    tier: 4,
+    eachHand: false,
+    primaryMuscles: {
+      glutesMed: 94,
+      glutesMin: 88,
+      TFL: 72
+    },
+    secondaryMuscles: {
+      glutesUpper: 45,
+      piriformis: 38
+    },
+    lengtheningPartials: false,
+    notes: "Gym80 3028 seated hip abduction machine; highest EMG activation for gluteus medius; isolates abductors with minimal lumbar involvement"
+  },
+
+  "Gym80 3029 Adduction Machine": {
+    category: "isolation",
+    tier: 4,
+    eachHand: false,
+    primaryMuscles: {
+      adductorMagnus: 92,
+      adductorLongus: 88,
+      adductorBrevis: 78,
+      gracilis: 55
+    },
+    secondaryMuscles: {
+      pectineus: 38,
+      glutesLower: 28
+    },
+    lengtheningPartials: false,
+    notes: "Gym80 3029 seated hip adduction machine; primary adductor complex activation; seated position provides stable hip flexion angle for full adductor recruitment"
+  },
+
   "Lying Leg Curls": {
     category: "isolation",
     tier: 4,
