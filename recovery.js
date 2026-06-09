@@ -265,7 +265,7 @@ export function getRecoveryStatus(fatiguePercent) {
  * @param {number} lookbackDays - Days to analyze (default: 7)
  * @returns {object} Recovery status for all muscles
  */
-export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate = new Date(), lookbackDays = 7) {
+export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate = new Date(), lookbackDays = 10) {
   // Initialize recovery state for all muscles
   const muscleRecovery = {};
   
@@ -361,7 +361,7 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
   
   // Calculate final recovery percentages and status
   // Baseline fatigue for comparison: 100 points = moderate single workout worth
-  const BASELINE_FATIGUE = 40;
+  const BASELINE_FATIGUE = 88;
   
   for (const [muscleName, recovery] of Object.entries(muscleRecovery)) {
     const fatiguePercent = (recovery.totalFatigue / BASELINE_FATIGUE) * 100;

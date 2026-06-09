@@ -570,7 +570,27 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Hammer Strength plate-loaded V-squat; fixed angled path reduces lower back stress; similar to Gym80 4353 but with plate loading"
   },
-  
+  "Flex Fitness Angled Leg Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      vastusLateralis: 105,  // 45° angled sled: highest quad activation of leg press variants (~105-115% MVIC)
+      vastusMedialis: 95,    // VMO activation comparable to hack squat at matched depth
+      rectusFemoris: 75,     // Moderate; hip-fixed position limits full RF activation
+      glutesUpper: 52,       // Glute activation increases with foot placement height
+      glutesLower: 52
+    },
+    secondaryMuscles: {
+      bicepsFemoris: 35,
+      semitendinosus: 30,
+      gastrocnemius: 25,     // Ankle plantarflexion component at bottom of press
+      erectorSpinae: 15,     // Minimal — back pad eliminates axial loading
+      rectusAbdominis: 20
+    },
+    lengtheningPartials: false,
+    notes: "45° angled sled leg press; machine-guided path eliminates spinal loading; quad emphasis comparable to hack squat; glute involvement increases with higher foot placement"
+  },
+
   "Gym80 3018 Standing Calf Raise Machine": {
     category: "isolation",
     tier: 4,

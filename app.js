@@ -611,13 +611,14 @@ const Modal = ({ show, onClose, title, children }) => {
 };
 
 // --- UI COMPONENTS ---
-const Button = ({ onClick, children, className = '', variant = 'primary' }) => {
+const Button = ({ onClick, children, className = '', variant = 'primary', type = 'button' }) => {
   const variants = {
     primary: 'bg-blue-600 hover:bg-blue-700 text-white',
     secondary: 'bg-slate-600 hover:bg-slate-700 text-white',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
   };
   return h('button', {
+    type,
     onClick,
     className: `py-2 px-4 rounded-lg font-semibold shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${variants[variant]} ${className}`
   }, children);
@@ -683,12 +684,13 @@ const RpeSlider = ({ value, onChange }) => {
 };
 
 // Coach Suggestion Component
-const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent, trainingType }) => {
+const CoachSuggestionBox = ({ exerciseName, allEntries, todaySleepPercent, trainingType, allExerciseNames = [] }) => {
   const [suggestion, setSuggestion] = useState(null);
   const [volumeTarget, setVolumeTarget] = useState(null);
 
   useEffect(() => {
-    if (exerciseName) {
+    const isKnownExercise = allExerciseNames && allExerciseNames.includes(exerciseName);
+    if (exerciseName && isKnownExercise) {
       const s = Coach.getSmartSuggestion(exerciseName, allEntries, todaySleepPercent);
       setSuggestion(s);
     } else {
@@ -1343,13 +1345,13 @@ const StatsSummary = ({ entries, nutrition, liveProtein, liveCalories }) => {
 };
 
 // --- 💪 RECOVERY DASHBOARD COMPONENT ---
-const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm }) => {
+const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm, recoveryStatus: precomputedStatus }) => {
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('all');
   const [sortBy, setSortBy] = useState('fatigue'); // 'fatigue', 'name', 'lastTrained'
   const [showDetails, setShowDetails] = useState(null);
 
   // Calculate current recovery status
-  const recoveryStatus = processWorkoutHistory(entries, sleepEntries);
+  const recoveryStatus = precomputedStatus || processWorkoutHistory(entries, sleepEntries);
   
   // Get today's sleep for recommendations
   const todayStr = formatDate(new Date());
@@ -1570,8 +1572,8 @@ const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm }
 };
 
 // --- 🧠 SMART RECOVERY CARD ---
-const SmartRecoveryCard = ({ entries, sleepEntries, plannedWorkout }) => {
-  const recoveryStatus = processWorkoutHistory(entries, sleepEntries);
+const SmartRecoveryCard = ({ entries, sleepEntries, plannedWorkout, recoveryStatus: precomputedStatus }) => {
+  const recoveryStatus = precomputedStatus || processWorkoutHistory(entries, sleepEntries);
   
   const todayStr = formatDate(new Date());
   const todaySleep = sleepEntries.find(s => s.date === todayStr) || 
@@ -2354,6 +2356,12 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     const newExercises = [...exercises];
     const newWeights = [...(newExercises[exIndex].weights || [])];
     newWeights[weightIndex] = value;
+    // Auto-propagate Set 1 weight to all empty downstream sets
+    if (weightIndex === 0 && value) {
+      for (let i = 1; i < newWeights.length; i++) {
+        if (!newWeights[i]) newWeights[i] = value;
+      }
+    }
     newExercises[exIndex] = { ...newExercises[exIndex], weights: newWeights };
     setExercises(newExercises);
   };
@@ -2736,7 +2744,8 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
                 exerciseName: ex.name,
                 allEntries,
                 todaySleepPercent: todaySleepPercent,
-                trainingType: trainingType
+                trainingType: trainingType,
+                allExerciseNames: allExerciseNames
               }),
 
               h('div', {},
@@ -3460,17 +3469,6 @@ const App = () => {
     }
   }, []); // Empty deps = run once on mount
 
-  // Debug: Log localStorage state on mount
-  useEffect(() => {
-    console.log('[Debug] LocalStorage state:', {
-      workouts: localStorage.getItem(DB_KEY) ? JSON.parse(localStorage.getItem(DB_KEY)).length : 0,
-      nutrition: localStorage.getItem(NUTRITION_KEY) ? JSON.parse(localStorage.getItem(NUTRITION_KEY)).length : 0,
-      sleep: localStorage.getItem(SLEEP_KEY) ? JSON.parse(localStorage.getItem(SLEEP_KEY)).length : 0,
-      migrationV2Done: localStorage.getItem(MIGRATION_FLAG_KEY),
-      migrationV3Done: localStorage.getItem(MIGRATION_FLAG_V3_KEY),
-      migrationV4Done: localStorage.getItem(MIGRATION_FLAG_V4_KEY)
-    });
-  }, []);
 
   useEffect(() => {
     localStorage.setItem(DB_KEY, JSON.stringify(entries));
@@ -3503,6 +3501,11 @@ const App = () => {
 
   const allPRs = calculateAllPRs(entries);
 
+  const recoveryStatus = React.useMemo(
+    () => processWorkoutHistory(sortedEntries, sleepEntries),
+    [sortedEntries, sleepEntries]
+  );
+
   const todayStr = formatDate(new Date());
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
 
@@ -3513,19 +3516,6 @@ const App = () => {
   // Use the coach's cycle day - this is the authoritative source
   const cycleDay = coachCycleDay;
 
-  // DEBUG: Log cycle day calculation
-  console.log('=== CYCLE DAY DEBUG (Main App) ===');
-  console.log('Coach.getDynamicCalendar result:', coachResult);
-  console.log('coachCycleDay:', coachCycleDay);
-  console.log('cycleDay (used):', cycleDay);
-  console.log('trainingCycle:', trainingCycle);
-  console.log('trainingCycle[cycleDay]:', trainingCycle[cycleDay]);
-  console.log('sortedEntries count:', sortedEntries.length);
-  if (sortedEntries.length > 0) {
-    const lastEntry = sortedEntries[sortedEntries.length - 1];
-    console.log('Last entry:', { date: lastEntry.date, trainingType: lastEntry.trainingType, cycleDay: lastEntry.cycleDay, plannedTrainingType: lastEntry.plannedTrainingType });
-  }
-  console.log('=================================');
 
   const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
 
@@ -3631,15 +3621,19 @@ const App = () => {
     }
   };
 
-  const handleDeleteEntry = (id) => {
-    setEntries(prev => prev.filter(e => e.id !== id));
+  const handleDeleteEntry = (id, type = 'workout') => {
+    if (type === 'nutrition') {
+      setNutrition(prev => prev.filter(e => e.id !== id));
+    } else if (type === 'sleep') {
+      setSleepEntries(prev => prev.filter(e => e.id !== id));
+    } else {
+      setEntries(prev => prev.filter(e => e.id !== id));
+    }
     setShowDeleteModal(null);
   };
 
   const handleDeleteNutrition = (id) => {
-    if (window.confirm('Are you sure you want to delete this meal entry?')) {
-      setNutrition(prev => prev.filter(e => e.id !== id));
-    }
+    setShowDeleteModal({ type: 'nutrition', id });
   };
 
   const handleShowSleepForm = (entry = null) => {
@@ -3648,9 +3642,7 @@ const App = () => {
   };
 
   const handleDeleteSleep = (id) => {
-    if (window.confirm('Are you sure you want to delete this sleep entry?')) {
-      setSleepEntries(prev => prev.filter(e => e.id !== id));
-    }
+    setShowDeleteModal({ type: 'sleep', id });
   };
 
   const openDeleteModal = (id) => {
@@ -3729,7 +3721,8 @@ const App = () => {
             entries: sortedEntries,
             sleepEntries: sleepEntries,
             nutrition: nutrition,
-            onShowSleepForm: handleShowSleepForm
+            onShowSleepForm: handleShowSleepForm,
+            recoveryStatus: recoveryStatus
           });
 
       case 'dashboard':
@@ -3777,31 +3770,10 @@ const App = () => {
           h(SmartRecoveryCard, {
             entries: sortedEntries,
             sleepEntries: sleepEntries,
-            plannedWorkout: nextWorkout
+            plannedWorkout: nextWorkout,
+            recoveryStatus: recoveryStatus
           }),
 
-          // Recovery Status Indicator
-          h('div', { className: 'bg-slate-800 p-4 rounded-lg border-2', style: { borderColor: recoveryAnalysis.status === 'FRESH' ? '#10b981' : recoveryAnalysis.status === 'GOOD' ? '#3b82f6' : recoveryAnalysis.status === 'FATIGUED' ? '#f59e0b' : '#ef4444' } },
-            h('div', { className: 'flex items-center justify-between' },
-              h('div', {},
-                h('div', { className: 'flex items-center gap-2' },
-                  h('span', { className: 'text-3xl' }, recoveryAnalysis.emoji),
-                  h('div', {},
-                    h('h3', { className: 'text-lg font-bold' }, recoveryAnalysis.label),
-                    h('p', { className: 'text-xs text-slate-400' }, recoveryAnalysis.note)
-                  )
-                )
-              ),
-              h('div', { className: 'text-right text-sm' },
-                h('div', {}, `Sleep: ${recoveryAnalysis.avgSleep}%`),
-                h('div', {}, `Recovery: ${recoveryAnalysis.avgRecovery}/10`),
-                h('div', { className: 'text-xs mt-1' },
-                  recoveryAnalysis.trend === 'improving' ? '📈 Improving' :
-                  recoveryAnalysis.trend === 'declining' ? '📉 Declining' : '➡️ Stable'
-                )
-              )
-            )
-          ),
           h('div', { className: 'grid grid-cols-3 gap-4' },
             h(Button, {
               onClick: () => handleShowSleepForm(),
@@ -3819,16 +3791,11 @@ const App = () => {
               className: 'text-lg'
             }, '💪 Log Workout')
           ),
-          sortedEntries.filter(e => e.trainingType !== 'REST').length > 0 && h(Button, {
-            onClick: handleDuplicateLastWorkout,
-            variant: 'secondary',
-            className: 'text-lg w-full'
-          }, '📋 Duplicate Last Workout'),
-          h(Button, {
+          !hasLoggedToday && h(Button, {
             onClick: () => setShowAIModal(true),
             variant: 'primary',
             className: 'w-full text-lg'
-          }, '🤖 Get Full Workout (REAL AI)'),
+          }, '🤖 Get AI Workout Suggestion'),
           h(PRDashboard, { prs: allPRs }),
 
           // Daily Log (unified view)
@@ -3876,7 +3843,7 @@ const App = () => {
           h('p', { className: 'mb-4' }, 'Are you sure you want to delete this entry?'),
           h('div', { className: 'flex justify-end gap-4' },
             h(Button, { variant: 'secondary', onClick: () => setShowDeleteModal(null) }, 'Cancel'),
-            h(Button, { variant: 'danger', onClick: () => handleDeleteEntry(showDeleteModal) }, 'Delete')
+            h(Button, { variant: 'danger', onClick: () => handleDeleteEntry(showDeleteModal?.id || showDeleteModal, showDeleteModal?.type) }, 'Delete')
           )
         )
       ),
