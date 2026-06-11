@@ -2419,6 +2419,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     const entry = {
       id: entryToEdit ? entryToEdit.id : generateId(),
       date,
+      loggedAt: entryToEdit ? (entryToEdit.loggedAt || null) : new Date().toISOString(),
       trainingType,
       plannedTrainingType: plannedToday,
       cycleDay: cycleDay,

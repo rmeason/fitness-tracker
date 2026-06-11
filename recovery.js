@@ -303,7 +303,11 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
   for (const workout of recentWorkouts) {
     if (workout.trainingType === 'REST' || !workout.exercises) continue;
     
-    const workoutDate = new Date(workout.date);
+    // Use loggedAt (exact save time) if available; fall back to noon on the date string
+    // to avoid midnight-UTC phantom recovery (date-only parses as 12:00am, adding up to 23h of fake recovery)
+    const workoutDate = workout.loggedAt
+      ? new Date(workout.loggedAt)
+      : (() => { const d = new Date(workout.date); d.setHours(12, 0, 0, 0); return d; })();
     const hoursAgo = (currentDate - workoutDate) / (1000 * 60 * 60);
     
     // Get sleep data for this workout (from night before)
