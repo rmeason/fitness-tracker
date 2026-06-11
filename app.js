@@ -2230,6 +2230,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const { showToast } = useToast();
   // Form state
   const [date, setDate] = useState(formatDate(new Date()));
+  const [workoutTime, setWorkoutTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  });
   const [trainingType, setTrainingType] = useState(plannedToday);
   const [exercises, setExercises] = useState([]);
   const [duration, setDuration] = useState(60);
@@ -2299,6 +2303,11 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   useEffect(() => {
     if (entryToEdit) {
       setDate(entryToEdit.date);
+      // Pre-populate time from loggedAt if available
+      if (entryToEdit.loggedAt) {
+        const t = new Date(entryToEdit.loggedAt);
+        setWorkoutTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
+      }
       setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
       // Convert old format exercises to new format with weights array
       const normalizedExercises = (entryToEdit.exercises || []).map(ex => {
@@ -2419,7 +2428,13 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     const entry = {
       id: entryToEdit ? entryToEdit.id : generateId(),
       date,
-      loggedAt: entryToEdit ? (entryToEdit.loggedAt || null) : new Date().toISOString(),
+      loggedAt: (() => {
+        // Combine date + workoutTime into a precise local ISO timestamp
+        const [year, month, day] = date.split('-').map(Number);
+        const [hours, minutes] = workoutTime.split(':').map(Number);
+        const d = new Date(year, month - 1, day, hours, minutes, 0);
+        return d.toISOString();
+      })(),
       trainingType,
       plannedTrainingType: plannedToday,
       cycleDay: cycleDay,
@@ -2591,9 +2606,15 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
     ),
 
     h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-        h(Input, { type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
+      h('div', { className: 'grid grid-cols-2 gap-3' },
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
+          h(Input, { type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Time'),
+          h(Input, { type: 'time', value: workoutTime, onChange: (e) => setWorkoutTime(e.target.value) })
+        )
       ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Training Type'),
