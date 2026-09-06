@@ -476,6 +476,18 @@ const getSleepQualityStars = (deepSleepPercent) => {
   return '⚠️ POOR';
 };
 
+// Flat, symmetric training-day bonus. A weekly training/rest split would need
+// day-counting and divides by zero on an all-training cycle; this cannot.
+// Anything that is not REST (lifting, cardio, active recovery) counts as training.
+const TRAINING_DAY_CALORIE_BONUS = 125; // kcal, symmetric either way
+
+// null when goals are off so callers render "—" rather than a fake 0.
+const getTodaysCalorieTarget = (todaysWorkoutType, dietGoals) => {
+  if (!dietGoals || !dietGoals.enabled) return null;
+  const isRestDay = todaysWorkoutType === 'REST';
+  return dietGoals.calories + (isRestDay ? -TRAINING_DAY_CALORIE_BONUS : TRAINING_DAY_CALORIE_BONUS);
+};
+
 // Goals are passed in rather than read from localStorage here. App owns them, and a
 // second component reading the same concept from a different source is precisely how
 // the sleep data went silently wrong. Falls back to USER_CONTEXT when none is given.
@@ -3641,14 +3653,14 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
 
   // Diet Goals UI state only — the goals themselves are owned by App and arrive as props.
   const [showDietGoals, setShowDietGoals] = useState(false);
-  const [goalType, setGoalType] = useState('maintain');
+  // Seeded from the saved mode so re-running the calculator keeps the mode you chose.
+  const [goalType, setGoalType] = useState(dietGoals.goalType || 'gaintain');
   const [activityLevel, setActivityLevel] = useState('moderate');
-  const [currentWeight, setCurrentWeight] = useState(() => {
-    return getCurrentWeight(sleepEntries);
-  });
 
   const calculateDietGoals = () => {
-    const weight = currentWeight || USER_CONTEXT.startWeight;
+    // Always the most recent logged weigh-in, never a hand-typed copy that can go stale.
+    // getCurrentWeight already falls back to USER_CONTEXT.startWeight when nothing is logged.
+    const weight = getCurrentWeight(sleepEntries);
 
     // Protein: 1g per lb minimum
     const protein = Math.round(weight * 1.0);
@@ -3672,14 +3684,23 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     // Goal adjustments
     const goalAdjustments = {
       cut: -500,          // 1 lb/week loss
-      maintain: 0,
+      gaintain: 0,
       leanBulk: +250,     // 0.5 lb/week gain
       bulk: +500          // 1 lb/week gain
     };
 
     const calories = tdee + goalAdjustments[goalType];
 
-    const newGoals = { protein, calories, enabled: true };
+    // goalType / calculatedAtWeight / calculatedAt change nothing on screen today; they
+    // give the drift check and the empirical estimator something to compare against.
+    const newGoals = {
+      protein,
+      calories,
+      enabled: true,
+      goalType,
+      calculatedAtWeight: weight,
+      calculatedAt: formatDate(new Date())
+    };
     setDietGoals(newGoals); // App persists this; no direct write from here
     showToast(`Diet goals set: ${protein}g protein, ${calories} kcal`, 'success');
     setShowDietGoals(false);
@@ -3688,7 +3709,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const exportData = () => {
     const cardioSessions = entries.reduce((sum, e) => sum + getCardioList(e).length, 0);
     console.log(`[Export] Exporting data: ${entries.length} workouts (${cardioSessions} cardio sessions), ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
-    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries }, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -3759,6 +3780,13 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             console.log(`[Import] Restored ${imported.sleep.length} sleep entries`);
           } else {
             console.warn('[Import] No sleep data found in import file');
+          }
+          // No warning when absent: most export files predate diet goals, so a missing
+          // key is the normal case rather than a red flag.
+          if (imported.dietGoals) {
+            setDietGoals(imported.dietGoals);
+            localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(imported.dietGoals));
+            console.log('[Import] Restored diet goals');
           }
         }
         showToast('Data imported successfully!');
@@ -3845,9 +3873,8 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         showDietGoals ? 'Hide Calculator' : 'Set Diet Goals'
       ),
       showDietGoals && h('div', { className: 'mt-4 space-y-3' },
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Current Weight (lbs)'),
-          h(Input, { type: 'number', step: 0.1, value: currentWeight, onChange: (e) => setCurrentWeight(Number(e.target.value)) })
+        h('p', { className: 'text-sm text-slate-300' },
+          `Using your most recent logged weight: ${getCurrentWeight(sleepEntries)} lbs`
         ),
         h('div', {},
           h('label', { className: 'block text-sm font-medium mb-1' }, 'Goal Type'),
@@ -3857,7 +3884,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             onChange: (e) => setGoalType(e.target.value)
           },
             h('option', { value: 'cut' }, 'Cut (-500 kcal/day)'),
-            h('option', { value: 'maintain' }, 'Maintain'),
+            h('option', { value: 'gaintain' }, 'Gaintain'),
             h('option', { value: 'leanBulk' }, 'Lean Bulk (+250 kcal/day)'),
             h('option', { value: 'bulk' }, 'Bulk (+500 kcal/day)')
           )
@@ -3923,10 +3950,15 @@ const App = () => {
   // them, and the empirical-maintenance gate will update them too. Three owners of one
   // concept, each reaching for its own copy, is how the sleep-source bug happened.
   const [dietGoals, setDietGoals] = useState(() => {
-    const fallback = { protein: 140, calories: 2200, enabled: false };
+    const fallback = {
+      protein: 140, calories: 2200, enabled: false,
+      goalType: null, calculatedAtWeight: null, calculatedAt: null
+    };
     try {
       const saved = localStorage.getItem(DIET_GOALS_KEY);
-      return saved ? JSON.parse(saved) : fallback;
+      // Spread over the fallback so goals saved before these fields existed read as
+      // null rather than undefined. Additive: nothing already saved is renamed or dropped.
+      return saved ? { ...fallback, ...JSON.parse(saved) } : fallback;
     } catch (e) {
       return fallback; // a corrupt value here would otherwise throw during mount
     }
@@ -4022,6 +4054,12 @@ const App = () => {
     [sortedEntries, trainingCycle]
   );
   const { today: nextWorkout, note: coachNote, cycleDay: coachCycleDay } = coachResult;
+
+  // The calendar says what was scheduled; a logged entry says what actually happened.
+  // Prefer the latter, since swapped days should move the calorie target with them.
+  const todaysActualEntry = sortedEntries.find(e => e.date === todayStr);
+  const todaysWorkoutType = todaysActualEntry ? todaysActualEntry.trainingType : nextWorkout;
+  const todaysCalorieTarget = getTodaysCalorieTarget(todaysWorkoutType, dietGoals);
 
   // Use the coach's cycle day - this is the authoritative source
   const cycleDay = coachCycleDay;
@@ -4276,6 +4314,9 @@ const App = () => {
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
                 h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString()),
+                h('div', { className: 'text-xs mt-1 text-slate-400' },
+                  `Target: ${todaysCalorieTarget === null ? '—' : todaysCalorieTarget.toLocaleString()} kcal`
+                ),
                 todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
               ),
               h('div', { className: 'text-center' },
