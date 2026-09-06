@@ -140,6 +140,13 @@ const MIGRATION_FLAG_KEY = 'hypertrophyApp.migrationV2.done'; // Migration track
 const PROFILE_KEY = 'hypertrophyApp.profile.v1'; // User profile (height + age)
 const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tracker for sleep split
 
+// The shape App starts from and deleteAllData resets to. Spread, never mutated.
+const DEFAULT_DIET_GOALS = {
+  protein: 140, calories: 2200, enabled: false,
+  goalType: null, calculatedAtWeight: null, calculatedAt: null,
+  maintenanceSource: null, maintenanceLastShown: null
+};
+
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
 
@@ -3867,10 +3874,21 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const [profileInches, setProfileInches] = useState(() => Math.round(getProfile().heightInches % 12));
   const [profileBirthDate, setProfileBirthDate] = useState(() => getProfile().birthDate || '');
   // An age saved by the previous version, kept working until a birth date replaces it.
-  const [legacyAge] = useState(() => {
+  const [legacyAge, setLegacyAge] = useState(() => {
     const p = getProfile();
     return p.ageSource === 'stored' ? p.age : null;
   });
+
+  // The profile is not React state -- these inputs are seeded from getProfile() at
+  // mount, so anything that rewrites PROFILE_KEY underneath them (an import, a wipe)
+  // must pull the new values back in or the form keeps showing the old ones.
+  const refreshProfileInputs = () => {
+    const p = getProfile();
+    setProfileFeet(Math.floor(p.heightInches / 12));
+    setProfileInches(Math.round(p.heightInches % 12));
+    setProfileBirthDate(p.birthDate || '');
+    setLegacyAge(p.ageSource === 'stored' ? p.age : null);
+  };
 
   // Recomputed every render rather than stored, so it is never stale.
   const derivedAge = ageFromBirthDate(profileBirthDate);
@@ -3968,7 +3986,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const exportData = () => {
     const cardioSessions = entries.reduce((sum, e) => sum + getCardioList(e).length, 0);
     console.log(`[Export] Exporting data: ${entries.length} workouts (${cardioSessions} cardio sessions), ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
-    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals }, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals, profile: getProfile() }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -3985,6 +4003,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
+        let restoredProfile = false;
         const imported = JSON.parse(event.target.result);
         console.log('[Import] Imported data:', {
           entries: imported.entries?.length || 0,
@@ -4047,8 +4066,19 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(imported.dietGoals));
             console.log('[Import] Restored diet goals');
           }
+          // Also absent from every export written before today, so no warning.
+          // saveProfile rather than a direct write: it drops the stale age key once a
+          // valid birth date exists, which a legacy age-only profile needs on the way in.
+          if (imported.profile) {
+            saveProfile(imported.profile);
+            refreshProfileInputs();
+            restoredProfile = true;
+            console.log('[Import] Restored profile');
+          }
         }
-        showToast('Data imported successfully!');
+        showToast(restoredProfile
+          ? 'Data imported successfully! Profile restored.'
+          : 'Data imported successfully!');
       } catch (err) {
         showToast('Failed to import data.', 'error');
         console.error('[Import] Error:', err);
@@ -4065,11 +4095,16 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       setCustomCycles({});
       setNutrition([]);
       setSleepEntries([]);
+      setDietGoals({ ...DEFAULT_DIET_GOALS });
       localStorage.removeItem(DB_KEY);
       localStorage.removeItem(CYCLE_KEY);
       localStorage.removeItem(CUSTOM_CYCLES_KEY);
       localStorage.removeItem(NUTRITION_KEY);
       localStorage.removeItem(SLEEP_KEY);
+      localStorage.removeItem(DIET_GOALS_KEY);
+      localStorage.removeItem(PROFILE_KEY);
+      // Same reason as the import: these inputs are seeded at mount, not reactive.
+      refreshProfileInputs();
       showToast('All data deleted.', 'danger');
     }
   };
@@ -4294,11 +4329,8 @@ const App = () => {
   // them, and the empirical-maintenance gate will update them too. Three owners of one
   // concept, each reaching for its own copy, is how the sleep-source bug happened.
   const [dietGoals, setDietGoals] = useState(() => {
-    const fallback = {
-      protein: 140, calories: 2200, enabled: false,
-      goalType: null, calculatedAtWeight: null, calculatedAt: null,
-      maintenanceSource: null, maintenanceLastShown: null
-    };
+    // Copied, so state is never a reference to the shared constant.
+    const fallback = { ...DEFAULT_DIET_GOALS };
     try {
       const saved = localStorage.getItem(DIET_GOALS_KEY);
       // Spread over the fallback so goals saved before these fields existed read as
