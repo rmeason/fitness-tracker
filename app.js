@@ -18,7 +18,8 @@ import {
   getExerciseData,
   getExercisesForMuscle,
   getAllCardioNames,
-  getCardioData
+  getCardioData,
+  getCardioFields
 } from './muscles.js';
 
 import {
@@ -257,17 +258,54 @@ const getCardioList = (entry) => Array.isArray(entry?.cardio) ? entry.cardio : [
 
 // Reshape saved cardio into the form's editable shape (values kept as strings so
 // empty inputs stay empty instead of showing a stray 0)
-const normalizeCardioForForm = (cardioList) => (Array.isArray(cardioList) ? cardioList : []).map(c => ({
-  name: c.name || '',
-  minutes: (c.minutes === 0 || c.minutes) ? String(c.minutes) : '',
-  steps: (c.steps === 0 || c.steps) ? String(c.steps) : ''
-}));
+// '' means "not tracked" for every optional field, so a value the user never entered
+// never comes back as 0. A logged 0 survives as "0".
+const asFormValue = (raw) => (raw === 0 || raw) ? String(raw) : '';
 
-const getCardioTotals = (entry) => getCardioList(entry).reduce((acc, c) => ({
-  minutes: acc.minutes + (Number(c.minutes) || 0),
-  steps: acc.steps + (Number(c.steps) || 0),
-  count: acc.count + 1
-}), { minutes: 0, steps: 0, count: 0 });
+const normalizeCardioForForm = (cardioList) => (Array.isArray(cardioList) ? cardioList : []).map(c => {
+  const row = {
+    name: c.name || '',
+    minutes: asFormValue(c.minutes),
+    steps: asFormValue(c.steps),
+    effort: asFormValue(c.effort),
+    timing: c.timing || ''
+  };
+  // Machine-specific keys, whitelisted by the same table the form renders from.
+  getCardioFields(c.name).forEach(f => { row[f.key] = asFormValue(c[f.key]); });
+  return row;
+});
+
+// Save shape for one cardio row. minutes and steps keep their || 0 -- they are real
+// summation input. The optional fields must not: a blank effort is null, never 0.
+const toSavedCardioItem = (c) => {
+  const name = String(c.name).trim();
+  const item = {
+    name,
+    minutes: Number(c.minutes) || 0,
+    steps: Number(c.steps) || 0,
+    effort: optionalNumber(c.effort),
+    timing: (c.timing === 'before' || c.timing === 'after') ? c.timing : null
+  };
+  getCardioFields(name).forEach(f => { item[f.key] = optionalNumber(c[f.key]); });
+  return item;
+};
+
+// stepsByMachine is additive; minutes, steps and count keep their existing meaning.
+// Two rows on the same machine sum into one key, since addCardio permits duplicates.
+// Unnamed rows (a blank row still being filled in) contribute to the flat totals but
+// get no key of their own.
+const getCardioTotals = (entry) => getCardioList(entry).reduce((acc, c) => {
+  const name = String(c.name || '').trim();
+  if (name) {
+    acc.stepsByMachine[name] = (acc.stepsByMachine[name] || 0) + (Number(c.steps) || 0);
+  }
+  return {
+    minutes: acc.minutes + (Number(c.minutes) || 0),
+    steps: acc.steps + (Number(c.steps) || 0),
+    count: acc.count + 1,
+    stepsByMachine: acc.stepsByMachine
+  };
+}, { minutes: 0, steps: 0, count: 0, stepsByMachine: {} });
 
 // Short one-line summary, e.g. "45 min | 3,200 steps" - null when nothing logged
 const formatCardioSummary = (entry) => {
@@ -579,14 +617,19 @@ const getPreviousPR = (exerciseName, allEntries, currentEntryId) => {
 // a manually entered calorie figure.
 const KCAL_PER_G = { protein: 4, carbs: 4, fat: 9 };
 
-// Returns null when the field is absent — absent means "not tracked", which is
-// different from a logged zero. Callers decide how to display null.
-const macroValue = (entry, field) => {
-  if (entry == null) return null;
-  const raw = entry[field];
+// Returns null when a value is absent — absent means "not tracked", which is
+// different from a logged zero. The one definition of that rule; the macro fields
+// and the optional cardio fields both go through it.
+const optionalNumber = (raw) => {
   if (raw === undefined || raw === null || raw === '') return null;
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+};
+
+// Callers decide how to display null.
+const macroValue = (entry, field) => {
+  if (entry == null) return null;
+  return optionalNumber(entry[field]);
 };
 
 const caloriesFromMacros = (protein, carbs, fat) =>
@@ -2867,11 +2910,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
       // Rows with no machine name are dropped so blank rows never persist.
       cardio: trainingType === 'REST' ? [] : cardio
         .filter(c => c.name && String(c.name).trim())
-        .map(c => ({
-          name: String(c.name).trim(),
-          minutes: Number(c.minutes) || 0,
-          steps: Number(c.steps) || 0
-        })),
+        .map(toSavedCardioItem),
     };
 
     const prsFound = [];

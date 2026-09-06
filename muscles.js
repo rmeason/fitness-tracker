@@ -2066,13 +2066,23 @@ export const CARDIO_LIBRARY = {
   "Stairmaster": {
     icon: "🪜",
     stepLabel: "Steps",
-    notes: "Step mill; step count read off the console"
+    notes: "Step mill; step count read off the console",
+    // Each key matches the saved cardio item key exactly, so the form can render
+    // these generically and the save mapper can whitelist them by the same name.
+    fields: [
+      { key: 'level',  label: 'Level',  type: 'number' },
+      { key: 'floors', label: 'Floors', type: 'number' }
+    ]
   },
 
   "Treadmill": {
     icon: "🏃",
     stepLabel: "Steps",
-    notes: "Steps from the console or a wearable"
+    notes: "Steps from the console or a wearable",
+    fields: [
+      { key: 'incline', label: 'Incline %', type: 'number' },
+      { key: 'speed',   label: 'Speed (mph)', type: 'number' }
+    ]
   }
 
 };
@@ -2168,6 +2178,17 @@ export function getCardioData(cardioName) {
 }
 
 /**
+ * Get the machine-specific cardio fields for a machine.
+ * A free-text or unrecognised machine returns [] and so gets only the universal
+ * fields -- that is what keeps free-text machines working.
+ * @param {string} cardioName
+ * @returns {Array<{key: string, label: string, type: string}>}
+ */
+export function getCardioFields(cardioName) {
+  return CARDIO_LIBRARY[cardioName]?.fields || [];
+}
+
+/**
  * Get exercises that target a specific muscle
  * @param {string} muscleName - Muscle key (e.g., "bicepsLong")
  * @param {number} minActivation - Minimum activation % (default 50)
@@ -2202,5 +2223,6 @@ export default {
   getExercisesByCategory,
   getExercisesForMuscle,
   getAllCardioNames,
-  getCardioData
+  getCardioData,
+  getCardioFields
 };
