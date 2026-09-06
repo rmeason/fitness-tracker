@@ -307,6 +307,10 @@ const getCardioTotals = (entry) => getCardioList(entry).reduce((acc, c) => {
   };
 }, { minutes: 0, steps: 0, count: 0, stepsByMachine: {} });
 
+// Renders one optional cardio value. Same missing-is-"—" rule as formatMacro, minus
+// the rounding, because speed and incline are legitimately fractional.
+const formatCardioValue = (value) => value === null ? '—' : String(value);
+
 // Short one-line summary, e.g. "45 min | 3,200 steps" - null when nothing logged
 const formatCardioSummary = (entry) => {
   const { minutes, steps, count } = getCardioTotals(entry);
@@ -2069,6 +2073,7 @@ const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, nutrition, sleepEntr
         const prompt = `You are a hypertrophy training coach analyzing workout data for a ${USER_CONTEXT.age}-year-old male (${currentWeightLbs} lbs) in a body composition phase.
 
 RECENT WORKOUTS (includes RPE and Volume): ${JSON.stringify(last10Workouts)}
+CARDIO SCHEMA: each entry's optional "cardio" array holds items shaped { name (machine), minutes, steps, effort (RPE 1-10), timing ("before"/"after" lifting), plus machine-specific numbers such as level/floors for a Stairmaster or incline/speed for a Treadmill }; null means that field was not tracked, which is not the same as zero.
 CURRENT PRs: ${JSON.stringify(topPRs)}
 LAST NIGHT'S SLEEP: ${hasSleepData ? `${lastSleep}% deep sleep (${hours}h total)` : 'NOT LOGGED — do not make sleep-based volume claims; recommend a moderate set count and tell the user to log sleep for a better recommendation'}
 TRAINING CYCLE: ${trainingCycle.length}-day cycle (${trainingCycle.join(', ')})
@@ -2836,7 +2841,8 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   // Cardio rows track time + steps, so they get their own list rather than
   // being squeezed into the weight/reps shape of a strength exercise.
   const addCardio = (name = '') => {
-    setCardio([...cardio, { name, minutes: '', steps: '' }]);
+    // '' for the optional fields, not 0 -- an untouched field must save as null.
+    setCardio([...cardio, { name, minutes: '', steps: '', effort: '', timing: '' }]);
   };
   const updateCardio = (index, field, value) => {
     const newCardio = [...cardio];
@@ -3320,8 +3326,11 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         )
       ),
       h('div', { className: 'space-y-4' },
-        cardio.map((c, i) =>
-          h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
+        cardio.map((c, i) => {
+          // [] for a free-text or unrecognised machine, which is exactly what keeps
+          // free-text machines working: they get the universal fields and nothing else.
+          const machineFields = getCardioFields(c.name);
+          return h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
             h('div', { className: 'flex justify-between items-center' },
               h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
               h('button', { type: 'button', className: 'text-red-400', onClick: () => removeCardio(i) }, 'Remove')
@@ -3359,19 +3368,71 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
                   onChange: (e) => updateCardio(i, 'steps', e.target.value)
                 })
               )
+            ),
+            // Universal fields, on every row whatever the machine. Both optional:
+            // blank means not tracked and saves as null rather than a logged zero.
+            h('div', { className: 'grid grid-cols-2 gap-2' },
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'Effort (RPE 1-10)'),
+                h(Input, {
+                  type: 'number',
+                  min: 1,
+                  max: 10,
+                  step: 1,
+                  placeholder: 'optional',
+                  value: asFormValue(c.effort),
+                  onChange: (e) => updateCardio(i, 'effort', e.target.value)
+                })
+              ),
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'When'),
+                h(Select, {
+                  value: c.timing || '',
+                  onChange: (e) => updateCardio(i, 'timing', e.target.value)
+                },
+                  h('option', { value: '' }, 'Not tracked'),
+                  h('option', { value: 'before' }, 'Before lifting'),
+                  h('option', { value: 'after' }, 'After lifting')
+                )
+              )
+            ),
+            // Machine-specific fields, rendered from the library table so the keys
+            // written here are the same keys the save mapper whitelists.
+            machineFields.length > 0 && h('div', { className: 'grid grid-cols-2 gap-2' },
+              machineFields.map(f =>
+                h('div', { key: f.key },
+                  h('label', { className: 'block text-xs mb-1' }, f.label),
+                  h(Input, {
+                    type: f.type,
+                    min: 0,
+                    step: 'any',
+                    placeholder: 'optional',
+                    value: asFormValue(c[f.key]),
+                    onChange: (e) => updateCardio(i, f.key, e.target.value)
+                  })
+                )
+              )
             )
-          )
-        ),
+          );
+        }),
         h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
       ),
-      cardio.length > 0 && h('div', { className: 'grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg' },
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
-          h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
+      cardio.length > 0 && h('div', { className: 'p-4 bg-slate-900 rounded-lg space-y-2' },
+        h('div', { className: 'grid grid-cols-2 gap-4' },
+          h('div', {},
+            h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
+            h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
+          ),
+          h('div', {},
+            h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
+            h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+          )
         ),
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
-          h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+        // Only worth breaking the total apart when more than one machine was used.
+        Object.keys(cardioTotals.stepsByMachine).length > 1 && h('div', { className: 'text-xs text-slate-400' },
+          Object.entries(cardioTotals.stepsByMachine)
+            .map(([machine, steps]) => `${machine}: ${steps.toLocaleString()}`)
+            .join(' · ')
         )
       )
     ),
@@ -3595,13 +3656,32 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
         cardioList.length > 0 && h('div', {},
           h('h4', { className: 'text-md font-semibold mb-2' }, '🏃 Cardio'),
           h('ul', { className: 'space-y-1' },
-            cardioList.map((c, i) =>
-              h('li', { key: i, className: 'flex justify-between text-sm bg-slate-700 p-2 rounded' },
-                h('span', { className: 'font-medium' }, `${getCardioData(c.name)?.icon || ''} ${c.name}`.trim()),
-                h('span', {}, `${Number(c.minutes) || 0} min`),
-                h('span', { className: 'text-slate-400' }, `${(Number(c.steps) || 0).toLocaleString()} steps`)
-              )
-            )
+            cardioList.map((c, i) => {
+              // Effort, timing and the machine's own fields. Rows logged before these
+              // existed track none of them and keep rendering exactly as they did.
+              const detail = [
+                { label: 'RPE', value: formatCardioValue(macroValue(c, 'effort')) },
+                { label: 'When', value: c.timing || '—' },
+                ...getCardioFields(c.name).map(f => ({
+                  label: f.label,
+                  value: formatCardioValue(macroValue(c, f.key))
+                }))
+              ];
+              const anyTracked = macroValue(c, 'effort') !== null
+                || !!c.timing
+                || getCardioFields(c.name).some(f => macroValue(c, f.key) !== null);
+
+              return h('li', { key: i, className: 'bg-slate-700 p-2 rounded space-y-1' },
+                h('div', { className: 'flex justify-between text-sm' },
+                  h('span', { className: 'font-medium' }, `${getCardioData(c.name)?.icon || ''} ${c.name}`.trim()),
+                  h('span', {}, `${Number(c.minutes) || 0} min`),
+                  h('span', { className: 'text-slate-400' }, `${(Number(c.steps) || 0).toLocaleString()} steps`)
+                ),
+                anyTracked && h('div', { className: 'text-xs text-slate-400' },
+                  detail.map(d => `${d.label} ${d.value}`).join(' · ')
+                )
+              );
+            })
           )
         ),
 
@@ -4599,7 +4679,7 @@ const App = () => {
               ),
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
-                h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned),
+                h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned.toLocaleString()),
                 h('div', { className: 'text-xs mt-1 text-slate-500' }, 'kcal (7 days)')
               )
             )
