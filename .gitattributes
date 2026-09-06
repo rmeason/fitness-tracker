@@ -1,0 +1,10 @@
+# This repo is edited on Windows and served as static files by Netlify, which is
+# indifferent to line endings. Store every file byte-for-byte as it sits on disk
+# (CRLF) so git never rewrites endings behind our backs.
+#
+# Why -text rather than "text=auto eol=crlf": the repo was already mixed. app.js,
+# index.html, sw.js and manifest.json were committed as CRLF; the rest as LF.
+# Normalising to LF would rewrite app.js entirely -- the one file every upgrade
+# phase edits. This way app.js, index.html and sw.js are left untouched and only
+# the already-drifted files are restated.
+* -text
