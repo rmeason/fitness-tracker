@@ -476,13 +476,12 @@ const getSleepQualityStars = (deepSleepPercent) => {
   return '⚠️ POOR';
 };
 
-const getProteinStatus = (protein) => {
-  // Check for custom diet goals
-  const savedGoals = localStorage.getItem(DIET_GOALS_KEY);
-  const customGoals = savedGoals ? JSON.parse(savedGoals) : null;
-
-  if (customGoals && customGoals.enabled) {
-    const target = customGoals.protein;
+// Goals are passed in rather than read from localStorage here. App owns them, and a
+// second component reading the same concept from a different source is precisely how
+// the sleep data went silently wrong. Falls back to USER_CONTEXT when none is given.
+const getProteinStatus = (protein, dietGoals = null) => {
+  if (dietGoals && dietGoals.enabled) {
+    const target = dietGoals.protein;
     if (protein >= target * 1.2) return h('span', { className: 'text-cyan-400 font-bold' }, 'Outstanding');
     if (protein >= target * 1.1) return h('span', { className: 'text-green-400 font-bold' }, 'Excellent');
     if (protein >= target) return h('span', { className: 'text-green-500' }, 'Target Met');
@@ -3468,7 +3467,7 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
 };
 
 // --- ⚙️ SETTINGS COMPONENT (UPGRADED) ---
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals }) => {
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -3508,11 +3507,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     showToast(`Profile saved: ${formatHeight(totalInches)}, age ${effectiveAge}`, 'success');
   };
 
-  // Diet Goals state
-  const [dietGoals, setDietGoals] = useState(() => {
-    const saved = localStorage.getItem(DIET_GOALS_KEY);
-    return saved ? JSON.parse(saved) : { protein: 140, calories: 2200, enabled: false };
-  });
+  // Diet Goals UI state only — the goals themselves are owned by App and arrive as props.
   const [showDietGoals, setShowDietGoals] = useState(false);
   const [goalType, setGoalType] = useState('maintain');
   const [activityLevel, setActivityLevel] = useState('moderate');
@@ -3553,8 +3548,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     const calories = tdee + goalAdjustments[goalType];
 
     const newGoals = { protein, calories, enabled: true };
-    setDietGoals(newGoals);
-    localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(newGoals));
+    setDietGoals(newGoals); // App persists this; no direct write from here
     showToast(`Diet goals set: ${protein}g protein, ${calories} kcal`, 'success');
     setShowDietGoals(false);
   };
@@ -3793,6 +3787,19 @@ const App = () => {
     return parsed;
   });
 
+  // Diet goals live in App, not Settings: the dashboard reads them, Settings writes
+  // them, and the empirical-maintenance gate will update them too. Three owners of one
+  // concept, each reaching for its own copy, is how the sleep-source bug happened.
+  const [dietGoals, setDietGoals] = useState(() => {
+    const fallback = { protein: 140, calories: 2200, enabled: false };
+    try {
+      const saved = localStorage.getItem(DIET_GOALS_KEY);
+      return saved ? JSON.parse(saved) : fallback;
+    } catch (e) {
+      return fallback; // a corrupt value here would otherwise throw during mount
+    }
+  });
+
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
   const [nutritionEntryToEdit, setNutritionEntryToEdit] = useState(null);
@@ -3846,6 +3853,10 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem(SLEEP_KEY, JSON.stringify(sleepEntries));
   }, [sleepEntries]);
+
+  useEffect(() => {
+    localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(dietGoals));
+  }, [dietGoals]);
 
   // --- DERIVED STATE (Upgraded) ---
   const sortedEntries = React.useMemo(
@@ -4080,7 +4091,9 @@ const App = () => {
           nutrition: nutrition,
           setNutrition: setNutrition,
           sleepEntries: sleepEntries,
-          setSleepEntries: setSleepEntries
+          setSleepEntries: setSleepEntries,
+          dietGoals: dietGoals,
+          setDietGoals: setDietGoals
         });
 
         case 'recovery':
@@ -4112,7 +4125,7 @@ const App = () => {
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Protein'),
                 h('div', { className: 'text-2xl font-bold text-green-400' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
-                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein)),
+                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein, dietGoals)),
                 todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
               ),
               h('div', { className: 'text-center' },
