@@ -17,7 +17,7 @@ export default async (req, context) => {
     // 2. Call the real Claude Vision API
     const aiResponse = await anthropic.messages.create({
       // Use Haiku for vision, it's fast and cheap
-      model: 'claude-3-haiku-20240307',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 1024,
       messages: [
         { role: 'user', content: content }
