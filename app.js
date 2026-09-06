@@ -574,23 +574,60 @@ const getTodaysNutrition = (nutritionLog) => {
   return getNutritionForDate(nutritionLog, formatDate(new Date()));
 };
 
-// User profile: height and age. Falls back to USER_CONTEXT defaults so existing
-// installs with no saved profile keep working unchanged.
+// Age is DERIVED from the stored birth date on every read and never persisted.
+// A stored age goes quietly wrong on the user's next birthday -- the same class of
+// bug as the hardcoded 32 this replaced, just one layer down.
+//
+// The explicit local-midnight construction matters: new Date('1993-04-20') parses as
+// UTC, so at UTC-5 it lands on the 19th and the birthday would roll over a day early.
+const ageFromBirthDate = (isoDate, today = new Date()) => {
+  if (!isoDate || typeof isoDate !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
+  if (!m) return null;
+  const year = Number(m[1]), month = Number(m[2]), day = Number(m[3]);
+  const birth = new Date(year, month - 1, day); // local midnight, not UTC
+  if (birth.getFullYear() !== year || birth.getMonth() !== month - 1 || birth.getDate() !== day) {
+    return null; // rejects 2025-02-30 and friends, which Date would roll forward
+  }
+  let age = today.getFullYear() - year;
+  const beforeBirthdayThisYear =
+    today.getMonth() < month - 1 ||
+    (today.getMonth() === month - 1 && today.getDate() < day);
+  if (beforeBirthdayThisYear) age -= 1;
+  return age >= 0 && age < 120 ? age : null;
+};
+
+// User profile: height plus either a birth date (preferred) or a bare age saved by
+// an earlier version. Falls back to USER_CONTEXT so installs with no saved profile
+// keep working unchanged.
 const getProfile = () => {
   try {
     const saved = localStorage.getItem(PROFILE_KEY);
     const parsed = saved ? JSON.parse(saved) : {};
+    const derivedAge = ageFromBirthDate(parsed.birthDate);
+    const storedAge = Number(parsed.age) > 0 ? Number(parsed.age) : null;
     return {
       heightInches: Number(parsed.heightInches) > 0 ? Number(parsed.heightInches) : 70,
-      age: Number(parsed.age) > 0 ? Number(parsed.age) : USER_CONTEXT.age
+      birthDate: derivedAge !== null ? parsed.birthDate : null,
+      age: derivedAge !== null ? derivedAge : (storedAge !== null ? storedAge : USER_CONTEXT.age),
+      ageSource: derivedAge !== null ? 'birthDate' : (storedAge !== null ? 'stored' : 'default')
     };
   } catch (e) {
-    return { heightInches: 70, age: USER_CONTEXT.age };
+    return { heightInches: 70, birthDate: null, age: USER_CONTEXT.age, ageSource: 'default' };
   }
 };
 
+// Persists a birth date when there is one, and only then falls back to storing a bare
+// age -- so once a birth date exists the stale age field is dropped rather than kept
+// alongside it, where it could later be read back by mistake.
 const saveProfile = (profile) => {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  const clean = { heightInches: Number(profile.heightInches) };
+  if (profile.birthDate && ageFromBirthDate(profile.birthDate) !== null) {
+    clean.birthDate = profile.birthDate;
+  } else if (Number(profile.age) > 0) {
+    clean.age = Number(profile.age);
+  }
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(clean));
 };
 
 const inchesToCm = (inches) => Number(inches) * 2.54;
@@ -3439,19 +3476,36 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Profile state (height + age) — feeds the BMR calculation below.
+  // Profile state (height + birth date) — feeds the BMR calculation below.
   const [profileFeet, setProfileFeet] = useState(() => Math.floor(getProfile().heightInches / 12));
   const [profileInches, setProfileInches] = useState(() => Math.round(getProfile().heightInches % 12));
-  const [profileAge, setProfileAge] = useState(() => getProfile().age);
+  const [profileBirthDate, setProfileBirthDate] = useState(() => getProfile().birthDate || '');
+  // An age saved by the previous version, kept working until a birth date replaces it.
+  const [legacyAge] = useState(() => {
+    const p = getProfile();
+    return p.ageSource === 'stored' ? p.age : null;
+  });
+
+  // Recomputed every render rather than stored, so it is never stale.
+  const derivedAge = ageFromBirthDate(profileBirthDate);
+  const effectiveAge = derivedAge !== null ? derivedAge : legacyAge;
 
   const saveProfileSettings = () => {
     const totalInches = (Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0);
-    if (!(totalInches > 0) || !(Number(profileAge) > 0)) {
-      showToast('Enter a valid height and age.', 'error');
+    if (!(totalInches > 0)) {
+      showToast('Enter a valid height.', 'error');
       return;
     }
-    saveProfile({ heightInches: totalInches, age: Number(profileAge) });
-    showToast(`Profile saved: ${formatHeight(totalInches)}, age ${Number(profileAge)}`, 'success');
+    if (profileBirthDate && derivedAge === null) {
+      showToast('That date of birth is not valid.', 'error');
+      return;
+    }
+    if (!profileBirthDate && !(legacyAge > 0)) {
+      showToast('Enter your date of birth.', 'error');
+      return;
+    }
+    saveProfile({ heightInches: totalInches, birthDate: profileBirthDate || null, age: legacyAge });
+    showToast(`Profile saved: ${formatHeight(totalInches)}, age ${effectiveAge}`, 'success');
   };
 
   // Diet Goals state
@@ -3628,9 +3682,9 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, '👤 Profile'),
       h('p', { className: 'text-sm text-slate-300' },
-        `Current: ${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${Number(profileAge) > 0 ? Number(profileAge) : '—'}`
+        `Current: ${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${effectiveAge > 0 ? effectiveAge : '—'}`
       ),
-      h('div', { className: 'grid grid-cols-3 gap-3' },
+      h('div', { className: 'grid grid-cols-2 gap-3' },
         h('div', {},
           h('label', { className: 'block text-sm font-medium mb-1' }, 'Height (ft)'),
           h(Input, { type: 'number', min: 3, max: 8, value: profileFeet, onChange: (e) => setProfileFeet(e.target.value) })
@@ -3638,11 +3692,20 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         h('div', {},
           h('label', { className: 'block text-sm font-medium mb-1' }, 'Height (in)'),
           h(Input, { type: 'number', min: 0, max: 11, value: profileInches, onChange: (e) => setProfileInches(e.target.value) })
-        ),
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Age'),
-          h(Input, { type: 'number', min: 13, max: 100, value: profileAge, onChange: (e) => setProfileAge(e.target.value) })
         )
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date of birth'),
+        h(Input, {
+          type: 'date',
+          max: formatDate(new Date()),
+          value: profileBirthDate,
+          onChange: (e) => setProfileBirthDate(e.target.value)
+        }),
+        derivedAge !== null && h('p', { className: 'text-xs text-slate-400 mt-1' },
+          `Age ${derivedAge} — updates itself on your birthday.`),
+        !profileBirthDate && legacyAge > 0 && h('p', { className: 'text-xs text-yellow-500 mt-1' },
+          `Still using the age ${legacyAge} you saved earlier. Add your date of birth so it stops going stale.`)
       ),
       h('p', { className: 'text-xs text-slate-400' }, 'Used to calculate your BMR and calorie targets.'),
       h(Button, { onClick: saveProfileSettings, variant: 'primary', className: 'w-full' }, 'Save Profile')
