@@ -13,9 +13,12 @@ import * as Coach from './coach.js';
 import {
   MUSCLES,
   EXERCISE_LIBRARY,
+  CARDIO_LIBRARY,
   getAllExerciseNames as getAllLibraryExercises,
   getExerciseData,
-  getExercisesForMuscle
+  getExercisesForMuscle,
+  getAllCardioNames,
+  getCardioData
 } from './muscles.js';
 
 import {
@@ -220,6 +223,37 @@ const isPullUpExercise = (exerciseName) => {
     }
     return totalVolume;
   };
+
+// --- 🏃 CARDIO HELPERS ---
+// Cardio lives in its own `cardio` array on a workout entry and is tracked as
+// time + steps rather than weight x reps. Entries logged (or exported) before
+// cardio existed simply have no `cardio` key, so every reader below defaults to
+// an empty list and keeps old data rendering exactly as it always did.
+const getCardioList = (entry) => Array.isArray(entry?.cardio) ? entry.cardio : [];
+
+// Reshape saved cardio into the form's editable shape (values kept as strings so
+// empty inputs stay empty instead of showing a stray 0)
+const normalizeCardioForForm = (cardioList) => (Array.isArray(cardioList) ? cardioList : []).map(c => ({
+  name: c.name || '',
+  minutes: (c.minutes === 0 || c.minutes) ? String(c.minutes) : '',
+  steps: (c.steps === 0 || c.steps) ? String(c.steps) : ''
+}));
+
+const getCardioTotals = (entry) => getCardioList(entry).reduce((acc, c) => ({
+  minutes: acc.minutes + (Number(c.minutes) || 0),
+  steps: acc.steps + (Number(c.steps) || 0),
+  count: acc.count + 1
+}), { minutes: 0, steps: 0, count: 0 });
+
+// Short one-line summary, e.g. "45 min | 3,200 steps" - null when nothing logged
+const formatCardioSummary = (entry) => {
+  const { minutes, steps, count } = getCardioTotals(entry);
+  if (count === 0) return null;
+  const parts = [];
+  if (minutes > 0) parts.push(`${minutes} min`);
+  if (steps > 0) parts.push(`${steps.toLocaleString()} steps`);
+  return parts.length > 0 ? parts.join(' | ') : `${count} cardio session${count !== 1 ? 's' : ''}`;
+};
 
 // --- 🔄 DATA MIGRATION FUNCTION ---
 // Migrates old entries (with sleep/nutrition in workout) to separated structure
@@ -2236,6 +2270,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   });
   const [trainingType, setTrainingType] = useState(plannedToday);
   const [exercises, setExercises] = useState([]);
+  const [cardio, setCardio] = useState([]);
   const [duration, setDuration] = useState(60);
   const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
 
@@ -2247,6 +2282,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   // UI state for collapsible sections and quick log
   const [quickLogMode, setQuickLogMode] = useState(false);
   const [trainingSectionOpen, setTrainingSectionOpen] = useState(true);
+  const [cardioSectionOpen, setCardioSectionOpen] = useState(false);
+
+  const cardioMachines = getAllCardioNames();
+  const cardioTotals = getCardioTotals({ cardio });
 
   const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES])];
 
@@ -2263,10 +2302,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const [elapsedTime, setElapsedTime] = useState(0);
 
   useEffect(() => {
-    if (exercises.length > 0 && !workoutStartTime) {
+    if ((exercises.length > 0 || cardio.length > 0) && !workoutStartTime) {
       setWorkoutStartTime(Date.now());
     }
-  }, [exercises.length]);
+  }, [exercises.length, cardio.length]);
 
   useEffect(() => {
     if (!workoutStartTime) return;
@@ -2321,10 +2360,15 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
         };
       });
       setExercises(normalizedExercises);
+      // Entries saved before cardio existed have no `cardio` key -> empty list
+      const normalizedCardio = normalizeCardioForForm(entryToEdit.cardio);
+      setCardio(normalizedCardio);
+      if (normalizedCardio.length > 0) setCardioSectionOpen(true);
       setDuration(entryToEdit.duration || 60);
       setCaloriesBurned(entryToEdit.caloriesBurned || '');
     } else {
       setTrainingType(plannedToday);
+      setCardio([]);
     }
   }, [entryToEdit, allEntries, plannedToday]);
 
@@ -2413,6 +2457,34 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     }
   };
 
+  // --- Cardio Handlers ---
+  // Cardio rows track time + steps, so they get their own list rather than
+  // being squeezed into the weight/reps shape of a strength exercise.
+  const addCardio = (name = '') => {
+    setCardio([...cardio, { name, minutes: '', steps: '' }]);
+  };
+  const updateCardio = (index, field, value) => {
+    const newCardio = [...cardio];
+    newCardio[index] = { ...newCardio[index], [field]: value };
+    setCardio(newCardio);
+  };
+  const removeCardio = (index) => {
+    setCardio(cardio.filter((_, i) => i !== index));
+  };
+  // Pre-fill a machine with the last session logged on it
+  const addCardioFromHistory = (name) => {
+    const lastEntry = [...allEntries].reverse().find(entry =>
+      getCardioList(entry).some(c => c.name === name)
+    );
+    const lastCardio = lastEntry && getCardioList(lastEntry).find(c => c.name === name);
+    if (lastCardio) {
+      setCardio([...cardio, ...normalizeCardioForForm([lastCardio])]);
+      showToast('Cardio pre-filled!');
+    } else {
+      addCardio(name);
+    }
+  };
+
   // --- Submit Handler (Upgraded) ---
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -2459,6 +2531,15 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
       }, 0),
       duration: Number(duration),
       caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
+      // NEW: Cardio sessions - time + steps instead of weight x reps.
+      // Rows with no machine name are dropped so blank rows never persist.
+      cardio: trainingType === 'REST' ? [] : cardio
+        .filter(c => c.name && String(c.name).trim())
+        .map(c => ({
+          name: String(c.name).trim(),
+          minutes: Number(c.minutes) || 0,
+          steps: Number(c.steps) || 0
+        })),
     };
 
     const prsFound = [];
@@ -2846,6 +2927,84 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       )
     ),
 
+    // 🏃 Cardio Section - time + steps instead of weight + reps
+    trainingType !== 'REST' && h(CollapsibleSection, {
+      title: cardio.length > 0 ? `Cardio (${cardio.length})` : 'Cardio',
+      icon: '🏃',
+      isOpen: cardioSectionOpen,
+      onToggle: () => setCardioSectionOpen(!cardioSectionOpen)
+    },
+      h('datalist', { id: 'cardio-machines' }, cardioMachines.map(machine => h('option', { key: machine, value: machine }))),
+      h('div', { className: 'mb-3' },
+        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Quick add:'),
+        h('div', { className: 'flex flex-wrap gap-2' },
+          cardioMachines.map(machine =>
+            h('button', {
+              key: machine,
+              type: 'button',
+              onClick: () => addCardioFromHistory(machine),
+              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center gap-1'
+            }, getCardioData(machine)?.icon || '', machine)
+          )
+        )
+      ),
+      h('div', { className: 'space-y-4' },
+        cardio.map((c, i) =>
+          h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
+            h('div', { className: 'flex justify-between items-center' },
+              h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
+              h('button', { type: 'button', className: 'text-red-400', onClick: () => removeCardio(i) }, 'Remove')
+            ),
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'Machine'),
+              h(Input, {
+                type: 'text',
+                list: 'cardio-machines',
+                placeholder: 'e.g., Stairmaster',
+                value: c.name,
+                onChange: (e) => updateCardio(i, 'name', e.target.value)
+              })
+            ),
+            h('div', { className: 'grid grid-cols-2 gap-2' },
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, 'Time (minutes)'),
+                h(Input, {
+                  type: 'number',
+                  min: 0,
+                  step: 1,
+                  placeholder: 'e.g., 20',
+                  value: c.minutes,
+                  onChange: (e) => updateCardio(i, 'minutes', e.target.value)
+                })
+              ),
+              h('div', {},
+                h('label', { className: 'block text-xs mb-1' }, getCardioData(c.name)?.stepLabel || 'Steps'),
+                h(Input, {
+                  type: 'number',
+                  min: 0,
+                  step: 1,
+                  placeholder: 'e.g., 1500',
+                  value: c.steps,
+                  onChange: (e) => updateCardio(i, 'steps', e.target.value)
+                })
+              )
+            )
+          )
+        ),
+        h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
+      ),
+      cardio.length > 0 && h('div', { className: 'grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg' },
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
+        ),
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+        )
+      )
+    ),
+
     // Floating Save Button
     h('div', { className: 'fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 flex gap-4 z-50' },
       h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? '💾 Update Entry' : '💾 Save Entry'),
@@ -2875,6 +3034,8 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
   const avgRPE = validExercises.length > 0
     ? (validExercises.reduce((sum, ex) => sum + (ex.rpe || 0), 0) / validExercises.length).toFixed(1)
     : 'N/A';
+  const cardioList = getCardioList(workout);
+  const cardioSummary = formatCardioSummary(workout);
 
   // Calculate volume comparison for workout
   const getVolumeComparison = () => {
@@ -2917,7 +3078,8 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
       ),
       h('div', { className: 'flex gap-4 mt-2 text-sm text-slate-300' },
         h('span', {}, `🥩 ${totalProtein}g/${totalCalories} kcal`),
-        h('span', {}, `💪 ${workoutType}`)
+        h('span', {}, `💪 ${workoutType}`),
+        cardioSummary && h('span', {}, `🏃 ${cardioSummary}`)
       )
     ),
 
@@ -3050,6 +3212,20 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
           )
         ),
 
+        // Cardio (only present on entries logged with a cardio section)
+        cardioList.length > 0 && h('div', {},
+          h('h4', { className: 'text-md font-semibold mb-2' }, '🏃 Cardio'),
+          h('ul', { className: 'space-y-1' },
+            cardioList.map((c, i) =>
+              h('li', { key: i, className: 'flex justify-between text-sm bg-slate-700 p-2 rounded' },
+                h('span', { className: 'font-medium' }, `${getCardioData(c.name)?.icon || ''} ${c.name}`.trim()),
+                h('span', {}, `${Number(c.minutes) || 0} min`),
+                h('span', { className: 'text-slate-400' }, `${(Number(c.steps) || 0).toLocaleString()} steps`)
+              )
+            )
+          )
+        ),
+
         // Action buttons
         h('div', { className: 'flex gap-2 mt-4' },
           h(Button, { variant: 'secondary', onClick: () => onEditWorkout(workout) }, 'Edit'),
@@ -3068,6 +3244,8 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
   const nutritionData = getNutritionForDate(nutrition, entry.date);
 
   const totalVolume = entry.totalVolume || 0;
+  const cardioList = getCardioList(entry);
+  const cardioSummary = formatCardioSummary(entry);
   const validExercises = (entry.exercises || []).filter(ex => ex.rpe > 0);
   const avgRPE = validExercises.length > 0
     ? (validExercises.reduce((sum, ex) => sum + (ex.rpe || 0), 0) / validExercises.length).toFixed(1)
@@ -3113,7 +3291,8 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
             entry.trainingType !== 'REST'
               ? `Vol: ${totalVolume.toLocaleString()} lbs | Sets: ${entry.totalSets} | Avg RPE: ${avgRPE}`
               : 'Rest Day'
-          )
+          ),
+          cardioSummary && h('p', { className: 'text-sm text-slate-400' }, `🏃 ${cardioSummary}`)
         )
       ),
       h('div', { className: 'flex items-center gap-4' },
@@ -3175,6 +3354,19 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
               h('span', { className: 'text-slate-400' }, `RPE: ${ex.rpe || 'N/A'}`)
             );
           })
+        )
+      ),
+      // Cardio (only present on entries logged with a cardio section)
+      cardioList.length > 0 && h('div', {},
+        h('h4', { className: 'text-md font-semibold mb-2' }, '🏃 Cardio'),
+        h('ul', { className: 'space-y-1' },
+          cardioList.map((c, i) =>
+            h('li', { key: i, className: 'flex justify-between text-sm bg-slate-700 p-2 rounded' },
+              h('span', { className: 'font-medium' }, `${getCardioData(c.name)?.icon || ''} ${c.name}`.trim()),
+              h('span', {}, `${Number(c.minutes) || 0} min`),
+              h('span', { className: 'text-slate-400' }, `${(Number(c.steps) || 0).toLocaleString()} steps`)
+            )
+          )
         )
       ),
       volumeComparison && h('div', { className: 'p-3 bg-slate-900 rounded-lg' },
@@ -3261,13 +3453,14 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   };
 
   const exportData = () => {
-    console.log(`[Export] Exporting data: ${entries.length} workouts, ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
+    const cardioSessions = entries.reduce((sum, e) => sum + getCardioList(e).length, 0);
+    console.log(`[Export] Exporting data: ${entries.length} workouts (${cardioSessions} cardio sessions), ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
     const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `hypertrophy-backup-v7-${formatDate(new Date())}.json`; // v7 data structure (includes sleep)
+    link.download = `hypertrophy-backup-v8-${formatDate(new Date())}.json`; // v8 data structure (workout entries may include cardio)
     link.click();
     URL.revokeObjectURL(url);
     showToast('Data exported successfully!');
@@ -3287,15 +3480,23 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
           isArray: Array.isArray(imported)
         });
 
+        // Backfill the cardio array on entries from pre-v8 exports so every
+        // entry has the same shape; exercises/weights/reps are left untouched.
+        const withCardio = (list) => (list || []).map(entry => ({
+          ...entry,
+          cardio: getCardioList(entry)
+        }));
+
         if (Array.isArray(imported)) {
-          setEntries(imported); // Old v1 format
+          setEntries(withCardio(imported)); // Old v1 format
           console.log('[Import] Loaded v1 format (array only)');
         } else {
-          // New v2-v7 format
+          // New v2-v8 format
           if (imported.entries) {
-            setEntries(imported.entries);
-            localStorage.setItem(DB_KEY, JSON.stringify(imported.entries));
-            console.log(`[Import] Restored ${imported.entries.length} workout entries`);
+            const importedEntries = withCardio(imported.entries);
+            setEntries(importedEntries);
+            localStorage.setItem(DB_KEY, JSON.stringify(importedEntries));
+            console.log(`[Import] Restored ${importedEntries.length} workout entries`);
 
             // Force recalculate cycle days for imported data
             console.log('[Import] Recalculating cycle days for imported entries...');

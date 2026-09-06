@@ -2055,6 +2055,29 @@ export const EXERCISE_LIBRARY = {
 
 
 
+// --- CARDIO MACHINE LIBRARY ---
+// Cardio is logged as time + steps instead of weight x reps, so these entries
+// carry display metadata rather than EMG activation data. Kept separate from
+// EXERCISE_LIBRARY so cardio machines never appear in the strength-exercise
+// autocomplete or in muscle-fatigue calculations.
+
+export const CARDIO_LIBRARY = {
+
+  "Stairmaster": {
+    icon: "🪜",
+    stepLabel: "Steps",
+    notes: "Step mill; step count read off the console"
+  },
+
+  "Treadmill": {
+    icon: "🏃",
+    stepLabel: "Steps",
+    notes: "Steps from the console or a wearable"
+  }
+
+};
+
+
 // --- EXERCISE TIER SYSTEM (for fatigue calculation) ---
 // Tier 1 (1.5x): High CNS demand - squats, deadlifts, Olympic lifts
 // Tier 2 (1.2x): Multiple muscle groups - bench, rows, overhead press
@@ -2128,6 +2151,23 @@ export function getExercisesByCategory(category) {
 }
 
 /**
+ * Get all cardio machine names (for the cardio picker)
+ * @returns {Array<string>} Sorted array of cardio machine names
+ */
+export function getAllCardioNames() {
+  return Object.keys(CARDIO_LIBRARY).sort();
+}
+
+/**
+ * Get cardio machine data from library
+ * @param {string} cardioName - Name of the cardio machine
+ * @returns {object|null} Cardio metadata, or null for a free-text machine
+ */
+export function getCardioData(cardioName) {
+  return CARDIO_LIBRARY[cardioName] || null;
+}
+
+/**
  * Get exercises that target a specific muscle
  * @param {string} muscleName - Muscle key (e.g., "bicepsLong")
  * @param {number} minActivation - Minimum activation % (default 50)
@@ -2154,10 +2194,13 @@ export function getExercisesForMuscle(muscleName, minActivation = 50) {
 export default {
   MUSCLES,
   EXERCISE_LIBRARY,
+  CARDIO_LIBRARY,
   EXERCISE_TIERS,
   LENGTHENING_TIERS,
   getExerciseData,
   getAllExerciseNames,
   getExercisesByCategory,
-  getExercisesForMuscle
+  getExercisesForMuscle,
+  getAllCardioNames,
+  getCardioData
 };
