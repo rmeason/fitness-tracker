@@ -113,6 +113,7 @@ const NUTRITION_KEY = 'hypertrophyApp.nutrition.v1'; // Separate nutrition DB (p
 const SLEEP_KEY = 'hypertrophyApp.sleep.v1'; // Separate sleep DB (sleep + weight)
 const DIET_GOALS_KEY = 'hypertrophyApp.dietGoals.v1'; // Diet goals
 const MIGRATION_FLAG_KEY = 'hypertrophyApp.migrationV2.done'; // Migration tracker
+const PROFILE_KEY = 'hypertrophyApp.profile.v1'; // User profile (height + age)
 const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tracker for sleep split
 
 // --- 🛠️ HELPER FUNCTIONS ---
@@ -571,6 +572,33 @@ const getNutritionForDate = (nutritionLog, date) => {
 // Helper to get *today's* nutrition totals
 const getTodaysNutrition = (nutritionLog) => {
   return getNutritionForDate(nutritionLog, formatDate(new Date()));
+};
+
+// User profile: height and age. Falls back to USER_CONTEXT defaults so existing
+// installs with no saved profile keep working unchanged.
+const getProfile = () => {
+  try {
+    const saved = localStorage.getItem(PROFILE_KEY);
+    const parsed = saved ? JSON.parse(saved) : {};
+    return {
+      heightInches: Number(parsed.heightInches) > 0 ? Number(parsed.heightInches) : 70,
+      age: Number(parsed.age) > 0 ? Number(parsed.age) : USER_CONTEXT.age
+    };
+  } catch (e) {
+    return { heightInches: 70, age: USER_CONTEXT.age };
+  }
+};
+
+const saveProfile = (profile) => {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+};
+
+const inchesToCm = (inches) => Number(inches) * 2.54;
+
+const formatHeight = (inches) => {
+  const n = Number(inches);
+  if (!(n > 0)) return '—';
+  return `${Math.floor(n / 12)}'${Math.round(n % 12)}"`;
 };
 
 // Helper to get current weight from sleep entries
@@ -1758,7 +1786,7 @@ const ExerciseSelectorWithRecovery = ({
 };
 
 // --- 🤖 AI SUGGESTION MODAL (UPGRADED) ---
-const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, nutrition, onClose }) => {
+const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, nutrition, sleepEntries = [], onClose }) => {
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] = useState(null);
   const [error, setError] = useState(null);
@@ -1769,18 +1797,22 @@ const AIWorkoutSuggestion = ({ entries, prs, trainingCycle, nutrition, onClose }
         const last10Workouts = entries.slice(-10);
         const topPRs = prs.slice(0, 10);
 
-        // Get last night's sleep from nutrition array
-        const lastNutrition = nutrition.length > 0 ? nutrition[nutrition.length - 1] : null;
-        const lastSleep = lastNutrition ? lastNutrition.deepSleepPercent : 15;
-        const hours = lastNutrition ? lastNutrition.sleepHours : 7;
+        // Sleep lives in sleepEntries (post-V3). Sort by date rather than trusting
+        // array order, because meals and sleep can be backdated via the date picker.
+        const sortedSleep = [...sleepEntries].sort((a, b) => new Date(a.date) - new Date(b.date));
+        const lastSleepEntry = sortedSleep.length > 0 ? sortedSleep[sortedSleep.length - 1] : null;
+        const hasSleepData = lastSleepEntry && Number(lastSleepEntry.deepSleepPercent) > 0;
+        const lastSleep = hasSleepData ? Number(lastSleepEntry.deepSleepPercent) : null;
+        const hours = hasSleepData ? Number(lastSleepEntry.sleepHours) || null : null;
         // Use dynamic calendar logic for correct cycle position
         const { cycleDay, today: plannedWorkout } = Coach.getDynamicCalendar(entries, trainingCycle);
 
-        const prompt = `You are a hypertrophy training coach analyzing workout data for a 32-year-old male (139.5 lbs) in a body composition phase.
+        const currentWeightLbs = getCurrentWeight(sleepEntries);
+        const prompt = `You are a hypertrophy training coach analyzing workout data for a ${USER_CONTEXT.age}-year-old male (${currentWeightLbs} lbs) in a body composition phase.
 
 RECENT WORKOUTS (includes RPE and Volume): ${JSON.stringify(last10Workouts)}
 CURRENT PRs: ${JSON.stringify(topPRs)}
-LAST NIGHT'S SLEEP: ${lastSleep}% deep sleep (${hours}h total)
+LAST NIGHT'S SLEEP: ${hasSleepData ? `${lastSleep}% deep sleep (${hours}h total)` : 'NOT LOGGED — do not make sleep-based volume claims; recommend a moderate set count and tell the user to log sleep for a better recommendation'}
 TRAINING CYCLE: ${trainingCycle.length}-day cycle (${trainingCycle.join(', ')})
 CYCLE POSITION: Day ${cycleDay + 1} - Planned: ${plannedWorkout}
 OFF-CYCLE STATUS: 8+ weeks natural training
@@ -1797,7 +1829,7 @@ Provide recommendation as JSON:
 {
   "recommendation": "${plannedWorkout}",
   "recommendedSets": 18,
-  "reasoning": "Based on your ${lastSleep}% deep sleep and cycle position...",
+  "reasoning": "Based on your ${hasSleepData ? `${lastSleep}% deep sleep` : 'unlogged sleep'} and cycle position...",
   "exercises": [
     {"name": "Exercise Name", "weight": "Weight Range", "sets": "4", "reps": "6-8"},
     ...
@@ -1837,7 +1869,7 @@ Provide recommendation as JSON:
     };
 
     fetchRecommendation();
-  }, [entries, prs, trainingCycle, nutrition]);
+  }, [entries, prs, trainingCycle, nutrition, sleepEntries]);
   
   const renderContent = () => {
     if (loading) {
@@ -2274,9 +2306,13 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const [duration, setDuration] = useState(60);
   const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
 
-  // Get today's sleep data from nutrition array
-  const todaysNutritionData = getTodaysNutrition(nutrition);
-  const todaySleepPercent = todaysNutritionData.deepSleepPercent;
+  // Sleep lives in sleepEntries (post-V3), not in the nutrition array. Reading it
+  // from nutrition pinned todaySleepPercent at 0, which silently degraded every
+  // Smart Coach suggestion and kept the 'no sleep logged' banner permanently on.
+  const todaysSleepEntry = (sleepEntries || []).find(s => s.date === formatDate(new Date()));
+  const todaySleepPercent = Number(todaysSleepEntry?.deepSleepPercent) > 0
+    ? Number(todaysSleepEntry.deepSleepPercent)
+    : 0;
   const [isUploading, setIsUploading] = useState(false);
 
   // UI state for collapsible sections and quick log
@@ -3403,6 +3439,21 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Profile state (height + age) — feeds the BMR calculation below.
+  const [profileFeet, setProfileFeet] = useState(() => Math.floor(getProfile().heightInches / 12));
+  const [profileInches, setProfileInches] = useState(() => Math.round(getProfile().heightInches % 12));
+  const [profileAge, setProfileAge] = useState(() => getProfile().age);
+
+  const saveProfileSettings = () => {
+    const totalInches = (Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0);
+    if (!(totalInches > 0) || !(Number(profileAge) > 0)) {
+      showToast('Enter a valid height and age.', 'error');
+      return;
+    }
+    saveProfile({ heightInches: totalInches, age: Number(profileAge) });
+    showToast(`Profile saved: ${formatHeight(totalInches)}, age ${Number(profileAge)}`, 'success');
+  };
+
   // Diet Goals state
   const [dietGoals, setDietGoals] = useState(() => {
     const saved = localStorage.getItem(DIET_GOALS_KEY);
@@ -3422,7 +3473,9 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     const protein = Math.round(weight * 1.0);
 
     // Calculate BMR (simplified Mifflin-St Jeor for males)
-    const bmr = 10 * (weight * 0.453592) + 6.25 * (USER_CONTEXT.height || 175) - 5 * USER_CONTEXT.age + 5;
+    const profile = getProfile();
+    const heightCm = inchesToCm(profile.heightInches);
+    const bmr = 10 * (weight * 0.453592) + 6.25 * heightCm - 5 * profile.age + 5;
 
     // Activity multipliers
     const activityMultipliers = {
@@ -3573,6 +3626,28 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       )
     ),
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
+      h('h3', { className: 'text-lg font-semibold' }, '👤 Profile'),
+      h('p', { className: 'text-sm text-slate-300' },
+        `Current: ${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${Number(profileAge) > 0 ? Number(profileAge) : '—'}`
+      ),
+      h('div', { className: 'grid grid-cols-3 gap-3' },
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Height (ft)'),
+          h(Input, { type: 'number', min: 3, max: 8, value: profileFeet, onChange: (e) => setProfileFeet(e.target.value) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Height (in)'),
+          h(Input, { type: 'number', min: 0, max: 11, value: profileInches, onChange: (e) => setProfileInches(e.target.value) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-medium mb-1' }, 'Age'),
+          h(Input, { type: 'number', min: 13, max: 100, value: profileAge, onChange: (e) => setProfileAge(e.target.value) })
+        )
+      ),
+      h('p', { className: 'text-xs text-slate-400' }, 'Used to calculate your BMR and calorie targets.'),
+      h(Button, { onClick: saveProfileSettings, variant: 'primary', className: 'w-full' }, 'Save Profile')
+    ),
+    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, '🎯 Diet Goals'),
       dietGoals.enabled && h('div', { className: 'text-sm text-slate-300 mb-2' },
         `Current: ${dietGoals.protein}g protein, ${dietGoals.calories} kcal`
@@ -3710,7 +3785,10 @@ const App = () => {
   }, [sleepEntries]);
 
   // --- DERIVED STATE (Upgraded) ---
-  const sortedEntries = [...entries].sort((a, b) => new Date(a.date) - new Date(b.date)); 
+  const sortedEntries = React.useMemo(
+    () => [...entries].sort((a, b) => new Date(a.date) - new Date(b.date)),
+    [entries]
+  );
   
   const [allExerciseNames, setAllExerciseNames] = useState(() =>
     Array.from(new Set(entries.flatMap(e => e.exercises || []).map(ex => ex.name)))
@@ -3722,7 +3800,7 @@ const App = () => {
     setAllExerciseNames(names);
   }, [entries]);
 
-  const allPRs = calculateAllPRs(entries);
+  const allPRs = React.useMemo(() => calculateAllPRs(entries), [entries]);
 
   const recoveryStatus = React.useMemo(
     () => processWorkoutHistory(sortedEntries, sleepEntries),
@@ -3733,7 +3811,10 @@ const App = () => {
   const hasLoggedToday = sortedEntries.some(e => e.date === todayStr);
 
   // Use Coach.getDynamicCalendar as THE SINGLE SOURCE OF TRUTH for today's cycle position
-  const coachResult = Coach.getDynamicCalendar(sortedEntries, trainingCycle);
+  const coachResult = React.useMemo(
+    () => Coach.getDynamicCalendar(sortedEntries, trainingCycle),
+    [sortedEntries, trainingCycle]
+  );
   const { today: nextWorkout, note: coachNote, cycleDay: coachCycleDay } = coachResult;
 
   // Use the coach's cycle day - this is the authoritative source
@@ -4059,6 +4140,7 @@ const App = () => {
         prs: allPRs,
         trainingCycle,
         nutrition: nutrition,
+        sleepEntries: sleepEntries,
         onClose: () => setShowAIModal(false)
       }),
       showDeleteModal && h(Modal, { show: !!showDeleteModal, onClose: () => setShowDeleteModal(null), title: "Confirm Deletion" },
