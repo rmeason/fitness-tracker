@@ -46,6 +46,29 @@ const USER_CONTEXT = {
   calorieTargetRest: 2500,
 };
 
+// --- 📐 EMPIRICAL MAINTENANCE (arithmetic only; no AI anywhere in this path) ---
+const MAINTENANCE_WINDOW_PREFERRED_DAYS = 28;
+const MAINTENANCE_WINDOW_MIN_DAYS = 14;
+const MAINTENANCE_MIN_INTAKE_DAYS = 10;
+const MAINTENANCE_MIN_WEIGH_INS = 6;
+const MAINTENANCE_CLAMP_LOW = 0.7;
+const MAINTENANCE_CLAMP_HIGH = 1.5;
+const MAINTENANCE_ANNOUNCE_THRESHOLD_KCAL = 150;
+const GOAL_DRIFT_LB_THRESHOLD = 3;
+const GOAL_DRIFT_MIN_WEIGHINS = 3;
+
+// One table for the four modes. The formula calculator, the empirical Apply button and
+// the hands-off auto-apply all read it, so the modes cannot drift apart between them.
+const GOAL_ADJUSTMENTS = {
+  cut: -500,          // 1 lb/week loss
+  gaintain: 0,
+  leanBulk: +250,     // 0.5 lb/week gain
+  bulk: +500          // 1 lb/week gain
+};
+// An unknown or unset mode (goals saved before goalType existed) adjusts by nothing.
+const goalAdjustmentFor = (goalType) =>
+  Object.prototype.hasOwnProperty.call(GOAL_ADJUSTMENTS, goalType) ? GOAL_ADJUSTMENTS[goalType] : 0;
+
 // --- 🏋️ TRAINING CYCLE PRESETS (from Claude's file) ---
 const CYCLE_PRESETS = {
   'current-14-day': {
@@ -697,6 +720,107 @@ const getCurrentWeight = (sleepEntries) => {
   // Find the most recent entry with weight > 0
   const latestWeightEntry = [...sleepEntries].reverse().find(e => Number(e.weight) > 0);
   return latestWeightEntry?.weight || USER_CONTEXT.startWeight;
+};
+
+// Mifflin-St Jeor (male) BMR times the activity multiplier. The single home for this
+// arithmetic: the calculator and the estimator's clamp both call it, so there is no
+// second copy to drift.
+const calculateMifflinTdee = (weight, activityLevel) => {
+  const profile = getProfile();
+  const heightCm = inchesToCm(profile.heightInches);
+  const bmr = 10 * (weight * 0.453592) + 6.25 * heightCm - 5 * profile.age + 5;
+
+  // Activity multipliers
+  const activityMultipliers = {
+    sedentary: 1.2,
+    light: 1.375,
+    moderate: 1.55,
+    active: 1.725,
+    veryActive: 1.9
+  };
+
+  return Math.round(bmr * activityMultipliers[activityLevel]);
+};
+
+// Shared windows. The estimator and the drift check both use these, so they cannot
+// disagree about what "recent" means.
+const getWindowedWeighIns = (sleepEntries, days) => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  return sleepEntries
+    .filter(e => Number(e.weight) > 0 && new Date(e.date) >= cutoff)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
+const getWindowedIntakeDays = (nutrition, days) => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const dates = [...new Set(
+    nutrition.filter(n => new Date(n.date) >= cutoff).map(n => n.date)
+  )];
+  return dates
+    .map(date => ({ date, totals: getNutritionForDate(nutrition, date) }))
+    .filter(d => d.totals.totalCalories > 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+};
+
+// Maintenance from logged data: mean intake minus the calories implied by the weight
+// trend (3500 kcal/lb). The formula survives only as a cold start and a sanity clamp.
+// Returns { available: false, gateProgress } until there is enough history, so the UI
+// can say "log more" rather than look broken. mifflinTdee is echoed back for display.
+const estimateEmpiricalMaintenance = (nutrition, sleepEntries, mifflinTdee) => {
+  const weighIns = getWindowedWeighIns(sleepEntries, MAINTENANCE_WINDOW_PREFERRED_DAYS);
+  const intakeDays = getWindowedIntakeDays(nutrition, MAINTENANCE_WINDOW_PREFERRED_DAYS);
+
+  const oldestRelevant = [...weighIns, ...intakeDays.map(d => ({ date: d.date }))]
+    .reduce((min, e) => (!min || new Date(e.date) < new Date(min)) ? e.date : min, null);
+  const daysOfHistory = oldestRelevant
+    ? Math.round((new Date() - new Date(oldestRelevant)) / 86400000)
+    : 0;
+
+  const gateProgress = {
+    intakeDays: intakeDays.length, intakeDaysNeeded: MAINTENANCE_MIN_INTAKE_DAYS,
+    weighIns: weighIns.length, weighInsNeeded: MAINTENANCE_MIN_WEIGH_INS
+  };
+
+  if (daysOfHistory < MAINTENANCE_WINDOW_MIN_DAYS
+      || intakeDays.length < MAINTENANCE_MIN_INTAKE_DAYS
+      || weighIns.length < MAINTENANCE_MIN_WEIGH_INS) {
+    return { available: false, gateProgress, mifflinTdee };
+  }
+
+  const meanDailyIntake = intakeDays.reduce((s, d) => s + d.totals.totalCalories, 0) / intakeDays.length;
+
+  // Least-squares slope of weight (lb) against day offset — not first-minus-last.
+  const x = weighIns.map(e => (new Date(e.date) - new Date(weighIns[0].date)) / 86400000);
+  const y = weighIns.map(e => Number(e.weight));
+  const n = x.length;
+  const sumX = x.reduce((a, b) => a + b, 0), sumY = y.reduce((a, b) => a + b, 0);
+  const sumXY = x.reduce((s, xi, i) => s + xi * y[i], 0);
+  const sumXX = x.reduce((s, xi) => s + xi * xi, 0);
+  const denom = (n * sumXX - sumX * sumX);
+  const slopeLbPerDay = denom !== 0 ? (n * sumXY - sumX * sumY) / denom : 0;
+
+  const empiricalTdee = Math.round(meanDailyIntake - (slopeLbPerDay * 3500));
+
+  const ratio = empiricalTdee / mifflinTdee;
+  if (ratio < MAINTENANCE_CLAMP_LOW || ratio > MAINTENANCE_CLAMP_HIGH) {
+    return { available: false, gateProgress, mifflinTdee, discardedAsUnreliable: true };
+  }
+
+  return { available: true, empiricalTdee, gateProgress, mifflinTdee };
+};
+
+// Protein (1 g/lb) is only recomputed inside the calculator, so nothing keeps it
+// current as weight moves. This nudges a manual recalc; it never acts on its own.
+const checkGoalDrift = (dietGoals, sleepEntries) => {
+  if (!dietGoals?.enabled || !dietGoals.calculatedAtWeight) return null;
+  const recent = getWindowedWeighIns(sleepEntries, MAINTENANCE_WINDOW_MIN_DAYS);
+  if (recent.length < GOAL_DRIFT_MIN_WEIGHINS) return null;
+  const latestWeight = Number(recent[recent.length - 1].weight);
+  const drift = latestWeight - Number(dietGoals.calculatedAtWeight);
+  if (Math.abs(drift) < GOAL_DRIFT_LB_THRESHOLD) return null;
+  return { drift, latestWeight, calculatedAtWeight: dietGoals.calculatedAtWeight };
 };
 
 // Helper to group all data by date for unified daily cards
@@ -3611,7 +3735,7 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
 };
 
 // --- ⚙️ SETTINGS COMPONENT (UPGRADED) ---
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate }) => {
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -3657,6 +3781,39 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const [goalType, setGoalType] = useState(dietGoals.goalType || 'gaintain');
   const [activityLevel, setActivityLevel] = useState('moderate');
 
+  // Display only. The maintenance estimate is computed once in App and arrives as a
+  // prop; Settings never recomputes its own copy from nutrition or sleepEntries.
+  const goalDrift = checkGoalDrift(dietGoals, sleepEntries);
+  const formulaMaintenance = dietGoals.enabled
+    ? dietGoals.calories - goalAdjustmentFor(dietGoals.goalType)
+    : maintenanceEstimate.mifflinTdee;
+  const empiricalMoved = dietGoals.maintenanceLastShown == null
+    || Math.abs(maintenanceEstimate.empiricalTdee - dietGoals.maintenanceLastShown) >= MAINTENANCE_ANNOUNCE_THRESHOLD_KCAL;
+  const showTransitionCard = dietGoals.enabled
+    && maintenanceEstimate.available
+    && dietGoals.maintenanceSource !== 'empirical'
+    && empiricalMoved;
+
+  // Explicit hand-over. After this, MaintenanceAutoApply keeps calories current on its own.
+  const applyEmpiricalMaintenance = () => {
+    const mode = dietGoals.goalType || goalType;
+    const calories = maintenanceEstimate.empiricalTdee + goalAdjustmentFor(mode);
+    setDietGoals({
+      ...dietGoals,
+      calories,
+      goalType: mode,
+      maintenanceSource: 'empirical',
+      maintenanceLastShown: maintenanceEstimate.empiricalTdee
+    });
+    showToast(`Maintenance set to ${maintenanceEstimate.empiricalTdee} kcal from your logged data; target ${calories} kcal.`, 'success');
+  };
+
+  // Dismiss without changing anything; the card returns only once the estimate has
+  // moved another announce-threshold from this figure.
+  const keepFormulaMaintenance = () => {
+    setDietGoals({ ...dietGoals, maintenanceLastShown: maintenanceEstimate.empiricalTdee });
+  };
+
   const calculateDietGoals = () => {
     // Always the most recent logged weigh-in, never a hand-typed copy that can go stale.
     // getCurrentWeight already falls back to USER_CONTEXT.startWeight when nothing is logged.
@@ -3665,41 +3822,24 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     // Protein: 1g per lb minimum
     const protein = Math.round(weight * 1.0);
 
-    // Calculate BMR (simplified Mifflin-St Jeor for males)
-    const profile = getProfile();
-    const heightCm = inchesToCm(profile.heightInches);
-    const bmr = 10 * (weight * 0.453592) + 6.25 * heightCm - 5 * profile.age + 5;
+    // BMR x activity multiplier lives in calculateMifflinTdee, shared with the estimator.
+    const tdee = calculateMifflinTdee(weight, activityLevel);
 
-    // Activity multipliers
-    const activityMultipliers = {
-      sedentary: 1.2,
-      light: 1.375,
-      moderate: 1.55,
-      active: 1.725,
-      veryActive: 1.9
-    };
+    const calories = tdee + goalAdjustmentFor(goalType);
 
-    const tdee = Math.round(bmr * activityMultipliers[activityLevel]);
-
-    // Goal adjustments
-    const goalAdjustments = {
-      cut: -500,          // 1 lb/week loss
-      gaintain: 0,
-      leanBulk: +250,     // 0.5 lb/week gain
-      bulk: +500          // 1 lb/week gain
-    };
-
-    const calories = tdee + goalAdjustments[goalType];
-
-    // goalType / calculatedAtWeight / calculatedAt change nothing on screen today; they
-    // give the drift check and the empirical estimator something to compare against.
+    // goalType / calculatedAtWeight / calculatedAt give the drift check and the estimator
+    // something to compare against. Running the formula is an explicit choice of the
+    // formula, so maintenanceSource resets; maintenanceLastShown is kept so a figure
+    // already dismissed does not come straight back.
     const newGoals = {
       protein,
       calories,
       enabled: true,
       goalType,
       calculatedAtWeight: weight,
-      calculatedAt: formatDate(new Date())
+      calculatedAt: formatDate(new Date()),
+      maintenanceSource: 'formula',
+      maintenanceLastShown: dietGoals.maintenanceLastShown == null ? null : dietGoals.maintenanceLastShown
     };
     setDietGoals(newGoals); // App persists this; no direct write from here
     showToast(`Diet goals set: ${protein}g protein, ${calories} kcal`, 'success');
@@ -3869,6 +4009,29 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       dietGoals.enabled && h('div', { className: 'text-sm text-slate-300 mb-2' },
         `Current: ${dietGoals.protein}g protein, ${dietGoals.calories} kcal`
       ),
+      // Gate progress while history accumulates: a missing switch reads as "log more".
+      !maintenanceEstimate.available && h('p', { className: 'text-xs text-slate-400' },
+        `Empirical maintenance: ${maintenanceEstimate.gateProgress.intakeDays} of ${maintenanceEstimate.gateProgress.intakeDaysNeeded} days with logged intake, ${maintenanceEstimate.gateProgress.weighIns} of ${maintenanceEstimate.gateProgress.weighInsNeeded} weigh-ins.`
+        + (maintenanceEstimate.discardedAsUnreliable
+          ? ' The latest estimate fell outside the plausible range and was discarded.'
+          : '')
+      ),
+      maintenanceEstimate.available && h('p', { className: 'text-xs text-slate-400' },
+        `Last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days: ${maintenanceEstimate.empiricalTdee} kcal maintenance`
+        + (dietGoals.maintenanceSource === 'empirical' ? ' — in use, updates itself.' : ' — formula in use.')
+      ),
+      showTransitionCard && h('div', { className: 'bg-slate-900 border border-cyan-700 p-3 rounded-lg space-y-2' },
+        h('p', { className: 'text-sm' },
+          `Your last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days say ${maintenanceEstimate.empiricalTdee} kcal maintenance; the formula estimated ${formulaMaintenance} kcal.`
+        ),
+        h('div', { className: 'flex gap-2' },
+          h(Button, { onClick: applyEmpiricalMaintenance, variant: 'primary', className: 'flex-1' }, 'Apply'),
+          h(Button, { onClick: keepFormulaMaintenance, variant: 'secondary', className: 'flex-1' }, 'Keep formula')
+        )
+      ),
+      goalDrift && h('p', { className: 'text-xs text-yellow-500' },
+        `Weight has moved ${goalDrift.drift > 0 ? '+' : ''}${goalDrift.drift.toFixed(1)} lbs since goals were last calculated (${goalDrift.calculatedAtWeight} → ${goalDrift.latestWeight}) — protein target may be stale.`
+      ),
       h(Button, { onClick: () => setShowDietGoals(!showDietGoals), variant: 'primary' },
         showDietGoals ? 'Hide Calculator' : 'Set Diet Goals'
       ),
@@ -3921,6 +4084,31 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   );
 };
 
+// Hands-off mode. Once the empirical figure has been applied explicitly, every later
+// recompute moves calories to follow it: a move of at least the announce threshold gets
+// a toast, smaller moves apply silently. Renderless. It is mounted inside ToastProvider
+// because App itself sits outside the provider and so cannot call useToast.
+const MaintenanceAutoApply = ({ maintenanceEstimate, dietGoals, setDietGoals }) => {
+  const { showToast } = useToast();
+  useEffect(() => {
+    if (!dietGoals || !dietGoals.enabled || dietGoals.maintenanceSource !== 'empirical') return;
+    if (!maintenanceEstimate || !maintenanceEstimate.available) return;
+    const adjustment = goalAdjustmentFor(dietGoals.goalType);
+    const impliedMaintenance = dietGoals.calories - adjustment;
+    const delta = maintenanceEstimate.empiricalTdee - impliedMaintenance;
+    if (delta === 0) return; // already following the estimate; nothing to write
+    setDietGoals({
+      ...dietGoals,
+      calories: maintenanceEstimate.empiricalTdee + adjustment,
+      maintenanceLastShown: maintenanceEstimate.empiricalTdee
+    });
+    if (Math.abs(delta) >= MAINTENANCE_ANNOUNCE_THRESHOLD_KCAL) {
+      showToast(`Maintenance updated to ${maintenanceEstimate.empiricalTdee} kcal based on your last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days.`, 'success');
+    }
+  }, [maintenanceEstimate, dietGoals]);
+  return null;
+};
+
 // --- MAIN APP COMPONENT (UPGRADED) ---
 const App = () => {
   // --- STATE ---
@@ -3952,7 +4140,8 @@ const App = () => {
   const [dietGoals, setDietGoals] = useState(() => {
     const fallback = {
       protein: 140, calories: 2200, enabled: false,
-      goalType: null, calculatedAtWeight: null, calculatedAt: null
+      goalType: null, calculatedAtWeight: null, calculatedAt: null,
+      maintenanceSource: null, maintenanceLastShown: null
     };
     try {
       const saved = localStorage.getItem(DIET_GOALS_KEY);
@@ -4021,6 +4210,14 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(dietGoals));
   }, [dietGoals]);
+
+  // Empirical maintenance is derived here, once, from App-owned data. Settings renders
+  // what it is handed and never recomputes its own copy. 'moderate' feeds the sanity
+  // clamp only and is never saved.
+  const maintenanceEstimate = React.useMemo(
+    () => estimateEmpiricalMaintenance(nutrition, sleepEntries, calculateMifflinTdee(getCurrentWeight(sleepEntries), 'moderate')),
+    [nutrition, sleepEntries]
+  );
 
   // --- DERIVED STATE (Upgraded) ---
   const sortedEntries = React.useMemo(
@@ -4263,7 +4460,8 @@ const App = () => {
           sleepEntries: sleepEntries,
           setSleepEntries: setSleepEntries,
           dietGoals: dietGoals,
-          setDietGoals: setDietGoals
+          setDietGoals: setDietGoals,
+          maintenanceEstimate: maintenanceEstimate
         });
 
         case 'recovery':
@@ -4388,6 +4586,7 @@ const App = () => {
   };
 
   return h(ToastProvider, null,
+    h(MaintenanceAutoApply, { maintenanceEstimate, dietGoals, setDietGoals }),
     // 💡💡💡 THIS IS THE NAV BAR FIX 💡💡💡
     // The Nav Bar is now *outside* the main scrolling container.
     h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
