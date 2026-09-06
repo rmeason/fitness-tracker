@@ -4109,6 +4109,43 @@ const MaintenanceAutoApply = ({ maintenanceEstimate, dietGoals, setDietGoals }) 
   return null;
 };
 
+// The confirmation body for a cycle change. Its own component for the same reason
+// MaintenanceAutoApply is: App renders ToastProvider as its return value, so App sits
+// above the provider and cannot call useToast. Both handlers previously called a
+// showToast that was never in scope, which threw after setTrainingCycle had already
+// run -- leaving the modal open and pendingCycle uncleared.
+const CycleStartConfirm = ({ pendingCycle, setTrainingCycle, onDone }) => {
+  const { showToast } = useToast();
+  return h('div', { className: 'space-y-4' },
+    h('p', {}, 'How would you like to start this new training cycle?'),
+    h('div', { className: 'flex flex-col gap-3' },
+      h(Button, {
+        variant: 'primary',
+        className: 'w-full',
+        onClick: () => {
+          setTrainingCycle(pendingCycle);
+          // Reset cycle position by clearing entries or adding marker
+          showToast('Cycle updated! Starting fresh from Day 1 today.');
+          onDone();
+        }
+      }, '🔄 Start from Day 1 Today'),
+      h(Button, {
+        variant: 'secondary',
+        className: 'w-full',
+        onClick: () => {
+          setTrainingCycle(pendingCycle);
+          showToast('Cycle updated! Continuing from current position.');
+          onDone();
+        }
+      }, '➡️ Continue from Current Position')
+    ),
+    h('div', { className: 'text-sm text-slate-400 mt-4' },
+      h('p', {}, 'Starting from Day 1 will reset your cycle position.'),
+      h('p', {}, 'Continuing will keep your current progress through the cycle.')
+    )
+  );
+};
+
 // --- MAIN APP COMPONENT (UPGRADED) ---
 const App = () => {
   // --- STATE ---
@@ -4642,36 +4679,14 @@ const App = () => {
         onClose: () => setShowCycleStartModal(false),
         title: "Start New Cycle?"
       },
-        h('div', { className: 'space-y-4' },
-          h('p', {}, 'How would you like to start this new training cycle?'),
-          h('div', { className: 'flex flex-col gap-3' },
-            h(Button, {
-              variant: 'primary',
-              className: 'w-full',
-              onClick: () => {
-                setTrainingCycle(pendingCycle);
-                // Reset cycle position by clearing entries or adding marker
-                showToast('Cycle updated! Starting fresh from Day 1 today.');
-                setShowCycleStartModal(false);
-                setPendingCycle(null);
-              }
-            }, '🔄 Start from Day 1 Today'),
-            h(Button, {
-              variant: 'secondary',
-              className: 'w-full',
-              onClick: () => {
-                setTrainingCycle(pendingCycle);
-                showToast('Cycle updated! Continuing from current position.');
-                setShowCycleStartModal(false);
-                setPendingCycle(null);
-              }
-            }, '➡️ Continue from Current Position')
-          ),
-          h('div', { className: 'text-sm text-slate-400 mt-4' },
-            h('p', {}, 'Starting from Day 1 will reset your cycle position.'),
-            h('p', {}, 'Continuing will keep your current progress through the cycle.')
-          )
-        )
+        h(CycleStartConfirm, {
+          pendingCycle,
+          setTrainingCycle,
+          onDone: () => {
+            setShowCycleStartModal(false);
+            setPendingCycle(null);
+          }
+        })
       )
     ), // <-- Main scrolling div closes here
     
