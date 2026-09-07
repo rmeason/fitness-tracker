@@ -950,16 +950,18 @@ const Modal = ({ show, onClose, title, children }) => {
 };
 
 // --- UI COMPONENTS ---
-const Button = ({ onClick, children, className = '', variant = 'primary', type = 'button' }) => {
+const Button = ({ onClick, children, className = '', variant = 'primary', type = 'button', size = 'md' }) => {
   const variants = {
     primary: 'bg-blue-600 hover:bg-blue-700 text-white',
     secondary: 'bg-slate-600 hover:bg-slate-700 text-white',
     danger: 'bg-red-600 hover:bg-red-700 text-white',
   };
+  // 'md' is the padding every existing caller already had, so nothing moves by default.
+  const sizes = { md: 'py-2 px-4', sm: 'py-1 px-3 text-sm' };
   return h('button', {
     type,
     onClick,
-    className: `py-2 px-4 rounded-lg font-semibold shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${variants[variant]} ${className}`
+    className: `${sizes[size]} rounded-lg font-semibold shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${variants[variant]} ${className}`
   }, children);
 };
 
@@ -3418,12 +3420,9 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
                 h('div', { key: meal.id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
                   h('span', { className: 'text-sm' }, `Meal ${idx + 1}`),
                   h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`),
-                  h('div', { className: 'flex gap-2 items-center' },
-                    h(Button, { variant: 'secondary', onClick: () => onEditMeal(meal) }, 'Edit'),
-                    h('button', {
-                      className: 'text-red-400 text-sm hover:text-red-300',
-                      onClick: () => onDeleteMeal(meal.id)
-                    }, 'Delete')
+                  h('div', { className: 'flex gap-2 items-center shrink-0' },
+                    h(Button, { variant: 'secondary', size: 'sm', onClick: () => onEditMeal(meal) }, 'Edit'),
+                    h(Button, { variant: 'danger', size: 'sm', onClick: () => onDeleteMeal(meal.id) }, 'Delete')
                   )
                 )
               )
@@ -4342,8 +4341,7 @@ const App = () => {
       }
     });
 
-    // No setView here: the modal saves in place, so forcing the dashboard would throw
-    // you off whichever tab you were editing from.
+    // No setView here: the modal saves in place.
     setNutritionEntryToEdit(null);
   };
 
