@@ -2207,18 +2207,26 @@ const MacroCalorieHint = ({ protein, carbs, fat, fiber, calories, onUseDerived }
   );
 };
 
-// 💡 NEW: NUTRITION QUICK-ADD MODAL
-const NutritionQuickAddModal = ({ onClose, onSave }) => {
-  const [protein, setProtein] = useState('');
-  const [calories, setCalories] = useState('');
+// 💡 NEW: NUTRITION QUICK-ADD MODAL (also the edit form for an existing meal)
+const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
+  // macroValue rather than `entryToEdit.x || ''`, which would read a logged 0 as
+  // "not tracked" and quietly blank it out on the next save.
+  const seed = (field) => {
+    const v = macroValue(entryToEdit, field);
+    return v === null ? '' : v;
+  };
+  // Lazy initialisers are enough: the modal is mounted conditionally, so it remounts
+  // on every open and never has to catch up to a prop change while alive.
+  const [protein, setProtein] = useState(() => seed('protein'));
+  const [calories, setCalories] = useState(() => seed('calories'));
   // '' means "not tracked". A cleared field goes back to '' rather than 0 so an
   // untouched macro is never saved as a logged zero.
-  const [carbs, setCarbs] = useState('');
-  const [fat, setFat] = useState('');
-  const [fiber, setFiber] = useState('');
+  const [carbs, setCarbs] = useState(() => seed('carbs'));
+  const [fat, setFat] = useState(() => seed('fat'));
+  const [fiber, setFiber] = useState(() => seed('fiber'));
   // 💡💡💡 THIS IS THE FIX 💡💡💡
   // Add date state, defaulting to today
-  const [date, setDate] = useState(formatDate(new Date()));
+  const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
   const { showToast } = useToast();
 
   const handleAdd = () => {
@@ -2233,25 +2241,31 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
       return;
     }
 
-    // Create nutrition entry with ONLY meal fields (separate from sleep).
-    // The optional macros are included only when entered; an untouched field is
-    // omitted entirely so it reads back as "not tracked", never as 0.
-    const meal = {
-      id: generateId(),
-      date: date,
-      protein: prot,
-      calories: cals
-    };
+    // Editing spreads the original rather than rebuilding it. A nutrition row imported
+    // from a pre-V3 backup still carries sleepHours/deepSleepPercent/weight/
+    // recoveryRating, and rebuilding would silently drop them. Keeping the original id
+    // is also what makes the save land on the update branch instead of appending a copy.
+    const meal = entryToEdit
+      ? { ...entryToEdit, date, protein: prot, calories: cals }
+      : { id: generateId(), date, protein: prot, calories: cals };
+
+    // Set when entered, delete when cleared. Without the delete, the spread above
+    // would resurrect a macro the user just blanked out.
     if (carbs !== '') meal.carbs = Number(parseNumberWithSuffix(carbs)) || 0;
+    else delete meal.carbs;
     if (fat !== '') meal.fat = Number(parseNumberWithSuffix(fat)) || 0;
+    else delete meal.fat;
     if (fiber !== '') meal.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
+    else delete meal.fiber;
     onSave(meal);
 
-    showToast(`Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
+    showToast(entryToEdit
+      ? `Updated to ${prot}g protein and ${cals} kcal for ${date}.`
+      : `Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
     onClose();
   };
 
-  return h(Modal, { show: true, onClose, title: "🍽️ Quick Add Meal" },
+  return h(Modal, { show: true, onClose, title: entryToEdit ? "🍽️ Edit Meal" : "🍽️ Quick Add Meal" },
     h('div', { className: 'space-y-4' },
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
@@ -2303,7 +2317,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
         })
       ),
       h(MacroCalorieHint, { protein, carbs, fat, fiber, calories, onUseDerived: setCalories }),
-      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, 'Add Entry')
+      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, entryToEdit ? 'Save Changes' : 'Add Entry')
     )
   );
 };
@@ -3487,7 +3501,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 };
 
 // --- 📅 UNIFIED DAILY CARD COMPONENT ---
-const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEditSleep, onDeleteSleep, onDeleteMeal }) => {
+const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEditSleep, onDeleteSleep, onEditMeal, onDeleteMeal }) => {
   const { date, workouts, meals, sleep } = dailyData;
 
   const [sleepExpanded, setSleepExpanded] = useState(false);
@@ -3620,10 +3634,13 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
                 h('div', { key: meal.id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
                   h('span', { className: 'text-sm' }, `Meal ${idx + 1}`),
                   h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`),
-                  h('button', {
-                    className: 'text-red-400 text-sm hover:text-red-300',
-                    onClick: () => onDeleteMeal(meal.id)
-                  }, 'Delete')
+                  h('div', { className: 'flex gap-2 items-center' },
+                    h(Button, { variant: 'secondary', onClick: () => onEditMeal(meal) }, 'Edit'),
+                    h('button', {
+                      className: 'text-red-400 text-sm hover:text-red-300',
+                      onClick: () => onDeleteMeal(meal.id)
+                    }, 'Delete')
+                  )
                 )
               )
             )
@@ -4541,7 +4558,8 @@ const App = () => {
       }
     });
 
-    setView('dashboard');
+    // No setView here: the modal saves in place, so forcing the dashboard would throw
+    // you off whichever tab you were editing from.
     setNutritionEntryToEdit(null);
   };
 
@@ -4576,6 +4594,12 @@ const App = () => {
   const handleShowNutritionForm = (entry = null) => {
     setNutritionEntryToEdit(entry);
     setView('nutritionForm');
+  };
+
+  // Reuses nutritionEntryToEdit; the quick-add modal doubles as the meal editor.
+  const handleEditMeal = (meal) => {
+    setNutritionEntryToEdit(meal);
+    setShowNutritionModal(true);
   };
 
   const handleDuplicateLastWorkout = () => {
@@ -4801,6 +4825,7 @@ const App = () => {
                     onDeleteWorkout: openDeleteModal,
                     onEditSleep: handleShowSleepForm,
                     onDeleteSleep: handleDeleteSleep,
+                    onEditMeal: handleEditMeal,
                     onDeleteMeal: handleDeleteNutrition
                   }))
                 : h('p', { className: 'text-slate-400' }, 'No entries yet. Start logging!')
@@ -4839,8 +4864,14 @@ const App = () => {
         )
       ),
       showNutritionModal && h(NutritionQuickAddModal, {
-        onClose: () => setShowNutritionModal(false),
-        onSave: handleSaveNutrition
+        // Clearing the pending meal on close matters: without it the next plain
+        // Quick Add would open prefilled with whatever was last edited.
+        onClose: () => {
+          setShowNutritionModal(false);
+          setNutritionEntryToEdit(null);
+        },
+        onSave: handleSaveNutrition,
+        entryToEdit: nutritionEntryToEdit
       }),
 
       // Cycle Editor Modal
