@@ -643,11 +643,15 @@ const macroValue = (entry, field) => {
   return optionalNumber(entry[field]);
 };
 
-const caloriesFromMacros = (protein, carbs, fat) =>
+// Carbs are assumed to be logged the way labels report them, Total Carbohydrate with
+// fiber included, so counting every carb gram at 4 overcounts the fiber. fiber is
+// optional and defaults to 0, which leaves three-argument callers exactly as they were.
+const caloriesFromMacros = (protein, carbs, fat, fiber = 0) =>
   Math.round(
     (Number(protein) || 0) * KCAL_PER_G.protein +
-    (Number(carbs) || 0) * KCAL_PER_G.carbs +
-    (Number(fat) || 0) * KCAL_PER_G.fat
+    (Number(fat) || 0) * KCAL_PER_G.fat +
+    (Number(carbs) || 0) * KCAL_PER_G.carbs -
+    (Number(fiber) || 0) * (KCAL_PER_G.carbs - 2) // fiber nets out at ~2 kcal/g, not 4
   );
 
 const hasCompleteMacros = (entry) =>
@@ -664,9 +668,10 @@ const getNutritionForDate = (nutritionLog, date) => {
   // CRITICAL FIX: Explicitly convert to Number to prevent string concatenation
   const totalProtein = entriesForDate.reduce((sum, entry) => sum + (Number(entry.protein) || 0), 0);
   const totalCalories = entriesForDate.reduce((sum, entry) => sum + (Number(entry.calories) || 0), 0);
-  // Summing: an entry that never tracked carbs/fat correctly contributes nothing.
+  // Summing: an entry that never tracked carbs/fat/fiber correctly contributes nothing.
   const totalCarbs = entriesForDate.reduce((sum, entry) => sum + (Number(entry.carbs) || 0), 0);
   const totalFat = entriesForDate.reduce((sum, entry) => sum + (Number(entry.fat) || 0), 0);
+  const totalFiber = entriesForDate.reduce((sum, entry) => sum + (Number(entry.fiber) || 0), 0);
 
   // Get latest entry for the date (for sleep, weight, recovery)
   const latestEntry = entriesForDate.length > 0 ? entriesForDate[entriesForDate.length - 1] : null;
@@ -674,13 +679,14 @@ const getNutritionForDate = (nutritionLog, date) => {
   // Get latest entry with weight > 0 (Quick Add Meals have weight: 0)
   const latestWeightEntry = [...entriesForDate].reverse().find(e => Number(e.weight) > 0);
 
-  // Count meals (entries with any of protein, calories, carbs or fat > 0).
-  // Old entries have neither carbs nor fat, so their count is unchanged.
+  // Count meals (entries with any of protein, calories, carbs, fat or fiber > 0).
+  // Old entries have none of the optional fields, so their count is unchanged.
   const mealCount = entriesForDate.filter(e =>
     (Number(e.protein) || 0) > 0 ||
     (Number(e.calories) || 0) > 0 ||
     (Number(e.carbs) || 0) > 0 ||
-    (Number(e.fat) || 0) > 0
+    (Number(e.fat) || 0) > 0 ||
+    (Number(e.fiber) || 0) > 0
   ).length;
 
   return {
@@ -688,9 +694,11 @@ const getNutritionForDate = (nutritionLog, date) => {
     totalCalories,
     totalCarbs,
     totalFat,
+    totalFiber,
     // Coverage flags let the UI tell "ate no carbs" from "carbs were never logged".
     carbsTracked: entriesForDate.some(e => macroValue(e, 'carbs') !== null),
     fatTracked: entriesForDate.some(e => macroValue(e, 'fat') !== null),
+    fiberTracked: entriesForDate.some(e => macroValue(e, 'fiber') !== null),
     mealCount,
     sleepHours: latestEntry?.sleepHours || 0,
     deepSleepPercent: latestEntry?.deepSleepPercent || 0,
@@ -2179,9 +2187,11 @@ Provide recommendation as JSON:
 // Shared by both nutrition forms. Derives calories from the three macros and flags
 // a manually entered calorie figure that disagrees with them by more than 10%.
 // Advisory only: it never blocks the save. Code does the arithmetic here.
-const MacroCalorieHint = ({ protein, carbs, fat, calories, onUseDerived }) => {
+const MacroCalorieHint = ({ protein, carbs, fat, fiber, calories, onUseDerived }) => {
+  // Deliberately still keyed on protein/carbs/fat only. Fiber refines the figure when
+  // it is there, but leaving it blank must not hide the hint.
   if (!hasCompleteMacros({ protein, carbs, fat })) return null;
-  const derived = caloriesFromMacros(protein, carbs, fat);
+  const derived = caloriesFromMacros(protein, carbs, fat, fiber);
   const entered = macroValue({ calories }, 'calories');
   const mismatch = entered !== null && entered > 0 && Math.abs(entered - derived) > derived * 0.1;
   return h('div', { className: 'space-y-1' },
@@ -2205,6 +2215,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
   // untouched macro is never saved as a logged zero.
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
   // 💡💡💡 THIS IS THE FIX 💡💡💡
   // Add date state, defaulting to today
   const [date, setDate] = useState(formatDate(new Date()));
@@ -2217,13 +2228,13 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
 
     // Note: Allow negative values for corrections (e.g., if user logged wrong meal)
     // But warn if nothing at all was entered
-    if (prot === 0 && cals === 0 && carbs === '' && fat === '') {
-      showToast('Please enter protein, calories, carbs, or fat', 'error');
+    if (prot === 0 && cals === 0 && carbs === '' && fat === '' && fiber === '') {
+      showToast('Please enter protein, calories, carbs, fat, or fiber', 'error');
       return;
     }
 
     // Create nutrition entry with ONLY meal fields (separate from sleep).
-    // Carbs and fat are included only when entered; an untouched field is
+    // The optional macros are included only when entered; an untouched field is
     // omitted entirely so it reads back as "not tracked", never as 0.
     const meal = {
       id: generateId(),
@@ -2233,6 +2244,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
     };
     if (carbs !== '') meal.carbs = Number(parseNumberWithSuffix(carbs)) || 0;
     if (fat !== '') meal.fat = Number(parseNumberWithSuffix(fat)) || 0;
+    if (fiber !== '') meal.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
     onSave(meal);
 
     showToast(`Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
@@ -2273,6 +2285,15 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
         })
       ),
       h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fiber (g)'),
+        h(Input, {
+          type: 'text',
+          value: fiber,
+          onChange: e => setFiber(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 8 (optional)'
+        })
+      ),
+      h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
         h(Input, {
           type: 'text',
@@ -2281,7 +2302,7 @@ const NutritionQuickAddModal = ({ onClose, onSave }) => {
           placeholder: 'e.g., 500 or 3k'
         })
       ),
-      h(MacroCalorieHint, { protein, carbs, fat, calories, onUseDerived: setCalories }),
+      h(MacroCalorieHint, { protein, carbs, fat, fiber, calories, onUseDerived: setCalories }),
       h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, 'Add Entry')
     )
   );
@@ -2456,6 +2477,7 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
   // untouched macro is never saved as a logged zero.
   const [carbs, setCarbs] = useState('');
   const [fat, setFat] = useState('');
+  const [fiber, setFiber] = useState('');
   const [weight, setWeight] = useState(() => {
     // Get last weight from nutrition entries or workout entries
     const lastNutrition = nutrition.length > 0 ? nutrition[nutrition.length - 1] : null;
@@ -2487,8 +2509,10 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
       // Prefill only when the entry actually tracked the field; a logged 0 stays 0.
       const editCarbs = macroValue(entryToEdit, 'carbs');
       const editFat = macroValue(entryToEdit, 'fat');
+      const editFiber = macroValue(entryToEdit, 'fiber');
       setCarbs(editCarbs === null ? '' : editCarbs);
       setFat(editFat === null ? '' : editFat);
+      setFiber(editFiber === null ? '' : editFiber);
       setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
     }
   }, [entryToEdit]);
@@ -2514,6 +2538,7 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
     // omitted entirely and reads back as "not tracked", never as 0.
     if (carbs !== '') entry.carbs = Number(parseNumberWithSuffix(carbs)) || 0;
     if (fat !== '') entry.fat = Number(parseNumberWithSuffix(fat)) || 0;
+    if (fiber !== '') entry.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
 
     onSave(entry);
     showToast('Nutrition/sleep entry saved!', 'success');
@@ -2611,6 +2636,15 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
         })
       ),
       h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fiber (g)'),
+        h(Input, {
+          type: 'text',
+          value: fiber,
+          onChange: e => setFiber(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
+          placeholder: 'e.g., 8 (optional)'
+        })
+      ),
+      h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
         h(Input, {
           type: 'text',
@@ -2619,7 +2653,7 @@ const NutritionLogForm = ({ onSave, onCancel, entryToEdit, nutrition, allEntries
           placeholder: 'e.g., 2800 or 3k'
         })
       ),
-      h(MacroCalorieHint, { protein, carbs, fat, calories, onUseDerived: setCalories })
+      h(MacroCalorieHint, { protein, carbs, fat, fiber, calories, onUseDerived: setCalories })
     ),
 
     // Body Weight Section
@@ -3465,12 +3499,15 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
   const totalCalories = meals.reduce((sum, meal) => sum + (Number(meal.calories) || 0), 0);
   const totalCarbs = meals.reduce((sum, meal) => sum + (Number(meal.carbs) || 0), 0);
   const totalFat = meals.reduce((sum, meal) => sum + (Number(meal.fat) || 0), 0);
+  const totalFiber = meals.reduce((sum, meal) => sum + (Number(meal.fiber) || 0), 0);
   // The sums above cannot tell "ate none" from "never logged", so a day where no
-  // meal tracked carbs/fat renders as "—" rather than 0.
+  // meal tracked carbs/fat/fiber renders as "—" rather than 0.
   const carbsTracked = meals.some(m => macroValue(m, 'carbs') !== null);
   const fatTracked = meals.some(m => macroValue(m, 'fat') !== null);
+  const fiberTracked = meals.some(m => macroValue(m, 'fiber') !== null);
   const carbsDisplay = formatMacro(carbsTracked ? totalCarbs : null);
   const fatDisplay = formatMacro(fatTracked ? totalFat : null);
+  const fiberDisplay = formatMacro(fiberTracked ? totalFiber : null);
 
   // Get workout data
   const workout = workouts.length > 0 ? workouts[0] : null;
@@ -3524,7 +3561,7 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
         )
       ),
       h('div', { className: 'flex gap-4 mt-2 text-sm text-slate-300' },
-        h('span', {}, `🥩 ${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${totalCalories} kcal`),
+        h('span', {}, `🥩 ${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`),
         h('span', {}, `💪 ${workoutType}`),
         cardioSummary && h('span', {}, `🏃 ${cardioSummary}`)
       )
@@ -3574,7 +3611,7 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
             h('div', { className: 'bg-slate-900 p-3 rounded-lg' },
               h('div', { className: 'flex justify-between items-center' },
                 h('span', { className: 'font-bold' }, 'Total'),
-                h('span', { className: 'text-lg' }, `${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${totalCalories} kcal`)
+                h('span', { className: 'text-lg' }, `${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`)
               )
             ),
             h('div', { className: 'mt-3 space-y-2' },
@@ -3582,7 +3619,7 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
               meals.map((meal, idx) =>
                 h('div', { key: meal.id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
                   h('span', { className: 'text-sm' }, `Meal ${idx + 1}`),
-                  h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${Number(meal.calories)} kcal`),
+                  h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`),
                   h('button', {
                     className: 'text-red-400 text-sm hover:text-red-300',
                     onClick: () => onDeleteMeal(meal.id)
