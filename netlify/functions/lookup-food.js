@@ -82,6 +82,10 @@ export default async (req, context) => {
           usdaKeyLength: typeof raw === 'string' ? raw.length : null,
           anthropicKeyVisible: typeof anthropic === 'string' && anthropic.length > 0,
           matchingEnvNames: Object.keys(process.env).filter(k => /usda|fdc|data.?gov|food/i.test(k)).sort(),
+          // Boolean only, and deliberately so. If the key and value fields were swapped
+          // then the real API key is sitting in a variable NAME, so dumping names here
+          // would publish the secret. This asks the question without exposing anything.
+          someVariableHasTheNameAsItsValue: Object.values(process.env).some(v => v === 'USDA_API_KEY'),
           totalEnvCount: Object.keys(process.env).length
         }
       });
