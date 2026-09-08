@@ -78,7 +78,11 @@ export default async (req, context) => {
     const params = new URLSearchParams({
       api_key: apiKey,
       query: String(query).trim(),
-      pageSize: '5'
+      // The ranker can only choose from what comes back, and USDA's own relevance often
+      // puts a derivative ahead of the plain food -- "Almond butter" before almonds. More
+      // candidates give the coverage/density filters something better to find; the trimmed
+      // shape keeps each one at roughly 200 bytes.
+      pageSize: '15'
     });
     if (dataType) params.set('dataType', String(dataType));
 

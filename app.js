@@ -694,7 +694,22 @@ const USDA_MIN_COVERAGE_GENERIC = 0.6;
 // scored 0.5 purely because "and" could never match anything.
 const FOOD_STOPWORDS = new Set(['and', 'with', 'of', 'the', 'a', 'an', 'in', 'on', 'or', 'plus']);
 
-const tokenizeFoodText = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+// A candidate must be ABOUT the queried food, not merely mention it. "Ice cream, lowfat,
+// no sugar added, cone, added peanuts and sauce" contains both words of "cream sauce" and
+// so scored a perfect 1.0, outranking every actual cream -- but only 2 of its 12 words are
+// query words. The good match "Danish pastry, cheese" is 2 of 3. Requiring at least a
+// third of the description to be query words separates the two.
+const USDA_MIN_DENSITY = 1 / 3;
+
+// Plural folding only, applied to both sides, so consistency matters more than
+// linguistic correctness: "banana" has to meet "Bananas, raw", and "hummus" mangled the
+// same way on both sides still matches itself. Stripping "ed" as well was tried and
+// reverted -- it collapsed "rolled" and "rolls" together, matching rolled oats to dinner
+// rolls, and the only thing it bought was black coffee at 7 kcal instead of 5.
+const stemFoodToken = (t) => t.replace(/s$/, '');
+
+const tokenizeFoodText = (s) =>
+  (String(s || '').toLowerCase().match(/[a-z0-9]+/g) || []).map(stemFoodToken);
 
 // Rank in code rather than with a second AI call: that would double the credit cost of
 // every meal to do a job string comparison already handles.
@@ -713,7 +728,13 @@ const scoreFoodCandidate = (queryTokens, food) => {
     const idx = descTokens.indexOf(token);
     positionSum += idx === -1 ? descTokens.length : idx;
   }
-  return { coverage: queryTokens.length ? matched / queryTokens.length : 0, positionSum, length: descTokens.length };
+  return {
+    coverage: queryTokens.length ? matched / queryTokens.length : 0,
+    // What share of the description is actually about the query.
+    density: descTokens.length ? matched / descTokens.length : 0,
+    positionSum,
+    length: descTokens.length
+  };
 };
 
 const pickBestFood = (foods, query, minCoverage = USDA_MIN_COVERAGE) => {
@@ -725,7 +746,7 @@ const pickBestFood = (foods, query, minCoverage = USDA_MIN_COVERAGE) => {
   if (queryTokens.length === 0) return null;
   const ranked = (foods || [])
     .map(food => ({ food, ...scoreFoodCandidate(queryTokens, food) }))
-    .filter(c => c.coverage >= minCoverage)
+    .filter(c => c.coverage >= minCoverage && c.density >= USDA_MIN_DENSITY)
     .sort((a, b) => (b.coverage - a.coverage) || (a.positionSum - b.positionSum) || (a.length - b.length));
   return ranked.length > 0 ? ranked[0].food : null;
 };
@@ -873,8 +894,10 @@ async function resolveMealItems(items) {
     let source = 'usda';
 
     // Tier 2: the everyday equivalent. Generic foods live in Foundation/SR Legacy, so
-    // this always searches there even when tier 1 was a branded search.
-    if (!best && genericTerm && genericTerm.toLowerCase() !== searchTerm.toLowerCase()) {
+    // this always searches there even when tier 1 was a branded search. It runs even when
+    // the generic term repeats the search term, because the looser gate can still find a
+    // match the exact tier rejected.
+    if (!best && genericTerm) {
       best = await lookupUsda(genericTerm, 'Foundation,SR Legacy', USDA_MIN_COVERAGE_GENERIC);
       if (best) source = 'usda-generic';
     }
