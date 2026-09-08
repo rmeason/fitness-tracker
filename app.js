@@ -684,6 +684,15 @@ const formatMacro = (value, suffix = 'g') =>
 // reject a branded search whose brand is simply not in the database (a Costco item scores
 // 0.75 against every rotisserie-chicken hit) while still accepting exact generic matches.
 const USDA_MIN_COVERAGE = 0.8;
+// The generic tier is deliberately looser: it is asking "what everyday food is this like",
+// and the answer is labelled as a similar food rather than an exact one. "ham and cheese
+// pastry" only covers two thirds of "Danish pastry, cheese", and that is the right match.
+// Still high enough that a Costco item (0.75) does not sneak through the specific tier.
+const USDA_MIN_COVERAGE_GENERIC = 0.6;
+
+// Filler words carry no food meaning but inflate the denominator: "ham and cheese pastry"
+// scored 0.5 purely because "and" could never match anything.
+const FOOD_STOPWORDS = new Set(['and', 'with', 'of', 'the', 'a', 'an', 'in', 'on', 'or', 'plus']);
 
 const tokenizeFoodText = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
 
@@ -707,12 +716,16 @@ const scoreFoodCandidate = (queryTokens, food) => {
   return { coverage: queryTokens.length ? matched / queryTokens.length : 0, positionSum, length: descTokens.length };
 };
 
-const pickBestFood = (foods, query) => {
-  const queryTokens = tokenizeFoodText(query);
+const pickBestFood = (foods, query, minCoverage = USDA_MIN_COVERAGE) => {
+  const all = tokenizeFoodText(query);
+  // Score against meaningful words only; fall back to the raw tokens if a query is
+  // nothing but stopwords.
+  const meaningful = all.filter(t => !FOOD_STOPWORDS.has(t));
+  const queryTokens = meaningful.length > 0 ? meaningful : all;
   if (queryTokens.length === 0) return null;
   const ranked = (foods || [])
     .map(food => ({ food, ...scoreFoodCandidate(queryTokens, food) }))
-    .filter(c => c.coverage >= USDA_MIN_COVERAGE)
+    .filter(c => c.coverage >= minCoverage)
     .sort((a, b) => (b.coverage - a.coverage) || (a.positionSum - b.positionSum) || (a.length - b.length));
   return ranked.length > 0 ? ranked[0].food : null;
 };
@@ -751,9 +764,20 @@ Fields per item:
   no brand: "cheddar cheese", not "a handful of shredded cheddar".
 - "grams": the portion resolved to grams, as a number.
 - "brand": include ONLY if the person actually named a brand.
-- "estimated": your own macro estimate FOR THE STATED PORTION. This is a fallback used
-  only when the database has no match, so give your best figures. Omit any macro you
-  genuinely do not know -- never use 0 to mean unknown.
+- "genericSearchTerm": the closest EVERYDAY food this resembles, used only if the
+  specific item is not in the database. Map restaurant and bakery items onto the ordinary
+  food they most resemble: "ham and cheese kolache" -> "ham and cheese pastry";
+  "breakfast taco" -> "breakfast burrito". Always give one, even when searchTerm is
+  already generic -- repeat searchTerm in that case.
+- "estimated": your own macro estimate FOR THE STATED PORTION. This is a last-resort
+  fallback used only when the database has no match at all, so give your best figures.
+  Omit any macro you genuinely do not know -- never use 0 to mean unknown.
+
+Do not underestimate prepared, restaurant or bakery food. Pastries, sandwiches and fried
+items carry far more fat and calories than their size suggests; a filled pastry the size
+of a fist is several hundred calories, not one hundred. Then check your own arithmetic:
+protein*4 + carbs*4 + fat*9 should land within about 10% of the calorie figure you give.
+If it does not, correct the figure before answering.
 
 Return per-item values only. Never return totals; those are calculated separately.
 
@@ -765,6 +789,7 @@ after it, and no explanation. The entire response must parse as JSON.
     {
       "name": "a handful of shredded cheddar (about 30 g)",
       "searchTerm": "cheddar cheese",
+      "genericSearchTerm": "cheddar cheese",
       "grams": 30,
       "brand": "",
       "estimated": { "protein": 7, "carbs": 0.7, "fat": 10, "fiber": 0, "calories": 120 }
@@ -790,14 +815,37 @@ after it, and no explanation. The entire response must parse as JSON.
   return Array.isArray(parsed.items) ? parsed.items : [];
 }
 
-// One resolved row per item: a USDA match scaled to the portion, or the model's own
-// estimate for that portion, flagged so the UI can say which it is.
+// One USDA attempt. Returns the best candidate or null; a failure here is never fatal,
+// because the caller still has a generic term and an estimate to fall back on.
+async function lookupUsda(query, dataType, minCoverage) {
+  if (!query) return null;
+  try {
+    const res = await fetch('/.netlify/functions/lookup-food', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, dataType })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return pickBestFood(data.foods, query, minCoverage);
+  } catch (err) {
+    console.error('USDA lookup failed:', err);
+    return null;
+  }
+}
+
+// One resolved row per item, resolved in three tiers: the exact food, then the everyday
+// food it resembles, then the model's own guess. The middle tier is what stops a bakery
+// item from being guessed at -- a Slowpokes kolache is not in USDA, but "ham and cheese
+// pastry" is, and it lands an order of magnitude closer than the estimate did. It costs
+// no extra AI call: genericSearchTerm rides along in the parse the model already returns.
 async function resolveMealItems(items) {
   const rows = [];
 
   for (const item of (items || [])) {
     const grams = optionalNumber(item.grams);
     const searchTerm = String(item.searchTerm || item.name || '').trim();
+    const genericTerm = String(item.genericSearchTerm || '').trim();
     const brand = String(item.brand || '').trim();
     const estimated = item.estimated || {};
 
@@ -819,22 +867,19 @@ async function resolveMealItems(items) {
       continue;
     }
 
+    // Tier 1: the food as described, branded if a brand was named.
     const query = brand ? `${brand} ${searchTerm}` : searchTerm;
-    let best = null;
-    try {
-      const res = await fetch('/.netlify/functions/lookup-food', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, dataType: brand ? 'Branded' : 'Foundation,SR Legacy' })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        best = pickBestFood(data.foods, query);
-      }
-    } catch (err) {
-      console.error('USDA lookup failed, falling back to the estimate:', err);
+    let best = await lookupUsda(query, brand ? 'Branded' : 'Foundation,SR Legacy');
+    let source = 'usda';
+
+    // Tier 2: the everyday equivalent. Generic foods live in Foundation/SR Legacy, so
+    // this always searches there even when tier 1 was a branded search.
+    if (!best && genericTerm && genericTerm.toLowerCase() !== searchTerm.toLowerCase()) {
+      best = await lookupUsda(genericTerm, 'Foundation,SR Legacy', USDA_MIN_COVERAGE_GENERIC);
+      if (best) source = 'usda-generic';
     }
 
+    // Tier 3: the model's own figures for the stated portion.
     if (!best) {
       rows.push(asEstimate());
       continue;
@@ -843,7 +888,7 @@ async function resolveMealItems(items) {
     rows.push({
       name: item.name || searchTerm,
       grams,
-      source: 'usda',
+      source,
       matchedName: best.description,
       ...scalePer100(best.per100, grams)
     });
@@ -2561,9 +2606,13 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
               h('div', { className: 'text-slate-300' },
                 `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${row.calories === null ? '—' : row.calories} kcal`
               ),
+              // Three states, not two. A generic match is real database data but for a
+              // stand-in food, so it must not read as an exact hit or as a guess.
               row.source === 'usda'
                 ? h('div', { className: 'text-green-400 truncate' }, `USDA: ${row.matchedName}`)
-                : h('div', { className: 'text-yellow-500' }, 'estimated — no database match')
+                : row.source === 'usda-generic'
+                  ? h('div', { className: 'text-cyan-400 truncate' }, `USDA, similar food: ${row.matchedName}`)
+                  : h('div', { className: 'text-yellow-500' }, 'estimated — no database match')
             )
           )
         )
@@ -3652,10 +3701,12 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
           h('span', { className: 'text-xl font-bold text-cyan-400' }, grade)
         )
       ),
-      h('div', { className: 'flex gap-4 mt-2 text-sm text-slate-300' },
-        h('span', {}, `🥩 ${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`),
-        h('span', {}, `💪 ${workoutType}`),
-        cardioSummary && h('span', {}, `🏃 ${cardioSummary}`)
+      // flex-wrap + nowrap on each item: they break onto their own lines rather than
+      // squeezing to a third of the width and wrapping mid-figure.
+      h('div', { className: 'flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-slate-300' },
+        h('span', { className: 'whitespace-nowrap' }, `🥩 ${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`),
+        h('span', { className: 'whitespace-nowrap' }, `💪 ${workoutType}`),
+        cardioSummary && h('span', { className: 'whitespace-nowrap' }, `🏃 ${cardioSummary}`)
       )
     ),
 
@@ -3701,21 +3752,29 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
       meals.length > 0
         ? h('div', { className: 'space-y-2' },
             h('div', { className: 'bg-slate-900 p-3 rounded-lg' },
-              h('div', { className: 'flex justify-between items-center' },
-                h('span', { className: 'font-bold' }, 'Total'),
-                h('span', { className: 'text-lg' }, `${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`)
+              // gap-2: the figures now fill the remaining width, so without it they butt
+              // straight up against the "Total" label.
+              h('div', { className: 'flex justify-between items-center gap-2' },
+                h('span', { className: 'font-bold shrink-0' }, 'Total'),
+                h('span', { className: 'text-sm sm:text-lg text-right' }, `${totalProtein}g P / ${carbsDisplay} C / ${fatDisplay} F / ${fiberDisplay} Fi / ${totalCalories} kcal`)
               )
             ),
             h('div', { className: 'mt-3 space-y-2' },
               h('h4', { className: 'text-sm font-semibold text-slate-400' }, 'Meals'),
               meals.map((meal, idx) =>
-                h('div', { key: meal.id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
-                  // Entries logged before descriptions existed keep reading "Meal 1".
-                  h('span', { className: 'text-sm min-w-0 truncate' }, meal.description || `Meal ${idx + 1}`),
-                  h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`),
-                  h('div', { className: 'flex gap-2 items-center shrink-0' },
-                    h(Button, { variant: 'secondary', size: 'sm', onClick: () => onEditMeal(meal) }, 'Edit'),
-                    h(Button, { variant: 'danger', size: 'sm', onClick: () => onDeleteMeal(meal.id) }, 'Delete')
+                h('div', { key: meal.id, className: 'bg-slate-700 p-2 rounded' },
+                  h('div', { className: 'flex justify-between items-center gap-2' },
+                    // Entries logged before descriptions existed keep reading "Meal 1".
+                    // Only the label truncates; the full text is there in the edit form.
+                    h('span', { className: 'text-sm min-w-0 truncate' }, meal.description || `Meal ${idx + 1}`),
+                    h('div', { className: 'flex gap-2 items-center shrink-0' },
+                      h(Button, { variant: 'secondary', size: 'sm', onClick: () => onEditMeal(meal) }, 'Edit'),
+                      h(Button, { variant: 'danger', size: 'sm', onClick: () => onDeleteMeal(meal.id) }, 'Delete')
+                    )
+                  ),
+                  // Its own line, so every macro stays visible rather than being clipped.
+                  h('div', { className: 'text-xs text-slate-300 mt-1' },
+                    `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`
                   )
                 )
               )
@@ -4803,17 +4862,17 @@ const App = () => {
             h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
               h('div', { className: 'text-center' },
                 h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Macros'),
-                h('div', { className: 'flex justify-center gap-3 mt-1' },
+                h('div', { className: 'flex justify-center gap-2 mt-1' },
                   h('div', {},
-                    h('div', { className: 'text-lg font-bold text-green-400 leading-tight' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
+                    h('div', { className: 'text-base font-bold text-green-400 leading-tight' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
                     h('div', { className: 'text-[10px] text-slate-500' }, 'P')
                   ),
                   h('div', {},
-                    h('div', { className: 'text-lg font-bold text-amber-400 leading-tight' }, formatMacro(todaysNutrition.carbsTracked ? todaysNutrition.totalCarbs : null)),
+                    h('div', { className: 'text-base font-bold text-amber-400 leading-tight' }, formatMacro(todaysNutrition.carbsTracked ? todaysNutrition.totalCarbs : null)),
                     h('div', { className: 'text-[10px] text-slate-500' }, 'C')
                   ),
                   h('div', {},
-                    h('div', { className: 'text-lg font-bold text-pink-400 leading-tight' }, formatMacro(todaysNutrition.fatTracked ? todaysNutrition.totalFat : null)),
+                    h('div', { className: 'text-base font-bold text-pink-400 leading-tight' }, formatMacro(todaysNutrition.fatTracked ? todaysNutrition.totalFat : null)),
                     h('div', { className: 'text-[10px] text-slate-500' }, 'F')
                   )
                 ),
