@@ -675,6 +675,204 @@ const hasCompleteMacros = (entry) =>
 const formatMacro = (value, suffix = 'g') =>
   value === null ? '—' : `${Math.round(value)}${suffix}`;
 
+// --- 🍽️ NATURAL-LANGUAGE MEAL LOGGING ---
+// Division of labour: the model turns prose into a food name and a gram figure, because
+// resolving "a handful" is judgment about language. USDA supplies per-100g facts. The
+// arithmetic below is the only thing that multiplies. The model never does.
+
+// Coverage is the share of query words the candidate accounts for. 0.8 is high enough to
+// reject a branded search whose brand is simply not in the database (a Costco item scores
+// 0.75 against every rotisserie-chicken hit) while still accepting exact generic matches.
+const USDA_MIN_COVERAGE = 0.8;
+
+const tokenizeFoodText = (s) => String(s || '').toLowerCase().match(/[a-z0-9]+/g) || [];
+
+// Rank in code rather than with a second AI call: that would double the credit cost of
+// every meal to do a job string comparison already handles.
+const scoreFoodCandidate = (queryTokens, food) => {
+  const descTokens = tokenizeFoodText(food.description);
+  const haystack = new Set([...descTokens, ...tokenizeFoodText(food.brandOwner)]);
+  const matched = queryTokens.filter(t => haystack.has(t)).length;
+  // USDA descriptions read "HeadNoun, qualifier, qualifier" and grow more specific as
+  // they lengthen. So the query words should sit as early as possible: for "white rice",
+  // "Rice, white, ..." (positions 0,1) is the food itself, while "Rice flour, white"
+  // (0,2) and "Flour, rice, white" (1,2) are a different food that merely mentions it.
+  // Summing the matched positions captures that; the shorter, more generic entry
+  // then wins any remaining tie.
+  let positionSum = 0;
+  for (const token of queryTokens) {
+    const idx = descTokens.indexOf(token);
+    positionSum += idx === -1 ? descTokens.length : idx;
+  }
+  return { coverage: queryTokens.length ? matched / queryTokens.length : 0, positionSum, length: descTokens.length };
+};
+
+const pickBestFood = (foods, query) => {
+  const queryTokens = tokenizeFoodText(query);
+  if (queryTokens.length === 0) return null;
+  const ranked = (foods || [])
+    .map(food => ({ food, ...scoreFoodCandidate(queryTokens, food) }))
+    .filter(c => c.coverage >= USDA_MIN_COVERAGE)
+    .sort((a, b) => (b.coverage - a.coverage) || (a.positionSum - b.positionSum) || (a.length - b.length));
+  return ranked.length > 0 ? ranked[0].food : null;
+};
+
+// Search results are per 100 g for every dataType, verified against the Core Power label.
+// A macro the database does not carry stays null rather than becoming 0.
+const scalePer100 = (per100, grams) => {
+  const factor = Number(grams) / 100;
+  const out = {};
+  for (const key of ['protein', 'carbs', 'fat', 'fiber']) {
+    const v = optionalNumber(per100 ? per100[key] : null);
+    out[key] = v === null ? null : Math.round(v * factor * 10) / 10;
+  }
+  const cal = optionalNumber(per100 ? per100.calories : null);
+  out.calories = cal === null ? null : Math.round(cal * factor);
+  return out;
+};
+
+// Turns prose into items. No lookups and no arithmetic here.
+async function parseMealDescription(text) {
+  if (!navigator.onLine) {
+    throw new Error('You are offline, so the description cannot be read. Enter the macros by hand.');
+  }
+
+  const prompt = `Read this description of a meal and break it into individual food items.
+
+MEAL: ${text}
+
+For each item, resolve the portion the person described into a number of GRAMS, using
+ordinary judgment about how much food that is: a handful of shredded cheese, a scoop of
+rice, a medium banana. A gram figure is always required -- never null, never a range.
+
+Fields per item:
+- "name": the food and the portion as you understood it, echoed back for the person to check.
+- "searchTerm": the plain food name for a nutrition database lookup. No portion words and
+  no brand: "cheddar cheese", not "a handful of shredded cheddar".
+- "grams": the portion resolved to grams, as a number.
+- "brand": include ONLY if the person actually named a brand.
+- "estimated": your own macro estimate FOR THE STATED PORTION. This is a fallback used
+  only when the database has no match, so give your best figures. Omit any macro you
+  genuinely do not know -- never use 0 to mean unknown.
+
+Return per-item values only. Never return totals; those are calculated separately.
+
+Respond with ONLY the JSON object below - no markdown code fences, no prose before or
+after it, and no explanation. The entire response must parse as JSON.
+
+{
+  "items": [
+    {
+      "name": "a handful of shredded cheddar (about 30 g)",
+      "searchTerm": "cheddar cheese",
+      "grams": 30,
+      "brand": "",
+      "estimated": { "protein": 7, "carbs": 0.7, "fat": 10, "fiber": 0, "calories": 120 }
+    }
+  ]
+}`;
+
+  const res = await fetch('/.netlify/functions/get-vision-extraction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: [{ type: 'text', text: prompt }] })
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`AI Gateway failed: ${errData.error || res.statusText}`);
+  }
+
+  const data = await res.json();
+  // The shared helper, deliberately. It already strips fences and prose and throws the
+  // one message every AI caller reports; a fourth private copy is what it exists to stop.
+  const parsed = parseAiJson(data.text);
+  return Array.isArray(parsed.items) ? parsed.items : [];
+}
+
+// One resolved row per item: a USDA match scaled to the portion, or the model's own
+// estimate for that portion, flagged so the UI can say which it is.
+async function resolveMealItems(items) {
+  const rows = [];
+
+  for (const item of (items || [])) {
+    const grams = optionalNumber(item.grams);
+    const searchTerm = String(item.searchTerm || item.name || '').trim();
+    const brand = String(item.brand || '').trim();
+    const estimated = item.estimated || {};
+
+    // The estimate is already for the stated portion, so it is used as-is, never scaled.
+    const asEstimate = () => ({
+      name: item.name || searchTerm,
+      grams,
+      source: 'estimate',
+      matchedName: null,
+      protein: optionalNumber(estimated.protein),
+      carbs: optionalNumber(estimated.carbs),
+      fat: optionalNumber(estimated.fat),
+      fiber: optionalNumber(estimated.fiber),
+      calories: optionalNumber(estimated.calories)
+    });
+
+    if (!searchTerm || grams === null || !navigator.onLine) {
+      rows.push(asEstimate());
+      continue;
+    }
+
+    const query = brand ? `${brand} ${searchTerm}` : searchTerm;
+    let best = null;
+    try {
+      const res = await fetch('/.netlify/functions/lookup-food', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, dataType: brand ? 'Branded' : 'Foundation,SR Legacy' })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        best = pickBestFood(data.foods, query);
+      }
+    } catch (err) {
+      console.error('USDA lookup failed, falling back to the estimate:', err);
+    }
+
+    if (!best) {
+      rows.push(asEstimate());
+      continue;
+    }
+
+    rows.push({
+      name: item.name || searchTerm,
+      grams,
+      source: 'usda',
+      matchedName: best.description,
+      ...scalePer100(best.per100, grams)
+    });
+  }
+
+  return rows;
+}
+
+// Pure. A macro totals to a number ONLY when every row carries it; otherwise null. A
+// partial sum presented as a total is a wrong number wearing a right number's clothes,
+// and it would flow straight into the daily totals. Calories are deliberately NOT derived
+// from the macros here -- MacroCalorieHint already cross-checks the two and offers the
+// derived figure, which is the safety net for an internally inconsistent parse.
+const sumMealItems = (rows) => {
+  const list = rows || [];
+  const totals = {};
+  for (const key of ['protein', 'carbs', 'fat', 'fiber', 'calories']) {
+    let sum = 0;
+    let complete = list.length > 0;
+    for (const row of list) {
+      const v = optionalNumber(row ? row[key] : null);
+      if (v === null) { complete = false; break; }
+      sum += v;
+    }
+    totals[key] = complete ? (key === 'calories' ? Math.round(sum) : Math.round(sum * 10) / 10) : null;
+  }
+  return totals;
+};
+
 // Helper to get nutrition totals for a *specific day*
 const getNutritionForDate = (nutritionLog, date) => {
   const entriesForDate = nutritionLog.filter(n => n.date === date);
@@ -2242,10 +2440,51 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
   const [carbs, setCarbs] = useState(() => seed('carbs'));
   const [fat, setFat] = useState(() => seed('fat'));
   const [fiber, setFiber] = useState(() => seed('fiber'));
+  // The person's own words, kept verbatim. Trustworthy in a way the resolved numbers are not.
+  const [description, setDescription] = useState(() => entryToEdit?.description || '');
+  // null when idle, otherwise the stage being shown: the lookup stage makes one network
+  // call per item and visibly takes longer than the parse.
+  const [parseStage, setParseStage] = useState(null);
+  const [parsedRows, setParsedRows] = useState([]);
   // 💡💡💡 THIS IS THE FIX 💡💡💡
   // Add date state, defaulting to today
   const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
   const { showToast } = useToast();
+
+  const handleParse = async () => {
+    const text = description.trim();
+    if (!text) return;
+    setParsedRows([]);
+    try {
+      setParseStage('Reading description…');
+      const items = await parseMealDescription(text);
+      if (items.length === 0) throw new Error('No foods were recognised in that description.');
+
+      setParseStage('Looking up foods…');
+      const rows = await resolveMealItems(items);
+      setParsedRows(rows);
+
+      // Overwriting is intended: the modal is the review surface and nothing is stored
+      // until Save. A macro no row could supply stays blank rather than showing a
+      // partial sum as though it were a total.
+      const totals = sumMealItems(rows);
+      const toField = (v) => (v === null ? '' : String(v));
+      setProtein(toField(totals.protein));
+      setCarbs(toField(totals.carbs));
+      setFat(toField(totals.fat));
+      setFiber(toField(totals.fiber));
+      setCalories(toField(totals.calories));
+
+      const matched = rows.filter(r => r.source === 'usda').length;
+      showToast(`Parsed ${rows.length} item${rows.length === 1 ? '' : 's'}, ${matched} matched in USDA.`, 'success');
+    } catch (err) {
+      console.error('Meal parse failed:', err);
+      // Every field is left exactly as it was: a failed parse must never block manual entry.
+      showToast(err.message, 'error');
+    } finally {
+      setParseStage(null);
+    }
+  };
 
   const handleAdd = () => {
     // CRITICAL FIX: Ensure parseNumberWithSuffix result is converted to Number
@@ -2275,6 +2514,10 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
     else delete meal.fat;
     if (fiber !== '') meal.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
     else delete meal.fiber;
+    // Same set-when-present/delete-when-cleared rule as the macros, so the spread-based
+    // edit path keeps working. The resolved rows and their source markers are NOT stored.
+    if (description.trim() !== '') meal.description = description.trim();
+    else delete meal.description;
     onSave(meal);
 
     showToast(entryToEdit
@@ -2285,6 +2528,46 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
 
   return h(Modal, { show: true, onClose, title: entryToEdit ? "🍽️ Edit Meal" : "🍽️ Quick Add Meal" },
     h('div', { className: 'space-y-4' },
+      h('div', {},
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Describe the meal'),
+        h('textarea', {
+          className: 'w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400',
+          rows: 2,
+          value: description,
+          onChange: e => setDescription(e.target.value),
+          placeholder: 'e.g., two Core Power shakes and a handful of shredded cheddar'
+        }),
+        h('div', { className: 'flex items-center gap-2 mt-2' },
+          h(Button, {
+            variant: 'secondary',
+            size: 'sm',
+            onClick: handleParse,
+            className: (parseStage || description.trim() === '') ? 'opacity-50' : ''
+          }, 'Parse'),
+          parseStage && h('div', { className: 'flex items-center gap-2 text-xs text-slate-400' },
+            h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
+            h('span', {}, parseStage)
+          )
+        ),
+        // The review surface. Its whole job is making "looked up" and "guessed" obvious
+        // at a glance, so the source marker is per row and never abbreviated away.
+        parsedRows.length > 0 && h('div', { className: 'mt-3 space-y-2' },
+          parsedRows.map((row, i) =>
+            h('div', { key: i, className: 'bg-slate-900 p-2 rounded text-xs space-y-1' },
+              h('div', { className: 'flex justify-between gap-2' },
+                h('span', { className: 'font-medium text-slate-200 min-w-0 truncate' }, row.name),
+                h('span', { className: 'text-slate-400 shrink-0' }, row.grams === null ? '—' : `${row.grams} g`)
+              ),
+              h('div', { className: 'text-slate-300' },
+                `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${row.calories === null ? '—' : row.calories} kcal`
+              ),
+              row.source === 'usda'
+                ? h('div', { className: 'text-green-400 truncate' }, `USDA: ${row.matchedName}`)
+                : h('div', { className: 'text-yellow-500' }, 'estimated — no database match')
+            )
+          )
+        )
+      ),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
         h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
@@ -3427,7 +3710,8 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
               h('h4', { className: 'text-sm font-semibold text-slate-400' }, 'Meals'),
               meals.map((meal, idx) =>
                 h('div', { key: meal.id, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
-                  h('span', { className: 'text-sm' }, `Meal ${idx + 1}`),
+                  // Entries logged before descriptions existed keep reading "Meal 1".
+                  h('span', { className: 'text-sm min-w-0 truncate' }, meal.description || `Meal ${idx + 1}`),
                   h('span', {}, `${Number(meal.protein)}g P / ${formatMacro(macroValue(meal, 'carbs'))} C / ${formatMacro(macroValue(meal, 'fat'))} F / ${formatMacro(macroValue(meal, 'fiber'))} Fi / ${Number(meal.calories)} kcal`),
                   h('div', { className: 'flex gap-2 items-center shrink-0' },
                     h(Button, { variant: 'secondary', size: 'sm', onClick: () => onEditMeal(meal) }, 'Edit'),
