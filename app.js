@@ -226,6 +226,19 @@ const parseNumberWithSuffix = (value) => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+// Claude often wraps JSON in prose or a markdown code fence, so pull the object out of
+// the response rather than parsing the whole string. Both AI callers go through this;
+// two near-identical copies is the bug shape this codebase keeps hitting.
+const parseAiJson = (text) => {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('AI returned an invalid response.');
+  try {
+    return JSON.parse(match[0]);
+  } catch (e) {
+    throw new Error('AI returned an invalid response.');
+  }
+};
+
 // Safely get max weight from weights array (handles empty arrays and edge cases)
 const getMaxWeight = (weights) => {
   if (!weights) return 0;
@@ -2105,6 +2118,9 @@ GUIDELINES:
 - Progressive overload: Use the "Smart Coach" logic. Analyze RPE from past workouts to suggest adding weight (if RPE <= 8) or adding reps (if RPE 8.5-9.5).
 - If sleep is poor (<12%), suggest a 10-15% weight deload for higher reps.
 
+Respond with ONLY the JSON object below — no markdown code fences, no prose before or
+after it, and no explanation. The entire response must parse as JSON.
+
 Provide recommendation as JSON:
 {
   "recommendation": "${plannedWorkout}",
@@ -2133,10 +2149,10 @@ Provide recommendation as JSON:
         const data = await res.json();
         let responseJson;
         try {
-          responseJson = JSON.parse(data.text);
-        } catch(e) {
+          responseJson = parseAiJson(data.text);
+        } catch (e) {
           console.error("AI returned non-JSON:", data.text);
-          throw new Error("AI returned an invalid response.");
+          throw e;
         }
         setRecommendation(responseJson);
 
@@ -2842,14 +2858,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       }
 
       const data = await res.json();
-      const resultText = data.text;
-      
-      const jsonMatch = resultText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("AI did not return valid JSON.");
-      }
-
-      const resultJson = JSON.parse(jsonMatch[0]);
+      const resultJson = parseAiJson(data.text);
 
       // Auto-populate form (workout data only - nutrition/sleep handled separately)
       if (resultJson.exercises && resultJson.exercises.length > 0) {
