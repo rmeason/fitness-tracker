@@ -1,0 +1,6707 @@
+{
+  "entries": [
+    {
+      "id": "id_1763360717685_367kabz",
+      "date": "2025-11-16",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "sleepHours": 7,
+      "deepSleepPercent": 14,
+      "deepSleepMinutes": 59,
+      "recoveryRating": 6,
+      "weight": 135,
+      "grade": "B",
+      "cardio": []
+    },
+    {
+      "id": "id_1763390323841_on07kit",
+      "date": "2025-11-17",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Seated Lat Pull-Downs",
+          "weights": [
+            101,
+            101
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            10,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2020
+        },
+        {
+          "name": "Seated Lat Pull-Downs",
+          "weights": [
+            137,
+            137,
+            137,
+            137
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            4,
+            6
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 3151
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            110,
+            110,
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            14,
+            12,
+            11,
+            12
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 5390
+        },
+        {
+          "name": "Rope Tricep Cable Push-Downs",
+          "weights": [
+            110,
+            110,
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            11,
+            10,
+            8,
+            8
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4070
+        },
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            110,
+            110,
+            110,
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            6,
+            6,
+            4,
+            5,
+            8
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 3190
+        }
+      ],
+      "totalSets": 19,
+      "totalVolume": 17821,
+      "duration": 60,
+      "caloriesBurned": 259,
+      "cardio": []
+    },
+    {
+      "id": "id_1763503627656_8i2fony",
+      "date": "2025-11-18",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "sleepHours": 5.333333333333333,
+      "deepSleepPercent": 8.4375,
+      "deepSleepMinutes": 27,
+      "recoveryRating": 4,
+      "weight": 135,
+      "grade": "C",
+      "cardio": []
+    },
+    {
+      "id": "id_1763600611614_aymc5ga",
+      "date": "2025-11-19",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            25,
+            25,
+            45,
+            45,
+            45
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            12,
+            12,
+            6,
+            7,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1455
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            60,
+            60,
+            60,
+            60
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            9,
+            8,
+            6,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1800
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            7,
+            6,
+            8,
+            7,
+            6
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1190
+        },
+        {
+          "name": "Gym80 3022 Pec Fly Machine",
+          "weights": [
+            77,
+            77,
+            88,
+            88,
+            77
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            9,
+            7,
+            6,
+            5,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2739
+        }
+      ],
+      "totalSets": 19,
+      "totalVolume": 7184,
+      "duration": 64,
+      "caloriesBurned": 165,
+      "cardio": []
+    },
+    {
+      "id": "id_1763657516793_4wd3uwb",
+      "date": "2025-11-20",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 4,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1763770762204_io5qg31",
+      "date": "2025-11-21",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "Legs/Core",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Weighted Pull-Ups",
+          "weights": [
+            145,
+            145,
+            160,
+            160,
+            160
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            6,
+            5,
+            4,
+            4,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3515
+        },
+        {
+          "name": "Gym80 3025 Reverse Fly/ Rear Delt",
+          "weights": [
+            77,
+            66,
+            66,
+            66
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            5,
+            7,
+            7,
+            6
+          ],
+          "rpe": 8,
+          "volumeLoad": 1705
+        },
+        {
+          "name": "Standing Dumbbell Skull-Crushers",
+          "weights": [
+            60,
+            60,
+            60,
+            60
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            5,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1380
+        },
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            121,
+            121,
+            121,
+            121,
+            121
+          ],
+          "sets": 5,
+          "reps": [
+            7,
+            7,
+            7,
+            6,
+            10
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4477
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 11077,
+      "duration": 49,
+      "caloriesBurned": 224,
+      "cardio": []
+    },
+    {
+      "id": "id_1763835674329_h3m73qc",
+      "date": "2025-11-22",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Gym80 4353 Pure Kraft Pendulum Squat",
+          "weights": [
+            10,
+            10,
+            25,
+            25,
+            25
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            10,
+            8,
+            5,
+            5,
+            7
+          ],
+          "rpe": 8,
+          "volumeLoad": 605
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine",
+          "weights": [
+            121,
+            121
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            9,
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2178
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine Lower-End Partials",
+          "weights": [
+            121
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1089
+        },
+        {
+          "name": "Gym80 3001 Leg Extension Machine",
+          "weights": [
+            77,
+            77,
+            77,
+            77
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            10,
+            12,
+            12,
+            11
+          ],
+          "rpe": 8,
+          "volumeLoad": 3465
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            121,
+            132,
+            143,
+            143
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            22,
+            22,
+            14,
+            14
+          ],
+          "rpe": 7,
+          "volumeLoad": 9570
+        }
+      ],
+      "totalSets": 16,
+      "totalVolume": 16907,
+      "duration": 70,
+      "caloriesBurned": 329,
+      "cardio": []
+    },
+    {
+      "id": "id_1763970067280_n10cbiu",
+      "date": "2025-11-23",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764020815396_693d0o7",
+      "date": "2025-11-24",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            30,
+            30,
+            45,
+            45,
+            45
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            12,
+            10,
+            8,
+            6,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1605
+        },
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            12,
+            12,
+            12,
+            12
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            15,
+            14,
+            13,
+            15
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 684
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            9,
+            9,
+            8,
+            9,
+            8
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1505
+        },
+        {
+          "name": "Gym80 3022 Pec Fly Machine",
+          "weights": [
+            77,
+            77,
+            99,
+            88,
+            88
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            9,
+            8,
+            5,
+            6,
+            5
+          ],
+          "rpe": 10,
+          "volumeLoad": 2772
+        }
+      ],
+      "totalSets": 19,
+      "totalVolume": 6566,
+      "duration": 72,
+      "caloriesBurned": 232,
+      "cardio": []
+    },
+    {
+      "id": "id_1764127490344_bq5l70i",
+      "date": "2025-11-25",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764199964926_mnc354o",
+      "date": "2025-11-26",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Gym80 Pure Kraft High Row Dual",
+          "weights": [
+            25,
+            25,
+            50,
+            50,
+            65
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            22,
+            22,
+            13,
+            10,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2770
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            121,
+            121,
+            121,
+            121
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            15,
+            13,
+            11,
+            13
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 6292
+        },
+        {
+          "name": "Rope Tricep Cable Push-Downs",
+          "weights": [
+            121,
+            121,
+            121,
+            121
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            14,
+            12,
+            9,
+            9
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 5324
+        },
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            132,
+            132,
+            132,
+            132
+          ],
+          "sets": 4,
+          "reps": [
+            9,
+            9,
+            9,
+            9
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4752
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 19138,
+      "duration": 60,
+      "caloriesBurned": 258,
+      "cardio": []
+    },
+    {
+      "id": "id_1764294670614_95v7u6a",
+      "date": "2025-11-27",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 4,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764450980678_aq8k10b",
+      "date": "2025-11-28",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 5,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764454647839_u94abfd",
+      "date": "2025-11-29",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Hack Squats",
+          "weights": [
+            50,
+            50,
+            70,
+            70,
+            70
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            12,
+            12,
+            10,
+            8,
+            10
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3160
+        },
+        {
+          "name": "Seated Leg Curl",
+          "weights": [
+            100,
+            100,
+            115,
+            115
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            12,
+            12,
+            9,
+            11
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4700
+        },
+        {
+          "name": "Seated Calf Raises",
+          "weights": [
+            70,
+            70
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            14,
+            11
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1750
+        },
+        {
+          "name": "Seated Calf Raises Lower-End Partials",
+          "weights": [
+            70
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            16
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1120
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            57.5,
+            65,
+            80,
+            95,
+            80
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            28,
+            20,
+            8,
+            3,
+            10
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4635
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 15365,
+      "duration": 73,
+      "caloriesBurned": 463,
+      "cardio": []
+    },
+    {
+      "id": "id_1764786033571_r6omx4d",
+      "date": "2025-11-30",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764786041527_vlpl1j8",
+      "date": "2025-12-01",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764786047236_0m2pj1l",
+      "date": "2025-12-02",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764816188547_w0zcfd6",
+      "date": "2025-12-03",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            45,
+            135,
+            155,
+            155,
+            155,
+            135
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            21,
+            6,
+            4,
+            4,
+            4,
+            7
+          ],
+          "rpe": 8,
+          "volumeLoad": 4560
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            10,
+            10,
+            10,
+            8,
+            9
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1645
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            70,
+            70,
+            70,
+            70
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            8,
+            8,
+            8,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2170
+        },
+        {
+          "name": "Gym80 3042 Dual Incline Chest Press",
+          "weights": [
+            88,
+            88,
+            77,
+            77,
+            77,
+            77
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            5,
+            5,
+            5,
+            7,
+            5,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2497
+        }
+      ],
+      "totalSets": 21,
+      "totalVolume": 10872,
+      "duration": 92,
+      "caloriesBurned": 408,
+      "cardio": []
+    },
+    {
+      "id": "id_1764950576706_fvr3mgl",
+      "date": "2025-12-04",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 4,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1764978009257_mu1kcld",
+      "date": "2025-12-05",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 5,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765070088341_3kvdfr5",
+      "date": "2025-12-06",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "Legs/Core",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Seated Leg Extension",
+          "weights": [
+            55,
+            55,
+            65,
+            75,
+            75
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            17,
+            15,
+            14,
+            12,
+            11
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4395
+        },
+        {
+          "name": "Seated Leg Curl",
+          "weights": [
+            95,
+            95,
+            100,
+            105,
+            95
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            12,
+            6,
+            13,
+            6,
+            12
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 4780
+        },
+        {
+          "name": "Seated Calf Raises",
+          "weights": [
+            90,
+            90
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            8,
+            8
+          ],
+          "rpe": 9,
+          "volumeLoad": 1440
+        },
+        {
+          "name": "Seated Calf Raises Lower-End Partials",
+          "weights": [
+            90
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            12
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1080
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            72.5,
+            72.5
+          ],
+          "eachHand": true,
+          "sets": 2,
+          "reps": [
+            16,
+            17
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2392.5
+        }
+      ],
+      "totalSets": 15,
+      "totalVolume": 14087.5,
+      "duration": 50,
+      "caloriesBurned": 203,
+      "cardio": []
+    },
+    {
+      "id": "id_1765221239686_a6qxczr",
+      "date": "2025-12-07",
+      "trainingType": "REST",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765257649995_37l29ka",
+      "date": "2025-12-08",
+      "trainingType": "REST",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 1,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765330827374_kwzk1wf",
+      "date": "2025-12-09",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765430354024_8r9uxfh",
+      "date": "2025-12-10",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 3,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765502918871_tbtrvf0",
+      "date": "2025-12-11",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 4,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765593928728_isgrqvq",
+      "date": "2025-12-12",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Hammer Strength Iso-Lateral Front Lat Pulldown",
+          "weights": [
+            25,
+            45,
+            70,
+            70,
+            70
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            23,
+            11,
+            7,
+            8,
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2680
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            50,
+            57.5,
+            57.5,
+            57.5
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            16,
+            13,
+            13,
+            13
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3042.5
+        },
+        {
+          "name": "Rope Tricep Cable Push-Downs",
+          "weights": [
+            65,
+            65,
+            65,
+            65
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            6,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1495
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 7217.5,
+      "duration": 48,
+      "caloriesBurned": 208,
+      "cardio": []
+    },
+    {
+      "id": "id_1765667954846_vk8tj4y",
+      "date": "2025-12-13",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "Legs/Core",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Gym80 4353 Pure Kraft Pendulum Squat",
+          "weights": [
+            25,
+            25,
+            30,
+            30,
+            30
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            8,
+            6,
+            4,
+            5,
+            8
+          ],
+          "rpe": 8,
+          "volumeLoad": 860
+        },
+        {
+          "name": "Gym80 3003 Seated Leg Curl",
+          "weights": [
+            99,
+            99,
+            110,
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            11,
+            9,
+            7,
+            6,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4180
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine",
+          "weights": [
+            121,
+            121
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            12,
+            11
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2783
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine Lower-End Partials",
+          "weights": [
+            121
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            12
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1452
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            110,
+            132,
+            143,
+            143,
+            143
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            11,
+            10,
+            8,
+            9,
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 6248
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 15523,
+      "duration": 61,
+      "caloriesBurned": 321,
+      "cardio": []
+    },
+    {
+      "id": "id_1765775669045_kyr4w68",
+      "date": "2025-12-14",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1765843048727_900a66t",
+      "date": "2025-12-15",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Gym80 Pure Kraft High Row Dual",
+          "weights": [
+            25,
+            25,
+            50,
+            50,
+            65
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            22,
+            22,
+            13,
+            10,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 5540
+        },
+        {
+          "name": "Gym80 3025 Reverse Fly/ Rear Delt",
+          "weights": [
+            77,
+            88,
+            77,
+            77
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            7,
+            4,
+            6,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1969
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            40,
+            40,
+            40,
+            40,
+            40
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            8,
+            7,
+            8,
+            5,
+            8
+          ],
+          "rpe": 9,
+          "volumeLoad": 2880
+        },
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            132,
+            132,
+            132,
+            132
+          ],
+          "sets": 4,
+          "reps": [
+            11,
+            10,
+            8,
+            6
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4620
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 15009,
+      "duration": 51,
+      "caloriesBurned": 273,
+      "cardio": []
+    },
+    {
+      "id": "id_1766000080558_fsm5liz",
+      "date": "2025-12-16",
+      "trainingType": "REST",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766017236868_4pyoz62",
+      "date": "2025-12-17",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            45,
+            135,
+            160,
+            160,
+            155,
+            135
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            23,
+            8,
+            4,
+            3,
+            4,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4395
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            70,
+            70,
+            70,
+            70
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            10,
+            7,
+            6,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1960
+        },
+        {
+          "name": "Gym80 3042 Dual Incline Chest Press",
+          "weights": [
+            88,
+            88,
+            77,
+            77,
+            77,
+            55
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            4,
+            4,
+            4,
+            4,
+            3,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1936
+        }
+      ],
+      "totalSets": 16,
+      "totalVolume": 8291,
+      "duration": 56,
+      "caloriesBurned": 339,
+      "cardio": []
+    },
+    {
+      "id": "id_1766119028629_57btg4x",
+      "date": "2025-12-18",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 4,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766338024015_vtrt1um",
+      "date": "2025-12-19",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 5,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766338033986_y5fv9yj",
+      "date": "2025-12-20",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766359323386_u9690ma",
+      "date": "2025-12-21",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [
+        {
+          "name": "Gym80 4353 Pure Kraft Pendulum Squat",
+          "weights": [
+            35,
+            35,
+            40,
+            40,
+            40
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            4,
+            5,
+            4,
+            4,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 795
+        },
+        {
+          "name": "Gym80 3001 Leg Extension Machine",
+          "weights": [
+            77,
+            88,
+            88,
+            88
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            12,
+            8,
+            9,
+            9
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3212
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine",
+          "weights": [
+            132,
+            132
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            11,
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2640
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine Lower-End Partials",
+          "weights": [
+            132
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1056
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            122,
+            143,
+            143,
+            154,
+            154
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            17,
+            10,
+            10,
+            9,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 7552
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 15255,
+      "duration": 69,
+      "caloriesBurned": 351,
+      "cardio": []
+    },
+    {
+      "id": "id_1766361784213_hyvfg6t",
+      "date": "2025-12-21",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766530946391_4feik9n",
+      "date": "2025-12-22",
+      "trainingType": "REST",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766612940486_g4196ph",
+      "date": "2025-12-23",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 2,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1766630367567_x4l8qrt",
+      "date": "2025-12-24",
+      "trainingType": "REST",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 3,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1767486204986_omp3if1",
+      "date": "2026-01-03",
+      "trainingType": "Pull",
+      "plannedTrainingType": "Legs/Core",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Nautilus XPload Lat Pull-Downs",
+          "weights": [
+            55,
+            55,
+            70,
+            80,
+            70,
+            70
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            16,
+            15,
+            8,
+            6,
+            10,
+            8
+          ],
+          "rpe": 6.5,
+          "volumeLoad": 8010
+        },
+        {
+          "name": "Life Fitness Seated Row",
+          "weights": [
+            85,
+            85,
+            100,
+            100,
+            100,
+            115
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            8,
+            8,
+            7,
+            8,
+            10,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4550
+        }
+      ],
+      "totalSets": 12,
+      "totalVolume": 12560,
+      "duration": 54,
+      "caloriesBurned": 164,
+      "cardio": []
+    },
+    {
+      "id": "id_1770509254052_q8hj5wb",
+      "date": "2026-02-07",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "Legs/Core",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            45,
+            135,
+            140,
+            150
+          ],
+          "sets": 4,
+          "reps": [
+            20,
+            6,
+            5,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3010
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            20,
+            25,
+            25
+          ],
+          "eachHand": true,
+          "sets": 3,
+          "reps": [
+            18,
+            10,
+            11
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1770
+        },
+        {
+          "name": "Gym80 3022 Pec Fly Machine",
+          "weights": [
+            85,
+            105,
+            105,
+            105
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            12,
+            10,
+            8,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3750
+        }
+      ],
+      "totalSets": 11,
+      "totalVolume": 8530,
+      "duration": 54,
+      "caloriesBurned": 279,
+      "cardio": []
+    },
+    {
+      "id": "id_1770750366367_eftf0e1",
+      "date": "2026-02-10",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Nautilus XPload Lat Pull-Downs",
+          "weights": [
+            45,
+            70,
+            75,
+            75,
+            75
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            12,
+            10,
+            8,
+            8,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 6080
+        },
+        {
+          "name": "Standing Dumbbell Skull-Crushers",
+          "weights": [
+            55,
+            55,
+            55,
+            55
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            7,
+            7,
+            6,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1375
+        },
+        {
+          "name": "Life Fitness Seated Row",
+          "weights": [
+            70,
+            85,
+            100,
+            105
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            10,
+            10,
+            6,
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2990
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 10445,
+      "duration": 53,
+      "caloriesBurned": 222,
+      "cardio": []
+    },
+    {
+      "id": "id_1772672425642_hqqyygu",
+      "date": "2026-03-04",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            65,
+            135,
+            145,
+            155,
+            135
+          ],
+          "sets": 5,
+          "reps": [
+            12,
+            5,
+            4,
+            1,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2730
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            50,
+            50,
+            50,
+            50
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            6,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1250
+        },
+        {
+          "name": "Gym80 3022 Pec Fly Machine",
+          "weights": [
+            85,
+            110,
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            10,
+            5,
+            5,
+            6
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2610
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            25,
+            25,
+            25,
+            25
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            8,
+            8,
+            8,
+            11
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1750
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 8340,
+      "duration": 68,
+      "caloriesBurned": 424,
+      "cardio": []
+    },
+    {
+      "id": "id_1772850514161_qowdzo1",
+      "date": "2026-03-06",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Hammer Strength V-Squat",
+          "weights": [
+            54,
+            104,
+            104,
+            104
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            10,
+            6,
+            6,
+            6
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2412
+        },
+        {
+          "name": "Seated Calf Raises",
+          "weights": [
+            50,
+            50
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            10,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1000
+        },
+        {
+          "name": "Seated Calf Raises Lower-End Partials",
+          "weights": [
+            50
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            12
+          ],
+          "rpe": 9,
+          "volumeLoad": 600
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            35,
+            65
+          ],
+          "eachHand": true,
+          "sets": 2,
+          "reps": [
+            45,
+            18
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 5490
+        }
+      ],
+      "totalSets": 9,
+      "totalVolume": 9502,
+      "duration": 39,
+      "caloriesBurned": 187,
+      "cardio": []
+    },
+    {
+      "id": "id_1773104269327_c9w7vvy",
+      "date": "2026-03-09",
+      "trainingType": "Pull/Triceps",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Hammer Strength Iso-Lateral Front Lat Pulldown",
+          "weights": [
+            25,
+            55,
+            55,
+            55
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            35,
+            10,
+            8,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4500
+        },
+        {
+          "name": "Standing Dumbbell Skull-Crushers",
+          "weights": [
+            55,
+            55,
+            55
+          ],
+          "eachHand": false,
+          "sets": 3,
+          "reps": [
+            8,
+            7,
+            6
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1155
+        },
+        {
+          "name": "Life Fitness Seated Row",
+          "weights": [
+            100,
+            100,
+            100
+          ],
+          "eachHand": false,
+          "sets": 3,
+          "reps": [
+            8,
+            9,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2400
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            27.5,
+            42.5,
+            42.5
+          ],
+          "eachHand": true,
+          "sets": 3,
+          "reps": [
+            16,
+            11,
+            14
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3005
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 11060,
+      "duration": 61,
+      "caloriesBurned": 397,
+      "cardio": []
+    },
+    {
+      "id": "id_1775618333541_fp5ncfe",
+      "date": "2026-04-07",
+      "trainingType": "Arms",
+      "plannedTrainingType": "Push/Biceps",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Seated Dumbbell Concentration Curl",
+          "weights": [
+            20,
+            20,
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            8,
+            8,
+            8,
+            8
+          ],
+          "rpe": 8,
+          "volumeLoad": 1280
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            5,
+            6,
+            6,
+            5,
+            4,
+            3
+          ],
+          "rpe": 8,
+          "volumeLoad": 1160
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 2440,
+      "duration": 33,
+      "caloriesBurned": 105,
+      "cardio": []
+    },
+    {
+      "id": "id_1775864339621_lz4dypi",
+      "date": "2026-04-10",
+      "trainingType": "Shoulders/Arms",
+      "plannedTrainingType": "Pull/Triceps",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            12,
+            12,
+            10,
+            10,
+            12,
+            13
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3519
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            25.5,
+            25.5,
+            25.5,
+            25.5
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            7,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1377
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 4896,
+      "duration": 45,
+      "caloriesBurned": 163,
+      "cardio": []
+    },
+    {
+      "id": "id_1776201080198_y2wphyx",
+      "date": "2026-04-14",
+      "trainingType": "Arms",
+      "plannedTrainingType": "REST",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Seated Dumbbell Concentration Curl",
+          "weights": [
+            25.5,
+            25.5,
+            25.5,
+            25.5
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            8,
+            4,
+            5,
+            5
+          ],
+          "rpe": 8,
+          "volumeLoad": 1122
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            7,
+            6,
+            5,
+            3,
+            4,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1160
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 2282,
+      "duration": 37,
+      "caloriesBurned": 70,
+      "cardio": []
+    },
+    {
+      "id": "id_1776541961506_7p216os",
+      "date": "2026-04-18",
+      "trainingType": "Arms",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 2,
+          "reps": [
+            8,
+            8
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 640
+        }
+      ],
+      "totalSets": 2,
+      "totalVolume": 640,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1776986766612_aau976n",
+      "date": "2026-04-23",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 4,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            17,
+            15,
+            12,
+            13,
+            11,
+            14,
+            11,
+            12
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2100
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2100,
+      "duration": 19,
+      "caloriesBurned": 109,
+      "cardio": []
+    },
+    {
+      "id": "id_1777417633303_j1hvb6a",
+      "date": "2026-04-28",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Weighted Pull-Ups",
+          "weights": [
+            129,
+            129,
+            129,
+            149,
+            139,
+            139
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            6,
+            6,
+            6,
+            3,
+            3,
+            3
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 3603
+        },
+        {
+          "name": "Bench Press",
+          "weights": [
+            65,
+            65,
+            135,
+            135,
+            115,
+            115
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            14,
+            12,
+            5,
+            4,
+            6,
+            5
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4170
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            30,
+            30,
+            30,
+            30,
+            30
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            8,
+            6,
+            6,
+            6,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1980
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 9753,
+      "duration": 58,
+      "caloriesBurned": 405,
+      "cardio": []
+    },
+    {
+      "id": "id_1777591685422_qqaunou",
+      "date": "2026-04-30",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 4,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            30,
+            15,
+            14,
+            12,
+            10,
+            7,
+            10,
+            13
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2220
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2220,
+      "duration": 21,
+      "caloriesBurned": 85,
+      "cardio": []
+    },
+    {
+      "id": "id_1778023991535_0e2vg75",
+      "date": "2026-05-05",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            35,
+            17,
+            16,
+            15,
+            13,
+            15,
+            12,
+            14
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2740
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2740,
+      "duration": 27,
+      "caloriesBurned": 134,
+      "cardio": []
+    },
+    {
+      "id": "id_1778366724686_cr2ftxq",
+      "date": "2026-05-09",
+      "trainingType": "Upper",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            45,
+            45,
+            45,
+            45,
+            45
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            9,
+            8,
+            7,
+            7,
+            5
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3240
+        },
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            110,
+            110,
+            110,
+            110,
+            121
+          ],
+          "sets": 5,
+          "reps": [
+            10,
+            9,
+            7,
+            8,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 4345
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 7585,
+      "duration": 33,
+      "caloriesBurned": 117,
+      "cardio": []
+    },
+    {
+      "id": "id_1778546517636_2qvnru4",
+      "date": "2026-05-11",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            20,
+            17,
+            16,
+            15,
+            13,
+            13
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1880
+        }
+      ],
+      "totalSets": 6,
+      "totalVolume": 1880,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1778711681825_b78mwn5",
+      "date": "2026-05-13",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Gym80 3028 Abduction Machine",
+          "weights": [
+            88,
+            88,
+            99,
+            88
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            13,
+            11,
+            6,
+            9
+          ],
+          "rpe": 8,
+          "volumeLoad": 3498
+        },
+        {
+          "name": "Gym80 3001 Leg Extension Machine",
+          "weights": [
+            88,
+            88,
+            88,
+            88
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            12,
+            11,
+            11,
+            9
+          ],
+          "rpe": 8,
+          "volumeLoad": 3784
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            77,
+            77,
+            66,
+            66,
+            66
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            9,
+            9,
+            11,
+            10,
+            12
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 3564
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 10846,
+      "duration": 38,
+      "caloriesBurned": 114,
+      "cardio": []
+    },
+    {
+      "id": "id_1778890835076_k8qy2sj",
+      "date": "2026-05-15",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            40,
+            40,
+            50,
+            50,
+            50
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            7,
+            10,
+            5,
+            4,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2660
+        },
+        {
+          "name": "Seated Lat Pull-Downs",
+          "weights": [
+            119,
+            119,
+            137,
+            137,
+            119
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            10,
+            8,
+            6,
+            6,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4976
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            40,
+            40,
+            40,
+            40
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            15,
+            11,
+            10,
+            13
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1960
+        }
+      ],
+      "totalSets": 14,
+      "totalVolume": 9596,
+      "duration": 56,
+      "caloriesBurned": 272,
+      "cardio": []
+    },
+    {
+      "id": "id_1779148072712_gqrvkkh",
+      "date": "2026-05-18",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            25,
+            18,
+            16,
+            15,
+            14,
+            14,
+            12,
+            16
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2600
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2600,
+      "duration": 27,
+      "caloriesBurned": 162,
+      "cardio": []
+    },
+    {
+      "id": "id_1779319162835_oz4axvy",
+      "date": "2026-05-20",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            65,
+            115,
+            115,
+            135,
+            145,
+            115
+          ],
+          "sets": 6,
+          "reps": [
+            15,
+            7,
+            7,
+            5,
+            4,
+            6
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 4530
+        },
+        {
+          "name": "Weighted Pull-Ups",
+          "weights": [
+            129,
+            149,
+            139,
+            139,
+            129,
+            129
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            7,
+            3,
+            4,
+            3,
+            5,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 3484
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            60,
+            60,
+            60,
+            60,
+            60
+          ],
+          "sets": 5,
+          "reps": [
+            8,
+            8,
+            7,
+            7,
+            6
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2160
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 10174,
+      "duration": 67,
+      "caloriesBurned": 276,
+      "cardio": []
+    },
+    {
+      "id": "id_1779592663577_osq7l8h",
+      "date": "2026-05-23",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            37,
+            21,
+            18,
+            15,
+            16,
+            15,
+            15,
+            15
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3040
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 3040,
+      "duration": 30,
+      "caloriesBurned": 87,
+      "cardio": []
+    },
+    {
+      "id": "id_1779929975377_07lbpwf",
+      "date": "2026-05-27",
+      "trainingType": "Upper",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Gym80 3040 Seated Row Machine",
+          "weights": [
+            110,
+            110,
+            110,
+            121,
+            121,
+            121
+          ],
+          "sets": 6,
+          "reps": [
+            12,
+            10,
+            9,
+            7,
+            6,
+            5
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 5588
+        },
+        {
+          "name": "Bench Press",
+          "weights": [
+            115,
+            115,
+            115,
+            135,
+            145,
+            125
+          ],
+          "sets": 6,
+          "reps": [
+            6,
+            7,
+            5,
+            4,
+            3,
+            6
+          ],
+          "rpe": 7,
+          "volumeLoad": 3795
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            7,
+            6,
+            6,
+            6,
+            5,
+            5
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2450
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 11833,
+      "duration": 75,
+      "caloriesBurned": 377,
+      "cardio": []
+    },
+    {
+      "id": "id_1780107156169_62tevrb",
+      "date": "2026-05-29",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "REST",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75
+          ],
+          "eachHand": true,
+          "sets": 7,
+          "reps": [
+            21,
+            13,
+            10,
+            11,
+            11,
+            14,
+            13
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2371.5
+        }
+      ],
+      "totalSets": 7,
+      "totalVolume": 2371.5,
+      "duration": 20,
+      "caloriesBurned": 94,
+      "cardio": []
+    },
+    {
+      "id": "id_1780540711470_d7j5d1f",
+      "date": "2026-06-03",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75,
+            12.75
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            23,
+            18,
+            15,
+            15,
+            14,
+            12,
+            11,
+            14
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3111
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 3111,
+      "duration": 28,
+      "caloriesBurned": 108,
+      "cardio": []
+    },
+    {
+      "id": "id_1780957973294_7qynbqg",
+      "date": "2026-06-08",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Flex Fitness Angled Leg Press",
+          "weights": [
+            130,
+            220,
+            250,
+            250,
+            250
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            16,
+            12,
+            4,
+            4,
+            3
+          ],
+          "rpe": 8,
+          "volumeLoad": 7470
+        },
+        {
+          "name": "Seated Calf Raises",
+          "weights": [
+            70,
+            70
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            11,
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1400
+        },
+        {
+          "name": "Seated Calf Raises Lower-End Partials",
+          "weights": [
+            70
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            14
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 980
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            35,
+            57.5,
+            72.5,
+            72.5,
+            72.5
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            35,
+            17,
+            9,
+            8,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 8320
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 18170,
+      "duration": 59,
+      "caloriesBurned": 184,
+      "cardio": []
+    },
+    {
+      "id": "id_1781573973343_r9a1chz",
+      "date": "2026-06-15",
+      "loggedAt": "2026-06-16T01:01:00.000Z",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            16,
+            12,
+            11,
+            8,
+            8,
+            13
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2108
+        }
+      ],
+      "totalSets": 6,
+      "totalVolume": 2108,
+      "duration": 16,
+      "caloriesBurned": 84,
+      "cardio": []
+    },
+    {
+      "id": "id_1781747326206_9a16htc",
+      "date": "2026-06-17",
+      "loggedAt": "2026-06-18T01:03:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            45,
+            45,
+            55,
+            55,
+            55,
+            55
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            10,
+            8,
+            3,
+            4,
+            3,
+            2
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2940
+        },
+        {
+          "name": "Gym80 Pure Kraft High Row Dual",
+          "weights": [
+            35,
+            35,
+            60,
+            60,
+            80,
+            80
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            17,
+            13,
+            6,
+            5,
+            4,
+            4
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4700
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            70,
+            70,
+            70,
+            70,
+            70
+          ],
+          "sets": 5,
+          "reps": [
+            6,
+            4,
+            4,
+            4,
+            4
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1540
+        }
+      ],
+      "totalSets": 17,
+      "totalVolume": 9180,
+      "duration": 70,
+      "caloriesBurned": 303,
+      "cardio": []
+    },
+    {
+      "id": "id_1782173886225_uywnoc6",
+      "date": "2026-06-22",
+      "loggedAt": "2026-06-22T23:47:00.000Z",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            17,
+            13,
+            10,
+            10,
+            8,
+            9,
+            10,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2697
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2697,
+      "duration": 30,
+      "caloriesBurned": 162,
+      "cardio": []
+    },
+    {
+      "id": "id_1782356083592_urcwj31",
+      "date": "2026-06-24",
+      "loggedAt": "2026-06-25T01:24:00.000Z",
+      "trainingType": "Shoulders/Arms",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            12,
+            8,
+            10,
+            9,
+            9,
+            10,
+            9,
+            9
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 2356
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            16,
+            13,
+            12,
+            12,
+            13,
+            26
+          ],
+          "rpe": 6.5,
+          "volumeLoad": 2852
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            9,
+            8,
+            8,
+            7,
+            6,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1395
+        }
+      ],
+      "totalSets": 20,
+      "totalVolume": 6603,
+      "duration": 84,
+      "caloriesBurned": 243,
+      "cardio": []
+    },
+    {
+      "id": "id_1782678426163_l9j269t",
+      "date": "2026-06-28",
+      "loggedAt": "2026-06-28T19:56:00.000Z",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [
+        {
+          "name": "Gym80 4353 Pure Kraft Pendulum Squat",
+          "weights": [
+            25,
+            35,
+            35,
+            45,
+            45
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            8,
+            6,
+            4,
+            3,
+            2
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 775
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine",
+          "weights": [
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            8,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1980
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine Lower-End Partials",
+          "weights": [
+            110
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            13
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1430
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            110,
+            132,
+            165,
+            176,
+            165
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            23,
+            16,
+            8,
+            6,
+            9
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 8503
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 12688,
+      "duration": 57,
+      "caloriesBurned": 286,
+      "cardio": []
+    },
+    {
+      "id": "id_1783043542072_ccj9aj7",
+      "date": "2026-07-02",
+      "loggedAt": "2026-07-03T01:50:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 4,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            115,
+            115,
+            155,
+            155,
+            145,
+            135
+          ],
+          "sets": 6,
+          "reps": [
+            8,
+            7,
+            4,
+            4,
+            6,
+            5
+          ],
+          "rpe": 9,
+          "volumeLoad": 4510
+        },
+        {
+          "name": "Life Fitness Seated Row",
+          "weights": [
+            100,
+            105,
+            110,
+            115,
+            115,
+            115
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            10,
+            7,
+            7,
+            6,
+            7,
+            6
+          ],
+          "rpe": 8,
+          "volumeLoad": 4690
+        },
+        {
+          "name": "Standing EZ-Bar Shoulder Press",
+          "weights": [
+            70,
+            70,
+            70,
+            70,
+            70,
+            70
+          ],
+          "sets": 6,
+          "reps": [
+            7,
+            6,
+            4,
+            4,
+            4,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2100
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 11300,
+      "duration": 70,
+      "caloriesBurned": 337,
+      "cardio": []
+    },
+    {
+      "id": "id_1783298614665_6b213x9",
+      "date": "2026-07-05",
+      "loggedAt": "2026-07-05T23:01:00.000Z",
+      "trainingType": "Shoulders/Arms",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            21,
+            11,
+            11,
+            11,
+            10,
+            11
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2325
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            27,
+            18,
+            20,
+            19,
+            20,
+            26
+          ],
+          "rpe": 6.5,
+          "volumeLoad": 4030
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            11,
+            10,
+            10,
+            10,
+            10,
+            10
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1891
+        }
+      ],
+      "totalSets": 18,
+      "totalVolume": 8246,
+      "duration": 90,
+      "caloriesBurned": 379,
+      "cardio": []
+    },
+    {
+      "id": "id_1783469043997_z2dzk9y",
+      "date": "2026-07-07",
+      "loggedAt": "2026-07-07T23:27:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 2,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            30,
+            50,
+            50,
+            60,
+            55,
+            55
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            14,
+            5,
+            6,
+            1,
+            3,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2830
+        },
+        {
+          "name": "Life Fitness Seated Row",
+          "weights": [
+            105,
+            110,
+            115,
+            115,
+            120,
+            120
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            10,
+            6,
+            7,
+            7,
+            6,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4880
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            7,
+            6,
+            5,
+            7
+          ],
+          "rpe": 9,
+          "volumeLoad": 1750
+        }
+      ],
+      "totalSets": 16,
+      "totalVolume": 9460,
+      "duration": 68,
+      "caloriesBurned": 261,
+      "cardio": []
+    },
+    {
+      "id": "id_1783983483208_muyf4xo",
+      "date": "2026-07-13",
+      "loggedAt": "2026-07-13T22:55:00.000Z",
+      "trainingType": "Push/Biceps",
+      "plannedTrainingType": "REST",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            115,
+            115,
+            160,
+            155,
+            155,
+            135
+          ],
+          "sets": 6,
+          "reps": [
+            10,
+            7,
+            3,
+            3,
+            3,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4175
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            6,
+            7,
+            6,
+            6
+          ],
+          "rpe": 8,
+          "volumeLoad": 1750
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            4,
+            5,
+            5,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1330
+        }
+      ],
+      "totalSets": 14,
+      "totalVolume": 7255,
+      "duration": 58,
+      "caloriesBurned": 204,
+      "cardio": []
+    },
+    {
+      "id": "id_1784241328077_xa7to6z",
+      "date": "2026-07-16",
+      "loggedAt": "2026-07-16T22:02:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "REST",
+      "cycleDay": 4,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            20,
+            60,
+            55,
+            55,
+            45,
+            45
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            20,
+            3,
+            4,
+            4,
+            5,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2850
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            35,
+            50,
+            50,
+            57.5
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            17,
+            10,
+            12,
+            8
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 4310
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            65,
+            80,
+            80,
+            80,
+            80
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            13,
+            8,
+            7,
+            8,
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 6650
+        }
+      ],
+      "totalSets": 15,
+      "totalVolume": 13810,
+      "duration": 64,
+      "caloriesBurned": 243,
+      "cardio": []
+    },
+    {
+      "id": "id_1784417997043_04r81bs",
+      "date": "2026-07-18",
+      "loggedAt": "2026-07-18T23:39:00.000Z",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            17.75,
+            17.75,
+            17.75,
+            17.75,
+            17.75,
+            17.75,
+            17.75,
+            17.75
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            11,
+            8,
+            7,
+            8,
+            8,
+            7,
+            6,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2201
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2201,
+      "duration": 30,
+      "caloriesBurned": 80,
+      "cardio": []
+    },
+    {
+      "id": "id_1784759419765_4n7g7vw",
+      "date": "2026-07-22",
+      "loggedAt": "2026-07-22T22:28:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            115,
+            115,
+            165,
+            160,
+            155,
+            135
+          ],
+          "sets": 6,
+          "reps": [
+            10,
+            10,
+            2,
+            3,
+            4,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4540
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            35,
+            57.5,
+            57.5,
+            57.5,
+            65
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            16,
+            10,
+            10,
+            9,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 5235
+        },
+        {
+          "name": "Seated Dumbbell Concentration Curl",
+          "weights": [
+            25,
+            25,
+            25,
+            25
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            7,
+            7,
+            7,
+            5
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1300
+        },
+        {
+          "name": "Standing Dumbbell Skull-Crushers",
+          "weights": [
+            60,
+            60,
+            55,
+            55
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            4,
+            3,
+            4,
+            3
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 805
+        }
+      ],
+      "totalSets": 19,
+      "totalVolume": 11880,
+      "duration": 90,
+      "caloriesBurned": 358,
+      "cardio": []
+    },
+    {
+      "id": "id_1785020225743_ps7894v",
+      "date": "2026-07-25",
+      "loggedAt": "2026-07-25T22:26:00.000Z",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Flex Fitness Angled Leg Press",
+          "weights": [
+            120,
+            145,
+            145,
+            145,
+            145
+          ],
+          "eachHand": false,
+          "sets": 5,
+          "reps": [
+            18,
+            12,
+            12,
+            12,
+            10
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 8830
+        },
+        {
+          "name": "Seated Calf Raises",
+          "weights": [
+            105,
+            105
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            6,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1365
+        },
+        {
+          "name": "Seated Calf Raises Lower-End Partials",
+          "weights": [
+            60
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            18
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 1080
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            65,
+            80,
+            80,
+            80,
+            80
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            11,
+            6,
+            8,
+            8,
+            9
+          ],
+          "rpe": 9,
+          "volumeLoad": 6390
+        }
+      ],
+      "totalSets": 13,
+      "totalVolume": 17665,
+      "duration": 62,
+      "caloriesBurned": 254,
+      "cardio": []
+    },
+    {
+      "id": "id_1785188256916_2nhrahb",
+      "date": "2026-07-27",
+      "loggedAt": "2026-07-27T21:36:00.000Z",
+      "trainingType": "Arms",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 1,
+      "exercises": [
+        {
+          "name": "Seated Dumbbell Concentration Curl",
+          "weights": [
+            20,
+            20,
+            20,
+            20,
+            0,
+            0
+          ],
+          "sets": 6,
+          "reps": [
+            7,
+            7,
+            0,
+            0,
+            0,
+            0
+          ],
+          "rpe": 7.5,
+          "volumeLoad": 280
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            15.5,
+            15.5,
+            15.5,
+            15.5
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            11,
+            10,
+            10,
+            10
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1271
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 1551,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": []
+    },
+    {
+      "id": "id_1785368964333_ixocmsp",
+      "date": "2026-07-29",
+      "loggedAt": "2026-07-29T23:11:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Dumbbell Incline Bench Press",
+          "weights": [
+            25,
+            60,
+            55,
+            55,
+            45,
+            45
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            15,
+            3,
+            3,
+            2,
+            4,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2380
+        },
+        {
+          "name": "Rope Cable Face-Pulls",
+          "weights": [
+            35,
+            65,
+            65,
+            57.5,
+            57.5
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            21,
+            6,
+            5,
+            11,
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 5085
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            35,
+            35,
+            35,
+            35
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            6,
+            5,
+            5,
+            5
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1470
+        }
+      ],
+      "totalSets": 15,
+      "totalVolume": 8935,
+      "duration": 71,
+      "caloriesBurned": 317,
+      "cardio": []
+    },
+    {
+      "id": "id_1785628220338_qetd6ch",
+      "date": "2026-08-01",
+      "loggedAt": "2026-08-01T21:55:00.000Z",
+      "trainingType": "Upper",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            115,
+            165,
+            155,
+            155,
+            145,
+            145
+          ],
+          "sets": 6,
+          "reps": [
+            8,
+            2,
+            4,
+            3,
+            5,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 3640
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            30
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            5,
+            8,
+            5,
+            5,
+            11
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2270
+        },
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            35,
+            35,
+            35,
+            35,
+            30
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            9,
+            6,
+            6,
+            5,
+            6
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2180
+        },
+        {
+          "name": "Seated Lat Pull-Downs",
+          "weights": [
+            119,
+            155,
+            137,
+            137,
+            119,
+            119
+          ],
+          "eachHand": false,
+          "sets": 6,
+          "reps": [
+            8,
+            4,
+            5,
+            5,
+            8,
+            8
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4846
+        }
+      ],
+      "totalSets": 22,
+      "totalVolume": 12936,
+      "duration": 107,
+      "caloriesBurned": 646,
+      "cardio": []
+    },
+    {
+      "id": "id_1785974630767_dxfyn6y",
+      "date": "2026-08-05",
+      "loggedAt": "2026-08-06T00:03:00.000Z",
+      "trainingType": "Shoulders/Arms",
+      "plannedTrainingType": "REST",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            20,
+            40,
+            35,
+            35,
+            30,
+            30
+          ],
+          "eachHand": true,
+          "sets": 6,
+          "reps": [
+            8,
+            6,
+            6,
+            5,
+            7,
+            7
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 2410
+        },
+        {
+          "name": "Standing Dumbbell Skull-Crushers",
+          "weights": [
+            65,
+            60,
+            55,
+            55
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            3,
+            4,
+            4,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 875
+        },
+        {
+          "name": "Standing Dumbbell Cross-Body Hammer Curls",
+          "weights": [
+            40,
+            35,
+            35,
+            30
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            4,
+            5,
+            5,
+            9
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 1560
+        },
+        {
+          "name": "Standing Dumbbell Lateral Raises",
+          "weights": [
+            15
+          ],
+          "eachHand": true,
+          "sets": 1,
+          "reps": [
+            23
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 690
+        }
+      ],
+      "totalSets": 15,
+      "totalVolume": 5535,
+      "duration": 60,
+      "caloriesBurned": 259,
+      "cardio": []
+    },
+    {
+      "id": "id_1786854967454_otxu238",
+      "date": "2026-08-15",
+      "loggedAt": "2026-08-16T03:38:00.000Z",
+      "trainingType": "Arms",
+      "plannedTrainingType": "REST",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Seated Dumbbell Concentration Curl",
+          "weights": [
+            20,
+            20,
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 4,
+          "reps": [
+            8,
+            9,
+            7,
+            9
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1320
+        },
+        {
+          "name": "Seated Single Arm Dumbbell Tricep Extension",
+          "weights": [
+            20,
+            20,
+            20,
+            20,
+            20
+          ],
+          "eachHand": true,
+          "sets": 5,
+          "reps": [
+            5,
+            4,
+            4,
+            4,
+            4
+          ],
+          "rpe": 9.5,
+          "volumeLoad": 840
+        }
+      ],
+      "totalSets": 9,
+      "totalVolume": 2160,
+      "duration": 50,
+      "caloriesBurned": 90,
+      "cardio": []
+    },
+    {
+      "id": "id_1787362985915_4jz7aze",
+      "date": "2026-08-21",
+      "loggedAt": "2026-08-22T00:40:00.000Z",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 5,
+      "exercises": [
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            6,
+            7,
+            6,
+            7,
+            7,
+            7,
+            8,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 2958
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 2958,
+      "duration": 48,
+      "caloriesBurned": 100,
+      "cardio": []
+    },
+    {
+      "id": "id_1787788911700_dgj19u5",
+      "date": "2026-08-26",
+      "loggedAt": "2026-08-26T23:19:00.000Z",
+      "trainingType": "Shoulders",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Seated Arnold Press",
+          "weights": [
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5,
+            25.5
+          ],
+          "eachHand": true,
+          "sets": 8,
+          "reps": [
+            11,
+            10,
+            10,
+            10,
+            9,
+            9,
+            10,
+            9
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3978
+        }
+      ],
+      "totalSets": 8,
+      "totalVolume": 3978,
+      "duration": 41,
+      "caloriesBurned": 102,
+      "cardio": []
+    },
+    {
+      "id": "id_1788400119465_2b302fq",
+      "date": "2026-09-02",
+      "loggedAt": "2026-09-03T00:46:00.000Z",
+      "trainingType": "Chest/Back",
+      "plannedTrainingType": "Arms",
+      "cycleDay": 3,
+      "exercises": [
+        {
+          "name": "Bench Press",
+          "weights": [
+            45,
+            160,
+            155,
+            145,
+            145,
+            135
+          ],
+          "sets": 6,
+          "reps": [
+            22,
+            3,
+            4,
+            5,
+            3,
+            6
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 4060
+        },
+        {
+          "name": "Seated Lat Pull-Downs",
+          "weights": [
+            119,
+            155,
+            137,
+            137,
+            119,
+            119
+          ],
+          "sets": 6,
+          "reps": [
+            9,
+            2,
+            5,
+            6,
+            9,
+            9
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 5030
+        }
+      ],
+      "totalSets": 12,
+      "totalVolume": 9090,
+      "duration": 55,
+      "caloriesBurned": 161,
+      "cardio": []
+    },
+    {
+      "id": "id_1788657631804_o1749uf",
+      "date": "2026-09-05",
+      "loggedAt": "2026-09-06T00:41:00.000Z",
+      "trainingType": "Legs/Core",
+      "plannedTrainingType": "Shoulders/Arms",
+      "cycleDay": 6,
+      "exercises": [
+        {
+          "name": "Flex Fitness Angled Leg Press",
+          "weights": [
+            70,
+            140,
+            160,
+            190
+          ],
+          "eachHand": false,
+          "sets": 4,
+          "reps": [
+            18,
+            12,
+            12,
+            7
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 6190
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine",
+          "weights": [
+            110,
+            110
+          ],
+          "eachHand": false,
+          "sets": 2,
+          "reps": [
+            11,
+            11
+          ],
+          "rpe": 9,
+          "volumeLoad": 2420
+        },
+        {
+          "name": "Gym80 3018 Standing Calf Raise Machine Lower-End Partials",
+          "weights": [
+            110
+          ],
+          "eachHand": false,
+          "sets": 1,
+          "reps": [
+            11
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 1210
+        },
+        {
+          "name": "Rope Cable Crunches",
+          "weights": [
+            165,
+            187,
+            165
+          ],
+          "eachHand": false,
+          "sets": 3,
+          "reps": [
+            8,
+            4,
+            10
+          ],
+          "rpe": 8.5,
+          "volumeLoad": 3718
+        }
+      ],
+      "totalSets": 10,
+      "totalVolume": 13538,
+      "duration": 66,
+      "caloriesBurned": 351,
+      "cardio": [
+        {
+          "name": "Stairmaster",
+          "minutes": 20,
+          "steps": 816
+        }
+      ]
+    },
+    {
+      "id": "id_1788760162430_517angt",
+      "date": "2026-09-06",
+      "loggedAt": "2026-09-07T01:36:00.000Z",
+      "trainingType": "Active Recovery",
+      "plannedTrainingType": "REST",
+      "cycleDay": 0,
+      "exercises": [],
+      "totalSets": 0,
+      "totalVolume": 0,
+      "duration": 60,
+      "caloriesBurned": null,
+      "cardio": [
+        {
+          "name": "Dance",
+          "minutes": 60,
+          "steps": 3361,
+          "effort": 6,
+          "timing": null
+        }
+      ]
+    }
+  ],
+  "trainingCycle": [
+    "REST",
+    "Shoulders/Arms",
+    "REST",
+    "Upper",
+    "Shoulders",
+    "REST",
+    "Legs/Core"
+  ],
+  "customCycles": {
+    "custom_id_1788728601856_al9x154": {
+      "name": "Upper/Lower/Arms 7-Day Split",
+      "days": [
+        "REST",
+        "Shoulders/Arms",
+        "REST",
+        "Upper",
+        "Shoulders",
+        "REST",
+        "Legs/Core"
+      ],
+      "description": "Custom 7-day cycle"
+    }
+  },
+  "nutrition": [
+    {
+      "id": "id_1763360682461_44zc1ri",
+      "date": "2025-11-16",
+      "protein": 103,
+      "calories": 2050
+    },
+    {
+      "id": "id_1763390137354_cmjb71i",
+      "date": "2025-11-17",
+      "protein": 10,
+      "calories": 60
+    },
+    {
+      "id": "id_1763393034674_gu2z6h4",
+      "date": "2025-11-17",
+      "protein": 0,
+      "calories": 10
+    },
+    {
+      "id": "id_1763404380974_7hoiov9",
+      "date": "2025-11-17",
+      "protein": 24,
+      "calories": 650
+    },
+    {
+      "id": "id_1763415468885_h45obvd",
+      "date": "2025-11-17",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1763424061190_raxr6a3",
+      "date": "2025-11-17",
+      "protein": 8,
+      "calories": 370
+    },
+    {
+      "id": "id_1763424120506_9u59muc",
+      "date": "2025-11-17",
+      "protein": 38,
+      "calories": 280
+    },
+    {
+      "id": "id_1763424197643_jmesxdn",
+      "date": "2025-11-17",
+      "protein": 7,
+      "calories": 80
+    },
+    {
+      "id": "id_1763424211551_cnng91k",
+      "date": "2025-11-17",
+      "protein": 0,
+      "calories": 20
+    },
+    {
+      "id": "id_1763428970671_ayzq589",
+      "date": "2025-11-17",
+      "protein": 8,
+      "calories": 150
+    },
+    {
+      "id": "id_1763429035917_lxh7fh0",
+      "date": "2025-11-17",
+      "protein": 2,
+      "calories": 320
+    },
+    {
+      "id": "id_1763434381230_spwoap4",
+      "date": "2025-11-17",
+      "protein": 3,
+      "calories": 220
+    },
+    {
+      "id": "id_1763446701798_hprgge6",
+      "date": "2025-11-17",
+      "protein": 4,
+      "calories": 190
+    },
+    {
+      "id": "id_1763490203864_3lqd3s9",
+      "date": "2025-11-18",
+      "protein": 0,
+      "calories": 140
+    },
+    {
+      "id": "id_1763491057582_4pevdro",
+      "date": "2025-11-18",
+      "protein": 0,
+      "calories": 320
+    },
+    {
+      "id": "id_1763497503124_14hok2p",
+      "date": "2025-11-18",
+      "protein": 1,
+      "calories": 160
+    },
+    {
+      "id": "id_1763500241073_mmqus78",
+      "date": "2025-11-18",
+      "protein": 50,
+      "calories": 227
+    },
+    {
+      "id": "id_1763500305785_q45zkfb",
+      "date": "2025-11-18",
+      "protein": 0,
+      "calories": 70
+    },
+    {
+      "id": "id_1763500446795_zx2su9t",
+      "date": "2025-11-18",
+      "protein": 5,
+      "calories": 140
+    },
+    {
+      "id": "id_1763507548808_5t1i0i7",
+      "date": "2025-11-18",
+      "protein": 10,
+      "calories": 60
+    },
+    {
+      "id": "id_1763510566438_stso6wz",
+      "date": "2025-11-18",
+      "protein": 1,
+      "calories": 160
+    },
+    {
+      "id": "id_1763523346861_xwa21e5",
+      "date": "2025-11-18",
+      "protein": 4,
+      "calories": 190
+    },
+    {
+      "id": "id_1763524367901_y33r970",
+      "date": "2025-11-16",
+      "sleepHours": 6.716666666666667,
+      "deepSleepPercent": 11.910669975186105,
+      "deepSleepMinutes": 48,
+      "protein": 0,
+      "calories": 0,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763524431163_y63qu4d",
+      "date": "2025-11-17",
+      "sleepHours": 6.683333333333334,
+      "deepSleepPercent": 19.9501246882793,
+      "deepSleepMinutes": 80,
+      "protein": 0,
+      "calories": 0,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763525283697_n6kjp1f",
+      "date": "2025-11-18",
+      "sleepHours": 8,
+      "deepSleepPercent": 20,
+      "deepSleepMinutes": 96,
+      "protein": 0,
+      "calories": 650,
+      "weight": 135,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1763525953694_w3jkbjz",
+      "date": "2025-11-18",
+      "sleepHours": 5.333333333333333,
+      "deepSleepPercent": 8.4375,
+      "deepSleepMinutes": 27,
+      "protein": 24,
+      "calories": 0,
+      "weight": 135,
+      "recoveryRating": 3
+    },
+    {
+      "id": "id_1763528957948_h0tffcq",
+      "date": "2025-11-18",
+      "protein": 14,
+      "calories": 160,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763528977403_bqbj5la",
+      "date": "2025-11-18",
+      "protein": 6,
+      "calories": 110,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763529008124_2nssnur",
+      "date": "2025-11-18",
+      "protein": 6,
+      "calories": 120,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763529017183_ed2cxqx",
+      "date": "2025-11-18",
+      "protein": 0,
+      "calories": 120,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763529211664_sjw3bdo",
+      "date": "2025-11-18",
+      "protein": 0,
+      "calories": 200,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763535299768_8xzis9e",
+      "date": "2025-11-18",
+      "protein": 2,
+      "calories": 320,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763535352252_7dgs87h",
+      "date": "2025-11-18",
+      "protein": 8,
+      "calories": 150,
+      "sleepHours": 0,
+      "deepSleepPercent": 0,
+      "deepSleepMinutes": 0,
+      "weight": 0,
+      "recoveryRating": 0
+    },
+    {
+      "id": "id_1763577901128_okvwyp0",
+      "date": "2025-11-19",
+      "protein": 10,
+      "calories": 360
+    },
+    {
+      "id": "id_1763580178745_pvrloz0",
+      "date": "2025-11-19",
+      "protein": 40,
+      "calories": 650
+    },
+    {
+      "id": "id_1763599102140_0z0kdo9",
+      "date": "2025-11-19",
+      "protein": 1,
+      "calories": 160
+    },
+    {
+      "id": "id_1763606115244_xuavog6",
+      "date": "2025-11-19",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1763617804833_y9fdliz",
+      "date": "2025-11-19",
+      "protein": 26,
+      "calories": 280
+    },
+    {
+      "id": "id_1763620889925_1ew803k",
+      "date": "2025-11-19",
+      "protein": 4,
+      "calories": 190
+    },
+    {
+      "id": "id_1763657496268_80z6vds",
+      "date": "2025-11-20",
+      "protein": 10,
+      "calories": 210
+    },
+    {
+      "id": "id_1763662349016_pzell8z",
+      "date": "2025-11-20",
+      "protein": 0,
+      "calories": 150
+    },
+    {
+      "id": "id_1763668171473_1ub3gu9",
+      "date": "2025-11-20",
+      "protein": 18,
+      "calories": 455
+    },
+    {
+      "id": "id_1763679239147_5gjij8h",
+      "date": "2025-11-20",
+      "protein": 26,
+      "calories": 590
+    },
+    {
+      "id": "id_1763698911565_htpxn7z",
+      "date": "2025-11-20",
+      "protein": 0,
+      "calories": 200
+    },
+    {
+      "id": "id_1763709416076_glin2on",
+      "date": "2025-11-20",
+      "protein": 63,
+      "calories": 1760
+    },
+    {
+      "id": "id_1763760642475_81v8rkm",
+      "date": "2025-11-21",
+      "protein": 40,
+      "calories": 695
+    },
+    {
+      "id": "id_1763760712505_kckqj2s",
+      "date": "2025-11-21",
+      "protein": 0,
+      "calories": 150
+    },
+    {
+      "id": "id_1763775479369_gtbrb9x",
+      "date": "2025-11-21",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1763784191508_prb0yjc",
+      "date": "2025-11-21",
+      "protein": 2,
+      "calories": 320
+    },
+    {
+      "id": "id_1763786803687_qcy4ydg",
+      "date": "2025-11-21",
+      "protein": 55,
+      "calories": 670
+    },
+    {
+      "id": "id_1763830369225_3xn61mg",
+      "date": "2025-11-22",
+      "protein": 26,
+      "calories": 610
+    },
+    {
+      "id": "id_1763840105096_y7t6218",
+      "date": "2025-11-22",
+      "protein": 42,
+      "calories": 200
+    },
+    {
+      "id": "id_1763850512773_77nvmlv",
+      "date": "2025-11-22",
+      "protein": 1,
+      "calories": 370
+    },
+    {
+      "id": "id_1763856137085_3ydkl3y",
+      "date": "2025-11-22",
+      "protein": 29,
+      "calories": 470
+    },
+    {
+      "id": "id_1763871060297_4gjku5b",
+      "date": "2025-11-22",
+      "protein": 2,
+      "calories": 320
+    },
+    {
+      "id": "id_1763878561526_rjdiefz",
+      "date": "2025-11-22",
+      "protein": 38,
+      "calories": 280
+    },
+    {
+      "id": "id_1763878874200_iisl29m",
+      "date": "2025-11-22",
+      "protein": 0,
+      "calories": 120
+    },
+    {
+      "id": "id_1763880967653_8qn5ar3",
+      "date": "2025-11-22",
+      "protein": 0,
+      "calories": 110
+    },
+    {
+      "id": "id_1763924565973_905xs80",
+      "date": "2025-11-23",
+      "protein": 0,
+      "calories": 215
+    },
+    {
+      "id": "id_1763930181298_b6hpwq9",
+      "date": "2025-11-23",
+      "protein": 30,
+      "calories": 1200
+    },
+    {
+      "id": "id_1763969996649_rczwnka",
+      "date": "2025-11-23",
+      "protein": 60,
+      "calories": 1150
+    },
+    {
+      "id": "id_1764005208482_0pwqckg",
+      "date": "2025-11-24",
+      "protein": 0,
+      "calories": 420
+    },
+    {
+      "id": "id_1764018354887_kaljhwh",
+      "date": "2025-11-24",
+      "protein": 29,
+      "calories": 470
+    },
+    {
+      "id": "id_1764018505967_nphau9s",
+      "date": "2025-11-23",
+      "protein": 36,
+      "calories": 800
+    },
+    {
+      "id": "id_1764025464288_uzmevm7",
+      "date": "2025-11-24",
+      "protein": 42,
+      "calories": 200
+    },
+    {
+      "id": "id_1764030957863_lukcvi3",
+      "date": "2025-11-24",
+      "protein": 1,
+      "calories": 160
+    },
+    {
+      "id": "id_1764048754749_ylo95ap",
+      "date": "2025-11-24",
+      "protein": 30,
+      "calories": 1200
+    },
+    {
+      "id": "id_1764127355826_wc2beux",
+      "date": "2025-11-25",
+      "protein": 8,
+      "calories": 300
+    },
+    {
+      "id": "id_1764133278275_7dyobve",
+      "date": "2025-11-25",
+      "protein": 56,
+      "calories": 900
+    },
+    {
+      "id": "id_1764173434181_5i5jnfy",
+      "date": "2025-11-26",
+      "protein": 0,
+      "calories": 185
+    },
+    {
+      "id": "id_1764176397059_otngdq4",
+      "date": "2025-11-26",
+      "protein": 43,
+      "calories": 330
+    },
+    {
+      "id": "id_1764186482159_3facjfx",
+      "date": "2025-11-26",
+      "protein": 40,
+      "calories": 800
+    },
+    {
+      "id": "id_1764197251926_ungh2bf",
+      "date": "2025-11-26",
+      "protein": 0,
+      "calories": 220
+    },
+    {
+      "id": "id_1764205963537_2wdkl2i",
+      "date": "2025-11-26",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1764260819344_355k4ri",
+      "date": "2025-11-27",
+      "protein": 2,
+      "calories": 505
+    },
+    {
+      "id": "id_1764283832586_qttneot",
+      "date": "2025-11-27",
+      "protein": 45,
+      "calories": 1750
+    },
+    {
+      "id": "id_1764294086418_pxithfh",
+      "date": "2025-11-27",
+      "protein": 23,
+      "calories": 140
+    },
+    {
+      "id": "id_1764353866307_1m6wsxu",
+      "date": "2025-11-28",
+      "protein": 15,
+      "calories": 325
+    },
+    {
+      "id": "id_1764353904012_k2q6j4q",
+      "date": "2025-11-28",
+      "protein": 0,
+      "calories": 185
+    },
+    {
+      "id": "id_1764353925498_b4er41z",
+      "date": "2025-11-28",
+      "protein": 23,
+      "calories": 140
+    },
+    {
+      "id": "id_1764360803450_4hmb5d0",
+      "date": "2025-11-28",
+      "protein": 30,
+      "calories": 800
+    },
+    {
+      "id": "id_1764451024804_jw656q3",
+      "date": "2025-11-29",
+      "protein": 0,
+      "calories": 185
+    },
+    {
+      "id": "id_1764451073865_80gt80p",
+      "date": "2025-11-29",
+      "protein": 15,
+      "calories": 425
+    },
+    {
+      "id": "id_1764451284446_aq68qnc",
+      "date": "2025-11-29",
+      "protein": 30,
+      "calories": 1100
+    },
+    {
+      "id": "id_1764460217767_7yr05a7",
+      "date": "2025-11-29",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1764486443775_ozmg2f1",
+      "date": "2025-11-29",
+      "protein": 30,
+      "calories": 800
+    },
+    {
+      "id": "id_1764487627014_gzqdry5",
+      "date": "2025-11-29",
+      "protein": 4,
+      "calories": 170
+    },
+    {
+      "id": "id_1764489022779_hu5s7g9",
+      "date": "2025-11-29",
+      "protein": 11,
+      "calories": 360
+    },
+    {
+      "id": "id_1764526656359_tf5ivjp",
+      "date": "2025-11-30",
+      "protein": 0,
+      "calories": 118
+    },
+    {
+      "id": "id_1764630001143_zkdgjqp",
+      "date": "2025-12-01",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1764630018492_d5woqve",
+      "date": "2025-12-01",
+      "protein": 0,
+      "calories": 100
+    },
+    {
+      "id": "id_1764630070152_c0je8d0",
+      "date": "2025-12-01",
+      "protein": 20,
+      "calories": 700
+    },
+    {
+      "id": "id_1764630156533_j1wesk5",
+      "date": "2025-12-01",
+      "protein": 0,
+      "calories": 250
+    },
+    {
+      "id": "id_1764643410259_wxdlnjc",
+      "date": "2025-12-01",
+      "protein": 60,
+      "calories": 1250
+    },
+    {
+      "id": "id_1764713714423_pbhvh7h",
+      "date": "2025-12-02",
+      "protein": 27,
+      "calories": 640
+    },
+    {
+      "id": "id_1764713739685_7dsu1vm",
+      "date": "2025-12-02",
+      "protein": 17,
+      "calories": 460
+    },
+    {
+      "id": "id_1764713761471_6cql35v",
+      "date": "2025-12-02",
+      "protein": 10,
+      "calories": 290
+    },
+    {
+      "id": "id_1764814519846_rj0g6z5",
+      "date": "2025-12-02",
+      "protein": 30,
+      "calories": 450
+    },
+    {
+      "id": "id_1764814601031_t09rmvy",
+      "date": "2025-12-03",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1764814613248_to7bpxn",
+      "date": "2025-12-03",
+      "protein": 0,
+      "calories": 185
+    },
+    {
+      "id": "id_1764814725106_37bubfz",
+      "date": "2025-12-03",
+      "protein": 60,
+      "calories": 500
+    },
+    {
+      "id": "id_1764823185839_drfsgjd",
+      "date": "2025-12-03",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1764896101883_uxq08mr",
+      "date": "2025-12-04",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1764896281969_tbsdc3h",
+      "date": "2025-12-04",
+      "protein": 0,
+      "calories": 360
+    },
+    {
+      "id": "id_1764977946030_oz3ogyr",
+      "date": "2025-12-05",
+      "protein": 20,
+      "calories": 510
+    },
+    {
+      "id": "id_1765063740477_rms6rp5",
+      "date": "2025-12-06",
+      "protein": 0,
+      "calories": 185
+    },
+    {
+      "id": "id_1765069800236_pdfobjq",
+      "date": "2025-12-06",
+      "protein": 13,
+      "calories": 200
+    },
+    {
+      "id": "id_1765070069943_ktdrvtf",
+      "date": "2025-12-06",
+      "protein": 30,
+      "calories": 384
+    },
+    {
+      "id": "id_1765076914924_p95hn5w",
+      "date": "2025-12-06",
+      "protein": 26,
+      "calories": 350
+    },
+    {
+      "id": "id_1765221220055_84slry1",
+      "date": "2025-12-08",
+      "protein": 0,
+      "calories": 205
+    },
+    {
+      "id": "id_1765221275277_tk0sbpv",
+      "date": "2025-12-08",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1765236215050_mgcbcoy",
+      "date": "2025-12-08",
+      "protein": 27,
+      "calories": 350
+    },
+    {
+      "id": "id_1765257638985_h4obg53",
+      "date": "2025-12-08",
+      "protein": 15,
+      "calories": 450
+    },
+    {
+      "id": "id_1765330804923_ml316pu",
+      "date": "2025-12-09",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1765330813786_d9tpmfv",
+      "date": "2025-12-09",
+      "protein": 35,
+      "calories": 550
+    },
+    {
+      "id": "id_1765430417742_ibsrxz2",
+      "date": "2025-12-10",
+      "protein": 60,
+      "calories": 1150
+    },
+    {
+      "id": "id_1765430453768_wn78vks",
+      "date": "2025-12-10",
+      "protein": 0,
+      "calories": 400
+    },
+    {
+      "id": "id_1765502938698_ogmcvvp",
+      "date": "2025-12-11",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1765502993020_out9l5a",
+      "date": "2025-12-11",
+      "protein": 0,
+      "calories": 325
+    },
+    {
+      "id": "id_1765503099662_g06zopw",
+      "date": "2025-12-11",
+      "protein": 55,
+      "calories": 600
+    },
+    {
+      "id": "id_1765503290426_ruksm60",
+      "date": "2025-12-11",
+      "protein": 27,
+      "calories": 350
+    },
+    {
+      "id": "id_1765515871732_zajk4jl",
+      "date": "2025-12-11",
+      "protein": 0,
+      "calories": 350
+    },
+    {
+      "id": "id_1765579682472_7ehilpb",
+      "date": "2025-12-12",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1765579737740_t2vmt0h",
+      "date": "2025-12-12",
+      "protein": 0,
+      "calories": 285
+    },
+    {
+      "id": "id_1765592473421_bojdrll",
+      "date": "2025-12-12",
+      "protein": 55,
+      "calories": 600
+    },
+    {
+      "id": "id_1765659645553_gtyddo9",
+      "date": "2025-12-13",
+      "protein": 20,
+      "calories": 390
+    },
+    {
+      "id": "id_1765659706207_7njw4r8",
+      "date": "2025-12-13",
+      "protein": 0,
+      "calories": 300
+    },
+    {
+      "id": "id_1765660144773_ryfkd7a",
+      "date": "2025-12-12",
+      "protein": 56,
+      "calories": 900
+    },
+    {
+      "id": "id_1765660691771_xym2cku",
+      "date": "2025-12-12",
+      "protein": 1,
+      "calories": 100
+    },
+    {
+      "id": "id_1765671923319_e6p4628",
+      "date": "2025-12-13",
+      "protein": 42,
+      "calories": 200
+    },
+    {
+      "id": "id_1765674431961_o5gskvg",
+      "date": "2025-12-13",
+      "protein": 8,
+      "calories": 270
+    },
+    {
+      "id": "id_1765686777210_h1issoh",
+      "date": "2025-12-13",
+      "protein": 17,
+      "calories": 490
+    },
+    {
+      "id": "id_1765700164655_fsdmuwp",
+      "date": "2025-12-13",
+      "protein": 17,
+      "calories": 400
+    },
+    {
+      "id": "id_1765700563284_9snqaa1",
+      "date": "2025-12-13",
+      "protein": 0,
+      "calories": 220
+    },
+    {
+      "id": "id_1765771077432_uppoz7k",
+      "date": "2025-12-14",
+      "protein": 25,
+      "calories": 750
+    },
+    {
+      "id": "id_1765771129765_y8ait7q",
+      "date": "2025-12-14",
+      "protein": 25,
+      "calories": 600
+    },
+    {
+      "id": "id_1765775655312_ox8j7td",
+      "date": "2025-12-14",
+      "protein": 26,
+      "calories": 760
+    },
+    {
+      "id": "id_1765835260376_spe9zbf",
+      "date": "2025-12-15",
+      "protein": 43,
+      "calories": 430
+    },
+    {
+      "id": "id_1765835301421_5p466qr",
+      "date": "2025-12-15",
+      "protein": 0,
+      "calories": 170
+    },
+    {
+      "id": "id_1765847764779_p3figrv",
+      "date": "2025-12-15",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1765867578217_g0f8mjr",
+      "date": "2025-12-15",
+      "protein": 55,
+      "calories": 1500
+    },
+    {
+      "id": "id_1766001683962_kpmuejg",
+      "date": "2025-12-16",
+      "protein": 43,
+      "calories": 580
+    },
+    {
+      "id": "id_1766001848024_r15jsvw",
+      "date": "2025-12-16",
+      "protein": 20,
+      "calories": 600
+    },
+    {
+      "id": "id_1766001913437_tlj47jr",
+      "date": "2025-12-16",
+      "protein": 50,
+      "calories": 650
+    },
+    {
+      "id": "id_1766001948868_tczneh5",
+      "date": "2025-12-17",
+      "protein": 43,
+      "calories": 550
+    },
+    {
+      "id": "id_1766015093381_4fbqbx1",
+      "date": "2025-12-17",
+      "protein": 20,
+      "calories": 320
+    },
+    {
+      "id": "id_1766046577290_bcwm5qr",
+      "date": "2025-12-17",
+      "protein": 60,
+      "calories": 1080
+    },
+    {
+      "id": "id_1766119048014_kwc6srf",
+      "date": "2025-12-18",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1766119125519_q1sm1x7",
+      "date": "2025-12-18",
+      "protein": 0,
+      "calories": 165
+    },
+    {
+      "id": "id_1766338081153_off7xfo",
+      "date": "2025-12-21",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1766345526093_n6jt0o6",
+      "date": "2025-12-21",
+      "protein": 0,
+      "calories": 305
+    },
+    {
+      "id": "id_1766353300678_zghfacu",
+      "date": "2025-12-21",
+      "protein": 55,
+      "calories": 650
+    },
+    {
+      "id": "id_1766364789166_lnysfuv",
+      "date": "2025-12-21",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1766373854633_hxmo91n",
+      "date": "2025-12-21",
+      "protein": 39,
+      "calories": 580
+    },
+    {
+      "id": "id_1766374098177_2v1029k",
+      "date": "2025-12-21",
+      "protein": 0,
+      "calories": 110
+    },
+    {
+      "id": "id_1766378661828_cxg9r91",
+      "date": "2025-12-21",
+      "protein": 10,
+      "calories": 470
+    },
+    {
+      "id": "id_1766427590375_2ze16jf",
+      "date": "2025-12-22",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1766427625106_zsec1k1",
+      "date": "2025-12-22",
+      "protein": 0,
+      "calories": 220
+    },
+    {
+      "id": "id_1766433912043_atdau6n",
+      "date": "2025-12-22",
+      "protein": 23,
+      "calories": 140
+    },
+    {
+      "id": "id_1766456322767_q2kvu00",
+      "date": "2025-12-22",
+      "protein": 40,
+      "calories": 900
+    },
+    {
+      "id": "id_1766456429703_fzkh1yw",
+      "date": "2025-12-22",
+      "protein": 12,
+      "calories": 350
+    },
+    {
+      "id": "id_1766457397423_3h6ixoa",
+      "date": "2025-12-22",
+      "protein": 2,
+      "calories": 185
+    },
+    {
+      "id": "id_1766469212472_c6hqbil",
+      "date": "2025-12-22",
+      "protein": 2,
+      "calories": 320
+    },
+    {
+      "id": "id_1766530976362_3btcjsh",
+      "date": "2025-12-23",
+      "protein": 43,
+      "calories": 330
+    },
+    {
+      "id": "id_1766531027253_y5mcqpn",
+      "date": "2025-12-23",
+      "protein": 0,
+      "calories": 320
+    },
+    {
+      "id": "id_1766532078394_gkvh09n",
+      "date": "2025-12-23",
+      "protein": 3,
+      "calories": 105
+    },
+    {
+      "id": "id_1766558139488_6yskn5p",
+      "date": "2025-12-23",
+      "protein": 1,
+      "calories": 160
+    },
+    {
+      "id": "id_1766558345006_bktmayr",
+      "date": "2025-12-23",
+      "protein": 34,
+      "calories": 650
+    },
+    {
+      "id": "id_1766558400817_mlu5ldj",
+      "date": "2025-12-23",
+      "protein": 4,
+      "calories": 190
+    },
+    {
+      "id": "id_1766600062273_u8u04tu",
+      "date": "2025-12-24",
+      "protein": 23,
+      "calories": 140
+    },
+    {
+      "id": "id_1766612916550_ao8ptkr",
+      "date": "2025-12-24",
+      "protein": 0,
+      "calories": 135
+    },
+    {
+      "id": "id_1770505237788_79z1dr0",
+      "date": "2026-02-07",
+      "protein": 14,
+      "calories": 225
+    },
+    {
+      "id": "id_1770506431939_yhdldsq",
+      "date": "2026-02-07",
+      "protein": 0,
+      "calories": 90
+    },
+    {
+      "id": "id_1770512678048_1x73wth",
+      "date": "2026-02-07",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1770755827168_48hwbg9",
+      "date": "2026-02-10",
+      "protein": 37,
+      "calories": 375
+    },
+    {
+      "id": "id_1770755848191_y41zofl",
+      "date": "2026-02-10",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1770755868962_1emm57s",
+      "date": "2026-02-10",
+      "protein": 0,
+      "calories": 110
+    },
+    {
+      "id": "id_1772675588739_0bg32lv",
+      "date": "2026-03-04",
+      "protein": 25,
+      "calories": 350
+    },
+    {
+      "id": "id_1772675912491_p8fvbff",
+      "date": "2026-03-04",
+      "protein": 20,
+      "calories": 290
+    },
+    {
+      "id": "id_1772675920598_29h9pl2",
+      "date": "2026-03-04",
+      "protein": 42,
+      "calories": 230
+    },
+    {
+      "id": "id_1788726491037_jwrob6f",
+      "date": "2026-09-06",
+      "protein": 0,
+      "calories": 280,
+      "carbs": 40,
+      "fat": 12
+    },
+    {
+      "id": "id_1788727561942_sing9ee",
+      "date": "2026-09-06",
+      "protein": 25,
+      "calories": 340,
+      "carbs": 30,
+      "fat": 13
+    },
+    {
+      "id": "id_1788748007015_dv981ge",
+      "date": "2026-09-06",
+      "protein": 32,
+      "calories": 1280,
+      "carbs": 160,
+      "fat": 54
+    },
+    {
+      "id": "id_1788752450169_v3thztr",
+      "date": "2026-09-06",
+      "protein": 0,
+      "calories": 250,
+      "carbs": 25,
+      "fat": 0
+    },
+    {
+      "id": "id_1788755266991_e1mk9px",
+      "date": "2026-09-06",
+      "protein": 18,
+      "calories": 435,
+      "carbs": 42,
+      "fat": 20
+    }
+  ],
+  "sleep": [
+    {
+      "id": "id_1763595497988_4fjxm7p",
+      "date": "2025-11-16",
+      "sleepHours": 6.7,
+      "deepSleepPercent": 11.940298507462686,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763595544998_d4wubql",
+      "date": "2025-11-17",
+      "sleepHours": 6.683333333333334,
+      "deepSleepPercent": 19.9501246882793,
+      "weight": 135,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1763595573489_p5kz65k",
+      "date": "2025-11-18",
+      "sleepHours": 5.333333333333333,
+      "deepSleepPercent": 8.4375,
+      "weight": 135,
+      "recoveryRating": 3
+    },
+    {
+      "id": "id_1763595668406_3ke8ipg",
+      "date": "2025-11-19",
+      "sleepHours": 5.716666666666667,
+      "deepSleepPercent": 14.577259475218659,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763657459310_npo2h1r",
+      "date": "2025-11-20",
+      "sleepHours": 6.133333333333334,
+      "deepSleepPercent": 18.206521739130434,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763738650547_k3ajbe3",
+      "date": "2025-11-21",
+      "sleepHours": 6.433333333333334,
+      "deepSleepPercent": 6.994818652849741,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763830445696_7veg1i9",
+      "date": "2025-11-22",
+      "sleepHours": 5.383333333333334,
+      "deepSleepPercent": 13.31269349845201,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1763924520328_6m0jyl4",
+      "date": "2025-11-23",
+      "sleepHours": 7.916666666666667,
+      "deepSleepPercent": 10.105263157894736,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1764005163536_no7wknt",
+      "date": "2025-11-24",
+      "sleepHours": 5.033333333333333,
+      "deepSleepPercent": 19.5364238410596,
+      "weight": 135,
+      "recoveryRating": 5
+    },
+    {
+      "id": "id_1764126963595_8gbsz2e",
+      "date": "2025-11-25",
+      "sleepHours": 4.683333333333334,
+      "deepSleepPercent": 16.370106761565836,
+      "weight": 135,
+      "recoveryRating": 5
+    },
+    {
+      "id": "id_1764173410034_59le8l0",
+      "date": "2025-11-26",
+      "sleepHours": 7.033333333333333,
+      "deepSleepPercent": 9.004739336492891,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1764260889601_grp3xhe",
+      "date": "2025-11-27",
+      "sleepHours": 5.9,
+      "deepSleepPercent": 16.666666666666664,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1764347181796_gtoqmmm",
+      "date": "2025-11-28",
+      "sleepHours": 5.433333333333334,
+      "deepSleepPercent": 15.950920245398773,
+      "weight": 135,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1764450935014_3wwytha",
+      "date": "2025-11-29",
+      "sleepHours": 8.533333333333333,
+      "deepSleepPercent": 7.6171875,
+      "weight": 135,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1764523199724_gvg0ir2",
+      "date": "2025-11-30",
+      "sleepHours": 6.166666666666667,
+      "deepSleepPercent": 9.45945945945946,
+      "weight": 135,
+      "recoveryRating": 4
+    },
+    {
+      "id": "id_1764629942916_9zf2rip",
+      "date": "2025-12-01",
+      "sleepHours": 5.616666666666667,
+      "deepSleepPercent": 14.243323442136498,
+      "weight": 135,
+      "recoveryRating": 4
+    },
+    {
+      "id": "id_1764713449817_3ek0z24",
+      "date": "2025-12-02",
+      "sleepHours": 4.733333333333333,
+      "deepSleepPercent": 9.15492957746479,
+      "weight": 140,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1764814550865_zy973b4",
+      "date": "2025-12-03",
+      "sleepHours": 5,
+      "deepSleepPercent": 12,
+      "weight": 140,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1764896074431_ofqlep9",
+      "date": "2025-12-04",
+      "sleepHours": 5.8,
+      "deepSleepPercent": 17.81609195402299,
+      "weight": 140,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1764950421127_88licwb",
+      "date": "2025-12-05",
+      "sleepHours": 5.033333333333333,
+      "deepSleepPercent": 16.887417218543046,
+      "weight": 140,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1765059788780_4720cq9",
+      "date": "2025-12-06",
+      "sleepHours": 7.733333333333333,
+      "deepSleepPercent": 14.224137931034484,
+      "weight": 140,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1765136530507_kkac1n1",
+      "date": "2025-12-07",
+      "sleepHours": 5.466666666666667,
+      "deepSleepPercent": 13.719512195121952,
+      "weight": 135,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1765221108983_x65789k",
+      "date": "2025-12-08",
+      "sleepHours": 5.283333333333333,
+      "deepSleepPercent": 10.410094637223976,
+      "weight": 135,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1765430326153_mojoekc",
+      "date": "2025-12-10",
+      "sleepHours": 8.433333333333334,
+      "deepSleepPercent": 12.84584980237154,
+      "weight": 135,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1765502893440_3n6ywrz",
+      "date": "2025-12-11",
+      "sleepHours": 8.166666666666666,
+      "deepSleepPercent": 13.469387755102044,
+      "weight": 134,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1765579644031_ycemcyu",
+      "date": "2025-12-12",
+      "sleepHours": 8,
+      "deepSleepPercent": 19.166666666666664,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1765659629934_txjn5hq",
+      "date": "2025-12-13",
+      "sleepHours": 6.9,
+      "deepSleepPercent": 13.28502415458937,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1765757353903_h5lc5gt",
+      "date": "2025-12-14",
+      "sleepHours": 7.283333333333333,
+      "deepSleepPercent": 14.645308924485127,
+      "weight": 134,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1765811448168_hoq5fcv",
+      "date": "2025-12-15",
+      "sleepHours": 5.283333333333333,
+      "deepSleepPercent": 21.13564668769716,
+      "weight": 134,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1765999590613_h2di4o8",
+      "date": "2025-12-16",
+      "sleepHours": 6.85,
+      "deepSleepPercent": 15.815085158150852,
+      "weight": 134,
+      "recoveryRating": 5
+    },
+    {
+      "id": "id_1765999618689_gkykebq",
+      "date": "2025-12-17",
+      "sleepHours": 6.45,
+      "deepSleepPercent": 8.785529715762273,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766119013916_7tdf1ph",
+      "date": "2025-12-18",
+      "sleepHours": 5.383333333333334,
+      "deepSleepPercent": 19.195046439628484,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766337928725_hdiqdzk",
+      "date": "2025-12-19",
+      "sleepHours": 6,
+      "deepSleepPercent": 16.666666666666664,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766337964182_qquos1r",
+      "date": "2025-12-20",
+      "sleepHours": 6.233333333333333,
+      "deepSleepPercent": 11.76470588235294,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766338007843_z1up3du",
+      "date": "2025-12-21",
+      "sleepHours": 7.666666666666667,
+      "deepSleepPercent": 11.956521739130434,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766427579814_6mnbiyc",
+      "date": "2025-12-22",
+      "sleepHours": 5.383333333333334,
+      "deepSleepPercent": 21.36222910216718,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766530925465_n3ggowx",
+      "date": "2025-12-23",
+      "sleepHours": 7.133333333333334,
+      "deepSleepPercent": 11.682242990654206,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1766593858188_f0m4n1d",
+      "date": "2025-12-24",
+      "sleepHours": 6.45,
+      "deepSleepPercent": 7.493540051679587,
+      "weight": 134,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1767580523018_z5lv1vi",
+      "date": "2026-01-04",
+      "sleepHours": 9.35,
+      "deepSleepPercent": 9.090909090909092,
+      "weight": 132,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1767580561018_vqu5ofl",
+      "date": "2026-01-03",
+      "sleepHours": 7.25,
+      "deepSleepPercent": 11.264367816091953,
+      "weight": 132,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1767627809237_igryx1t",
+      "date": "2026-01-05",
+      "sleepHours": 5.65,
+      "deepSleepPercent": 12.684365781710913,
+      "weight": 132,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1770505172519_tgyrkgb",
+      "date": "2026-02-07",
+      "sleepHours": 6.416666666666667,
+      "deepSleepPercent": 12.987012987012985,
+      "weight": 130,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1770755938596_coph81u",
+      "date": "2026-02-10",
+      "sleepHours": 7.333333333333333,
+      "deepSleepPercent": 10.454545454545455,
+      "weight": 130,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1772675663005_wu8azlq",
+      "date": "2026-03-04",
+      "sleepHours": 7.05,
+      "deepSleepPercent": 13.47517730496454,
+      "weight": 129,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1776201133877_nl3e10s",
+      "date": "2026-04-14",
+      "sleepHours": 5.5,
+      "deepSleepPercent": 13.636363636363635,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1776541029948_xrkme39",
+      "date": "2026-04-18",
+      "sleepHours": 4.8,
+      "deepSleepPercent": 27.430555555555557,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1776986741737_4cxxq4g",
+      "date": "2026-04-23",
+      "sleepHours": 6.583333333333333,
+      "deepSleepPercent": 9.367088607594939,
+      "weight": 129,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1777412723236_uuddteq",
+      "date": "2026-04-28",
+      "sleepHours": 6.65,
+      "deepSleepPercent": 23.057644110275685,
+      "weight": 129,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1777589954689_hbfy9a8",
+      "date": "2026-04-30",
+      "sleepHours": 5.633333333333333,
+      "deepSleepPercent": 25.14792899408284,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1778022289462_h5qc339",
+      "date": "2026-05-05",
+      "sleepHours": 6.683333333333334,
+      "deepSleepPercent": 11.72069825436409,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1778368764182_lkn85nz",
+      "date": "2026-05-09",
+      "sleepHours": 8.25,
+      "deepSleepPercent": 7.474747474747476,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1778543200925_li15co2",
+      "date": "2026-05-11",
+      "sleepHours": 8.983333333333333,
+      "deepSleepPercent": 11.502782931354362,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1778710714383_va6zi27",
+      "date": "2026-05-13",
+      "sleepHours": 6.316666666666666,
+      "deepSleepPercent": 18.997361477572557,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1778889709899_6m6zaam",
+      "date": "2026-05-15",
+      "sleepHours": 5.433333333333334,
+      "deepSleepPercent": 13.496932515337424,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1779146072140_40274ej",
+      "date": "2026-05-18",
+      "sleepHours": 6.466666666666667,
+      "deepSleepPercent": 15.721649484536082,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1779317503742_1e103p9",
+      "date": "2026-05-20",
+      "sleepHours": 9.4,
+      "deepSleepPercent": 13.829787234042554,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1779590443133_zed99j2",
+      "date": "2026-05-23",
+      "sleepHours": 7.683333333333334,
+      "deepSleepPercent": 9.544468546637743,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1779925545486_l9m9usl",
+      "date": "2026-05-27",
+      "sleepHours": 7.216666666666667,
+      "deepSleepPercent": 10.392609699769052,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1780107224775_iy6pxmj",
+      "date": "2026-05-29",
+      "sleepHours": 7.716666666666667,
+      "deepSleepPercent": 12.095032397408207,
+      "weight": 129,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1780357350005_e0z3w92",
+      "date": "2026-06-01",
+      "sleepHours": 6.183333333333334,
+      "deepSleepPercent": 12.398921832884097,
+      "weight": 129,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1780414589556_purouq4",
+      "date": "2026-06-02",
+      "sleepHours": 9.15,
+      "deepSleepPercent": 10.564663023679417,
+      "weight": 136,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1780538828445_mum2xkh",
+      "date": "2026-06-03",
+      "sleepHours": 8.416666666666666,
+      "deepSleepPercent": 6.9306930693069315,
+      "weight": 136,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1780763848263_x2fa3lc",
+      "date": "2026-06-06",
+      "sleepHours": 7.883333333333333,
+      "deepSleepPercent": 17.124735729386895,
+      "weight": 134,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1780957946345_pyovqzj",
+      "date": "2026-06-08",
+      "sleepHours": 6.466666666666667,
+      "deepSleepPercent": 14.690721649484534,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1781465536373_ikvvs3x",
+      "date": "2026-06-14",
+      "sleepHours": 7.383333333333334,
+      "deepSleepPercent": 16.02708803611738,
+      "weight": 136,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1781571673380_l20bk6a",
+      "date": "2026-06-15",
+      "sleepHours": 7.166666666666667,
+      "deepSleepPercent": 9.534883720930232,
+      "weight": 136,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1781744578834_g72nwmi",
+      "date": "2026-06-17",
+      "sleepHours": 6.1,
+      "deepSleepPercent": 10.92896174863388,
+      "weight": 136,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1781795265216_5w6it7m",
+      "date": "2026-06-18",
+      "sleepHours": 6.966666666666667,
+      "deepSleepPercent": 13.397129186602871,
+      "weight": 136,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1782171699770_4u4d335",
+      "date": "2026-06-22",
+      "sleepHours": 6.8,
+      "deepSleepPercent": 14.705882352941178,
+      "weight": 139,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1782350682837_tgjtonw",
+      "date": "2026-06-24",
+      "sleepHours": 5.3,
+      "deepSleepPercent": 14.779874213836477,
+      "weight": 139,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1782674191639_5lu8n15",
+      "date": "2026-06-28",
+      "sleepHours": 7.766666666666667,
+      "deepSleepPercent": 17.167381974248926,
+      "weight": 137,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1783043440984_ksihcjc",
+      "date": "2026-07-02",
+      "sleepHours": 7.05,
+      "deepSleepPercent": 15.130023640661939,
+      "weight": 137,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1783271417047_pkc4j2p",
+      "date": "2026-07-05",
+      "sleepHours": 7.1,
+      "deepSleepPercent": 11.03286384976526,
+      "weight": 138,
+      "recoveryRating": 6
+    },
+    {
+      "id": "id_1783465848287_3it8x60",
+      "date": "2026-07-07",
+      "sleepHours": 6.383333333333334,
+      "deepSleepPercent": 18.27676240208877,
+      "weight": 139,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1783983309676_vxjqgci",
+      "date": "2026-07-13",
+      "sleepHours": 6.983333333333333,
+      "deepSleepPercent": 13.60381861575179,
+      "weight": 139,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1784239364913_1tltpps",
+      "date": "2026-07-16",
+      "sleepHours": 7.616666666666667,
+      "deepSleepPercent": 10.065645514223196,
+      "weight": 139,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1784416259458_2t769k3",
+      "date": "2026-07-18",
+      "sleepHours": 7.15,
+      "deepSleepPercent": 18.648018648018645,
+      "weight": 139,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1784759434685_c3nltpo",
+      "date": "2026-07-22",
+      "sleepHours": 7.1,
+      "deepSleepPercent": 19.014084507042256,
+      "weight": 138,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1785018360130_iazcv7x",
+      "date": "2026-07-25",
+      "sleepHours": 4.833333333333333,
+      "deepSleepPercent": 23.448275862068964,
+      "weight": 137,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1785181673857_1uvmu71",
+      "date": "2026-07-27",
+      "sleepHours": 5.316666666666666,
+      "deepSleepPercent": 18.181818181818183,
+      "weight": 136,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1785365937406_ty7txj4",
+      "date": "2026-07-29",
+      "sleepHours": 5.1,
+      "deepSleepPercent": 25.490196078431378,
+      "weight": 138,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1785621311800_p5wqbns",
+      "date": "2026-08-01",
+      "sleepHours": 6.716666666666667,
+      "deepSleepPercent": 15.136476426799007,
+      "weight": 138,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1785973704708_cbi1qg6",
+      "date": "2026-08-05",
+      "sleepHours": 7.25,
+      "deepSleepPercent": 18.160919540229887,
+      "weight": 138,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1786851492748_gljuit2",
+      "date": "2026-08-15",
+      "sleepHours": 6.566666666666666,
+      "deepSleepPercent": 22.842639593908633,
+      "weight": 137,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1787359237274_s393drs",
+      "date": "2026-08-21",
+      "sleepHours": 7.866666666666667,
+      "deepSleepPercent": 13.135593220338984,
+      "weight": 137,
+      "recoveryRating": 8
+    },
+    {
+      "id": "id_1787786368685_dwliunw",
+      "date": "2026-08-26",
+      "sleepHours": 6.066666666666666,
+      "deepSleepPercent": 15.10989010989011,
+      "weight": 137,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1788395322893_975hqsi",
+      "date": "2026-09-02",
+      "sleepHours": 6.816666666666666,
+      "deepSleepPercent": 12.469437652811736,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1788655292509_32lynkv",
+      "date": "2026-09-05",
+      "sleepHours": 7.833333333333333,
+      "deepSleepPercent": 18.085106382978726,
+      "weight": 134,
+      "recoveryRating": 7
+    },
+    {
+      "id": "id_1788723338181_ara8gs9",
+      "date": "2026-09-06",
+      "sleepHours": 6.383333333333334,
+      "deepSleepPercent": 14.882506527415144,
+      "weight": 134,
+      "recoveryRating": 7
+    }
+  ],
+  "dietGoals": {
+    "protein": 134,
+    "calories": 1917,
+    "enabled": true,
+    "goalType": "cut",
+    "calculatedAtWeight": 134,
+    "calculatedAt": "2026-09-06",
+    "maintenanceSource": "formula",
+    "maintenanceLastShown": null
+  },
+  "profile": {
+    "heightInches": 70,
+    "birthDate": "1993-04-04",
+    "age": 33,
+    "ageSource": "birthDate"
+  }
+}
