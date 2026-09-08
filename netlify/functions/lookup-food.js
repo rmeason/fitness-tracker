@@ -64,7 +64,28 @@ const ok = (payload) => new Response(JSON.stringify(payload), {
 
 export default async (req, context) => {
   try {
-    const { query, dataType } = await req.json();
+    const body = await req.json();
+    const { query, dataType } = body;
+
+    // TEMPORARY, and removed as soon as the key is confirmed working. Reports only
+    // whether variables are visible and how long they are -- never a value, and only
+    // env names that look food-database related. Gated behind an explicit flag so it
+    // is not reachable from the normal request path.
+    if (body && body.diagnostic === true) {
+      const raw = process.env.USDA_API_KEY;
+      const anthropic = process.env.ANTHROPIC_API_KEY;
+      return ok({
+        foods: [],
+        diagnostic: {
+          usdaKeyPresent: typeof raw === 'string' && raw.length > 0,
+          usdaKeyType: typeof raw,
+          usdaKeyLength: typeof raw === 'string' ? raw.length : null,
+          anthropicKeyVisible: typeof anthropic === 'string' && anthropic.length > 0,
+          matchingEnvNames: Object.keys(process.env).filter(k => /usda|fdc|data.?gov|food/i.test(k)).sort(),
+          totalEnvCount: Object.keys(process.env).length
+        }
+      });
+    }
 
     if (!query || !String(query).trim()) {
       return ok({ foods: [], error: 'No query provided' });
