@@ -314,9 +314,21 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0, priorVol
   const volumePerSet = calculateVolumeLoad(exercise) / effectiveSets;
   const loadFactor = getLoadFactor(volumePerSet, priorVolumePerSet);
 
-  // Lengthened partial bonus
-  const lengtheningMultiplier = (exercise.isLengtheningPartial && exerciseData.lengtheningPartials)
-    ? exerciseData.lengtheningMultiplier
+  // Lengthened partial bonus. Two ways an exercise can be "doing lengthened
+  // partials", and they need different signals:
+  //   1. It's logged under its own distinct partials-variant name in the
+  //      library (isPartialVariant, e.g. "...Lower-End Partials") -- logging
+  //      it under that name already declares the intent, so the bonus applies
+  //      unconditionally. Two exercises are marked this way today.
+  //   2. It's an optional technique on a normal-named exercise (27 other
+  //      entries carry lengtheningPartials without isPartialVariant, e.g. Leg
+  //      Extension, DB Flyes, RDLs) -- these need the logged SET to say so via
+  //      exercise.isLengtheningPartial. NOTHING in app.js currently sets that
+  //      flag when saving a set, so this path is dead for all 27 until a
+  //      "lengthened partials" toggle exists in the set-logging UI -- a
+  //      separate change from this fix, not something to fake here.
+  const lengtheningMultiplier = exerciseData.lengtheningPartials
+    ? ((exerciseData.isPartialVariant || exercise.isLengtheningPartial) ? exerciseData.lengtheningMultiplier : 1.0)
     : 1.0;
 
   // Everything except activation and the secondary discount
