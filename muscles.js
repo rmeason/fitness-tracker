@@ -6,6 +6,9 @@
 
 // --- 30 MUSCLE GROUPS WITH RECOVERY RATES ---
 // Recovery follows exponential decay: fatigue(t) = initialFatigue × exp(-decayRate × hours)
+// `hours` is the displayed "recovery time": hours for fatigue to fall to 20% of
+// peak, i.e. -100 * ln(0.20) / decayRate. It is derived from decayRate, so the
+// two always agree -- change the rate and recompute the hours.
 // Rates are ordered by muscle size and eccentric loading: the big, heavily
 // loaded muscles (quads, glutes, hamstrings, lats, pecs, erectors) clear
 // slowest (~2.3-2.6: ~55% of peak still present at 24h, under 20% by 72h),
@@ -17,201 +20,243 @@ export const MUSCLES = {
   // === CHEST ===
   pectoralsUpper: { 
     name: "Upper Pecs", 
-    hours: 84,      // Slowest recovery (65% Type II, large ROM)
+    hours: 67,      // Slowest recovery (65% Type II, large ROM)
     decayRate: 2.4 // Large, heavy eccentric load -- slow
   },
   pectoralsLower: { 
     name: "Lower Pecs", 
-    hours: 84, 
+    hours: 67, 
     decayRate: 2.4
   },
   
   // === SHOULDERS ===
   deltsFront: { 
     name: "Front Delts", 
-    hours: 60, 
+    hours: 52, 
     decayRate: 3.1 // Mid-size -- meaningfully recovered by 36-48h
   },
   deltsMid: { 
     name: "Mid Delts", 
-    hours: 60, 
+    hours: 50, 
     decayRate: 3.2
   },
   deltsRear: { 
     name: "Rear Delts", 
-    hours: 60, 
+    hours: 50, 
     decayRate: 3.2
   },
   
   // === ROTATOR CUFF ===
   infraspinatus: { 
     name: "Infraspinatus", 
-    hours: 54, 
+    hours: 38, 
     decayRate: 4.2 // Small stabiliser -- fast
   },
   supraspinatus: { 
     name: "Supraspinatus", 
-    hours: 54, 
+    hours: 38, 
     decayRate: 4.2
   },
   
   // === LEGS - QUADS ===
   vastusLateralis: { 
     name: "Vastus Lateralis", 
-    hours: 48,      // Fast recovery (poor voluntary activation)
+    hours: 70,      // Fast recovery (poor voluntary activation)
     decayRate: 2.3 // Large, heavy eccentric load -- slow
   },
   vastusMedialis: { 
     name: "Vastus Medialis (VMO)", 
-    hours: 48, 
+    hours: 70, 
     decayRate: 2.3
   },
   rectusFemoris: { 
     name: "Rectus Femoris", 
-    hours: 48, 
+    hours: 70, 
     decayRate: 2.3
   },
   
   // === LEGS - HAMSTRINGS ===
   bicepsFemoris: { 
     name: "Biceps Femoris", 
-    hours: 60,      // Medium recovery (50/50 fiber type)
+    hours: 67,      // Medium recovery (50/50 fiber type)
     decayRate: 2.4
   },
   semitendinosus: { 
     name: "Semitendinosus", 
-    hours: 60, 
+    hours: 67, 
     decayRate: 2.4
   },
   
   // === ARMS - TRICEPS ===
   tricepsLong: { 
     name: "Triceps Long Head", 
-    hours: 72,      // Slow recovery (57% fast-twitch)
+    hours: 54,      // Slow recovery (57% fast-twitch)
     decayRate: 3.0
   },
   tricepsLateral: { 
     name: "Triceps Lateral Head", 
-    hours: 72, 
+    hours: 52, 
     decayRate: 3.1
   },
   
   // === ARMS - BICEPS & FOREARMS ===
   bicepsLong: { 
     name: "Biceps Long Head", 
-    hours: 66,      // 62% fast-twitch, high activation
+    hours: 52,      // 62% fast-twitch, high activation
     decayRate: 3.1
   },
   bicepsShort: { 
     name: "Biceps Short Head", 
-    hours: 66, 
+    hours: 52, 
     decayRate: 3.1
   },
   brachialis: { 
     name: "Brachialis", 
-    hours: 60, 
+    hours: 49, 
     decayRate: 3.3
   },
   brachioradialis: { 
     name: "Brachioradialis", 
-    hours: 54, 
+    hours: 40, 
     decayRate: 4.0
   },
   forearms: { 
     name: "Forearms", 
-    hours: 36,      // Fast recovery
+    hours: 37,      // Fast recovery
     decayRate: 4.4 // Small, high-endurance -- fastest
   },
   
   // === BACK - LATS ===
   latsUpper: { 
     name: "Upper Lats", 
-    hours: 60,      // Thin muscle despite large ROM
+    hours: 64,      // Thin muscle despite large ROM
     decayRate: 2.5
   },
   latsLower: { 
     name: "Lower Lats", 
-    hours: 60, 
+    hours: 64, 
     decayRate: 2.5
   },
   
   // === BACK - TRAPS ===
   trapsUpper: { 
     name: "Upper Traps", 
-    hours: 42,      // Fast recovery
+    hours: 46,      // Fast recovery
     decayRate: 3.5
   },
   trapsMid: { 
     name: "Mid Traps", 
-    hours: 42, 
+    hours: 52, 
     decayRate: 3.1
   },
   trapsLower: { 
     name: "Lower Traps", 
-    hours: 42, 
+    hours: 50, 
     decayRate: 3.2
   },
   
   // === CALVES ===
   gastrocnemius: { 
     name: "Gastrocnemius", 
-    hours: 36,      // FASTEST recovery (70-96% slow-twitch)
+    hours: 49,      // FASTEST recovery (70-96% slow-twitch)
     decayRate: 3.3 // Mid-size -- meaningfully recovered by 36-48h
   },
   soleus: { 
     name: "Soleus", 
-    hours: 36, 
+    hours: 49, 
     decayRate: 3.3
   },
   
   // === GLUTES ===
   glutesUpper: { 
     name: "Upper Glutes", 
-    hours: 60,      // 55% Type I, massive size
+    hours: 70,      // 55% Type I, massive size
     decayRate: 2.3
   },
   glutesLower: { 
     name: "Lower Glutes", 
-    hours: 60, 
+    hours: 70, 
     decayRate: 2.3
   },
   gluteMed: { 
     name: "Glute Medius", 
-    hours: 60, 
+    hours: 62, 
     decayRate: 2.6
+  },
+  glutesMin: {
+    name: "Glute Minimus",
+    hours: 47,
+    decayRate: 3.4 // Small hip stabiliser
+  },
+  TFL: {
+    name: "Tensor Fasciae Latae",
+    hours: 45,
+    decayRate: 3.6
+  },
+  piriformis: {
+    name: "Piriformis",
+    hours: 40,
+    decayRate: 4.0 // Small deep external rotator -- fast
+  },
+  
+  // === ADDUCTORS ===
+  adductorMagnus: {
+    name: "Adductor Magnus",
+    hours: 67,
+    decayRate: 2.4 // Large hip extensor -- behaves like a hamstring
+  },
+  adductorLongus: {
+    name: "Adductor Longus",
+    hours: 54,
+    decayRate: 3.0
+  },
+  adductorBrevis: {
+    name: "Adductor Brevis",
+    hours: 50,
+    decayRate: 3.2
+  },
+  gracilis: {
+    name: "Gracilis",
+    hours: 47,
+    decayRate: 3.4 // Thin two-joint muscle
+  },
+  pectineus: {
+    name: "Pectineus",
+    hours: 45,
+    decayRate: 3.6
   },
   
   // === CORE ===
   rectusAbdominis: { 
     name: "Abs", 
-    hours: 48,      // Type I dominant, limited ROM
+    hours: 38,      // Type I dominant, limited ROM
     decayRate: 4.2 // Small, high-endurance -- fastest
   },
   obliqueExternal: { 
     name: "External Obliques", 
-    hours: 48, 
+    hours: 37, 
     decayRate: 4.3
   },
   obliqueInternal: { 
     name: "Internal Obliques", 
-    hours: 48, 
+    hours: 37, 
     decayRate: 4.3
   },
   
   // === OTHER ===
   erectorSpinae: { 
     name: "Erector Spinae", 
-    hours: 60,      // 60-70% slow-twitch
+    hours: 64,      // 60-70% slow-twitch
     decayRate: 2.5
   },
   rhomboids: { 
     name: "Rhomboids", 
-    hours: 42, 
+    hours: 50, 
     decayRate: 3.2
   },
   serratusAnterior: { 
     name: "Serratus Anterior", 
-    hours: 48, 
+    hours: 47, 
     decayRate: 3.4
   }
 };
@@ -1900,7 +1945,7 @@ export const EXERCISE_LIBRARY = {
     tier: 4,
     eachHand: false,
     primaryMuscles: {
-      glutesMed: 94,
+      gluteMed: 94,
       glutesMin: 88,
       TFL: 72
     },
@@ -2144,6 +2189,30 @@ export const CARDIO_LIBRARY = {
     }
   },
 
+  "Dance/Walk": {
+    icon: "\u{1F483}\u{1F6B6}",
+    stepLabel: "Steps",
+    notes: "Mixed dancing and walking over a long stretch; logged as one item",
+    fields: [],
+    // A real logged name, added explicitly rather than by fuzzy matching. These
+    // sessions run long at a low cadence (8,000 steps over 5 hours is mostly
+    // strolling and standing), so activations sit nearer Walk than Dance.
+    muscles: {
+      vastusLateralis: 25,
+      vastusMedialis: 24,
+      rectusFemoris: 22,
+      glutesUpper: 30,
+      glutesLower: 27,
+      gastrocnemius: 30,
+      soleus: 30,
+      bicepsFemoris: 20,
+      semitendinosus: 18,
+      rectusAbdominis: 12,
+      obliqueExternal: 10,
+      obliqueInternal: 10
+    }
+  },
+
   "Dance": {
     icon: "\u{1F483}",
     stepLabel: "Steps",
@@ -2174,13 +2243,23 @@ export const CARDIO_LIBRARY = {
 // Tier 1 (1.5x): High CNS demand - squats, deadlifts, Olympic lifts
 // Tier 2 (1.2x): Multiple muscle groups - bench, rows, overhead press
 // Tier 3 (1.0x): Single joint compounds - lunges, RDLs, dips
-// Tier 4 (0.6x): Isolation - curls, extensions, raises, crunches
+// Tier 4 (0.85x): Isolation - curls, extensions, raises, crunches
+//
+// NOTE on tier 4: these multipliers describe SYSTEMIC / CNS cost, but this model
+// computes LOCAL per-muscle fatigue, and the two are not the same thing. For the
+// muscle actually being isolated, a leg extension taken to RPE 9 is not 40% of a
+// squat set -- if anything it is more local work, since the squat spreads load
+// across quads, glutes and erectors (which the activation percentages already
+// account for). The old 0.6 systematically under-read isolation work, and
+// isolation is 45% of every set in the log: three calf sets at RPE 9 with
+// lengthened partials read "FULLY RECOVERED" the next morning. 0.85 keeps
+// compounds ahead without pretending a hard isolation set barely happened.
 
 export const EXERCISE_TIERS = {
-  1: { multiplier: 1.5, name: "High CNS Demand" },  // ← CHANGED from 1.3
+  1: { multiplier: 1.5, name: "High CNS Demand" },
   2: { multiplier: 1.2, name: "Multi-Muscle Compound" },
   3: { multiplier: 1.0, name: "Single-Joint Compound" },
-  4: { multiplier: 0.6, name: "Isolation" }
+  4: { multiplier: 0.85, name: "Isolation" }
 };
 
 // --- LENGTHENING PARTIAL TIER SYSTEM ---

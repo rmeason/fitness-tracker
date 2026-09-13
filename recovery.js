@@ -688,29 +688,39 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
     todaysSleep.deepSleepPercent || 15
   );
   
-  // Get muscles involved in planned workout
-  const involvedMuscles = [];
-  const workoutLower = plannedWorkout.toLowerCase();
+  // Get muscles involved in planned workout.
+  // Keyword -> muscle table. Every training type in the log has to hit at least
+  // one row, or the recommendation silently runs on zero fatigue input: "Upper"
+  // was the second most-used split in the log and matched nothing at all, so
+  // those sessions were advised on sleep alone.
+  const WORKOUT_MUSCLE_MAP = [
+    [['push', 'chest', 'bench', 'press'], ['pectoralsUpper', 'pectoralsLower', 'deltsFront', 'tricepsLong', 'tricepsLateral']],
+    [['pull', 'back', 'row', 'lat'],      ['latsUpper', 'latsLower', 'trapsMid', 'trapsLower', 'rhomboids']],
+    [['biceps', 'arm', 'curl'],           ['bicepsLong', 'bicepsShort', 'brachialis']],
+    [['triceps', 'arm'],                  ['tricepsLong', 'tricepsLateral']],
+    [['legs', 'squat', 'quad'],           ['vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'glutesUpper', 'glutesLower', 'bicepsFemoris', 'semitendinosus']],
+    [['shoulder', 'delt'],                ['deltsFront', 'deltsMid', 'deltsRear']],
+    [['core', 'abs'],                     ['rectusAbdominis', 'obliqueExternal', 'obliqueInternal']],
+    [['calf', 'calves'],                  ['gastrocnemius', 'soleus']],
+    [['glute', 'hip'],                    ['glutesUpper', 'glutesLower', 'gluteMed']],
+    // Whole-body upper splits: everything the pushing and pulling rows cover.
+    [['upper'], ['pectoralsUpper', 'pectoralsLower', 'deltsFront', 'deltsMid', 'deltsRear',
+                 'latsUpper', 'latsLower', 'trapsMid', 'rhomboids',
+                 'tricepsLong', 'tricepsLateral', 'bicepsLong', 'bicepsShort']],
+    // Cardio and active-recovery days still load the legs and calves.
+    [['cardio', 'recovery', 'walk', 'run', 'stair'], ['vastusLateralis', 'glutesUpper', 'gastrocnemius', 'soleus']]
+  ];
   
-  // Map workout type to muscle groups
-  if (workoutLower.includes('push') || workoutLower.includes('chest')) {
-    involvedMuscles.push('pectoralsUpper', 'pectoralsLower', 'deltsFront', 'tricepsLong', 'tricepsLateral');
+  const workoutLower = String(plannedWorkout || '').toLowerCase();
+  const involvedSet = new Set();
+  for (const [keywords, muscles] of WORKOUT_MUSCLE_MAP) {
+    if (keywords.some(k => workoutLower.includes(k))) {
+      for (const m of muscles) involvedSet.add(m);
+    }
   }
-  if (workoutLower.includes('pull') || workoutLower.includes('back')) {
-    involvedMuscles.push('latsUpper', 'latsLower', 'trapsMid', 'rhomboids');
-  }
-  if (workoutLower.includes('biceps') || workoutLower.includes('arm')) {
-    involvedMuscles.push('bicepsLong', 'bicepsShort', 'brachialis');
-  }
-  if (workoutLower.includes('triceps') || workoutLower.includes('arm')) {
-    involvedMuscles.push('tricepsLong', 'tricepsLateral');
-  }
-  if (workoutLower.includes('legs') || workoutLower.includes('squat')) {
-    involvedMuscles.push('vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'glutesUpper', 'glutesLower');
-  }
-  if (workoutLower.includes('shoulder')) {
-    involvedMuscles.push('deltsFront', 'deltsMid', 'deltsRear');
-  }
+  // De-duplicated: a name like "Push/Arms" used to add the triceps twice and
+  // drag the average toward them.
+  const involvedMuscles = [...involvedSet];
   
   // Calculate average fatigue for involved muscles
   let totalFatigue = 0;
