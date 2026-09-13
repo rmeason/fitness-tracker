@@ -1986,7 +1986,9 @@ const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm, 
     shoulders: ['deltsFront', 'deltsMid', 'deltsRear', 'infraspinatus', 'supraspinatus'],
     back: ['latsUpper', 'latsLower', 'trapsUpper', 'trapsMid', 'trapsLower', 'rhomboids', 'erectorSpinae'],
     arms: ['bicepsLong', 'bicepsShort', 'brachialis', 'brachioradialis', 'tricepsLong', 'tricepsLateral', 'forearms'],
-    legs: ['vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'bicepsFemoris', 'semitendinosus', 'glutesUpper', 'glutesLower', 'gluteMed'],
+    legs: ['vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'bicepsFemoris', 'semitendinosus',
+           'glutesUpper', 'glutesLower', 'gluteMed', 'glutesMin', 'TFL', 'piriformis',
+           'adductorMagnus', 'adductorLongus', 'adductorBrevis', 'gracilis', 'pectineus'],
     calves: ['gastrocnemius', 'soleus'],
     core: ['rectusAbdominis', 'obliqueExternal', 'obliqueInternal', 'serratusAnterior']
   };
