@@ -4,25 +4,57 @@
 
 'use strict';
 
-import { MUSCLES, EXERCISE_LIBRARY, EXERCISE_TIERS, getExerciseData } from './muscles.js';
+import { MUSCLES, EXERCISE_LIBRARY, EXERCISE_TIERS, getExerciseData, getCardioMuscles } from './muscles.js';
 
 // ============================================
 // CORE FATIGUE CALCULATION
 // ============================================
 
 /**
- * Calculate RPE-based intensity multiplier
- * Higher RPE = more fatigue accumulation
- * @param {number} rpe - Rate of Perceived Exertion (1-10)
- * @returns {number} Multiplier for fatigue calculation
+ * RPE -> fatigue weight curve.
+ *
+ * RPE is the only direct measure we have of proximity to failure, so it is the
+ * strongest term in the model. The old curve spanned 0.6 to 1.5 (2.5x) while
+ * tonnage swung 10x, which meant equipment scale drowned out effort. This curve
+ * spans 0.3 to 2.0 (~6.7x) across the useful range: a set left 4+ reps short is
+ * a fraction of a set taken to failure, which is what the hypertrophy and
+ * fatigue literature actually describes.
+ *
+ * RPE 8 is the anchor at 1.0 -- it is also the default for entries with no rpe.
  */
-function getRPEMultiplier(rpe) {
-  if (rpe >= 10) return 1.5;      // Max effort / failure
-  if (rpe >= 9) return 1.3;       // 1 RIR or less
-  if (rpe >= 8) return 1.2;       // 2 RIR
-  if (rpe >= 7) return 1.0;       // 3 RIR (baseline)
-  if (rpe >= 6) return 0.8;       // 4 RIR
-  return 0.6;                      // 5+ RIR (very easy)
+const RPE_CURVE = [
+  [6.0, 0.30],   // 4+ RIR -- barely a stimulus
+  [7.0, 0.60],   // 3 RIR
+  [8.0, 1.00],   // 2 RIR -- reference point
+  [8.5, 1.20],   // 1-2 RIR
+  [9.0, 1.45],   // 1 RIR
+  [9.5, 1.70],   // 0-1 RIR
+  [10.0, 2.00]   // failure
+];
+
+/**
+ * Calculate the RPE fatigue weight, linearly interpolated between curve points.
+ * Clamped flat below RPE 6 and above RPE 10.
+ *
+ * @param {number} rpe - Rate of Perceived Exertion (1-10)
+ * @returns {number} Fatigue weight (0.3 - 2.0)
+ */
+export function getRPEWeight(rpe) {
+  const value = Number(rpe);
+  if (!Number.isFinite(value)) return 1.0; // unparseable -> treat as the RPE 8 default
+
+  if (value <= RPE_CURVE[0][0]) return RPE_CURVE[0][1];
+  const last = RPE_CURVE[RPE_CURVE.length - 1];
+  if (value >= last[0]) return last[1];
+
+  for (let i = 1; i < RPE_CURVE.length; i++) {
+    const [x0, y0] = RPE_CURVE[i - 1];
+    const [x1, y1] = RPE_CURVE[i];
+    if (value <= x1) {
+      return y0 + ((value - x0) / (x1 - x0)) * (y1 - y0);
+    }
+  }
+  return last[1];
 }
 
 /**
@@ -71,7 +103,13 @@ function getSleepAdjustedDecayRate(baseDecayRate, sleepMultiplier) {
 /**
  * Calculate volume load for an exercise
  * Supports both new format (weights array) and old format (single weight)
- * NOW SUPPORTS eachHand property for dumbbell exercises
+ * SUPPORTS eachHand property for dumbbell exercises
+ *
+ * NOTE: volume load is NO LONGER the fatigue driver -- displayed plate load is
+ * not force, and it varies by an order of magnitude between a pendulum squat
+ * (carriage, lever arm and bodyweight all invisible) and a cable stack. It now
+ * feeds only the RELATIVE loadFactor term, where an exercise is compared
+ * against its own history on the same machine and the arbitrary scale cancels.
  *
  * @param {object} exercise - Exercise data from workout log
  * @returns {number} Total volume load in lbs
@@ -98,57 +136,207 @@ function calculateVolumeLoad(exercise) {
 }
 
 /**
- * Calculate fatigue contribution for a single exercise
- * Core formula: (volumeLoad / 500) × activation% × RPE × tier × lengthening × sleep
- * NORMALIZED TO 0-100 SCALE for meaningful baseline comparison
- * 
+ * Count the hard sets actually performed.
+ * Prefers the reps array (a set logged with 0 reps was not performed), and
+ * falls back to the stored set count for older entries with no reps array.
+ *
+ * @param {object} exercise - Exercise from workout log
+ * @returns {number} Number of working sets
+ */
+function countEffectiveSets(exercise) {
+  const reps = Array.isArray(exercise.reps) ? exercise.reps : null;
+
+  if (reps) {
+    const performed = reps.filter(r => (Number(r) || 0) > 0).length;
+    if (performed > 0) return performed;
+  }
+
+  return Math.max(0, Number(exercise.sets) || 0);
+}
+
+/**
+ * Median of a numeric array. Returns 0 for an empty array.
+ * @param {Array<number>} values
+ * @returns {number}
+ */
+function median(values) {
+  if (!values || values.length === 0) return 0;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+/**
+ * How many prior sessions of the same exercise the loadFactor median looks back
+ * over. Short enough to track progressive overload, long enough that one heavy
+ * or one deload session does not become "normal".
+ */
+const LOAD_FACTOR_WINDOW = 6;
+
+/** loadFactor is clamped so a scale quirk can never dominate the model. */
+const LOAD_FACTOR_MIN = 0.75;
+const LOAD_FACTOR_MAX = 1.30;
+
+/**
+ * Relative load term: is this session heavier than usual FOR THIS EXERCISE?
+ *
+ * Comparing an exercise against its own trailing median on the same machine
+ * cancels the equipment's arbitrary scale -- a pendulum squat's 620 "lbs" and a
+ * cable stack's 4,433 "lbs" both become ~1.0 on a normal day -- while genuinely
+ * going heavier than usual still raises fatigue.
+ *
+ * Defaults to exactly 1.0 when there is not enough history to have an opinion.
+ *
+ * @param {number} volumePerSet - This session's volume load / effective sets
+ * @param {Array<number>} priorVolumePerSet - Prior sessions' volume-per-set, same exercise name
+ * @returns {number} Clamped ratio in [0.75, 1.30]
+ */
+function getLoadFactor(volumePerSet, priorVolumePerSet) {
+  if (!Array.isArray(priorVolumePerSet) || priorVolumePerSet.length < 2) return 1.0;
+  if (!(volumePerSet > 0)) return 1.0; // bodyweight / unweighted: no load signal, not a penalty
+
+  const baseline = median(priorVolumePerSet.slice(-LOAD_FACTOR_WINDOW));
+  if (!(baseline > 0)) return 1.0;
+
+  const ratio = volumePerSet / baseline;
+  return Math.min(LOAD_FACTOR_MAX, Math.max(LOAD_FACTOR_MIN, ratio));
+}
+
+/**
+ * Resolve a workout's timestamp.
+ * Uses loggedAt (exact save time) if available; falls back to noon on the date
+ * string to avoid midnight-UTC phantom recovery (date-only parses as 12:00am,
+ * adding up to 23h of fake recovery).
+ *
+ * @param {object} workout - Workout entry
+ * @returns {Date}
+ */
+function getWorkoutDate(workout) {
+  if (workout.loggedAt) return new Date(workout.loggedAt);
+  const d = new Date(workout.date);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
+/**
+ * Build the per-exercise load history that loadFactor compares against.
+ *
+ * Built from the FULL entry list, not just the recovery lookback window -- the
+ * baseline is "what he normally does on this machine", which needs more than a
+ * week of history. Threaded into calculateMuscleFatigue explicitly so the
+ * fatigue calculation stays a pure function of its arguments.
+ *
+ * @param {Array} workoutEntries - All workout entries
+ * @returns {Object<string, Array<{time: number, volumePerSet: number}>>} Keyed by exercise name, oldest first
+ */
+export function buildExerciseHistory(workoutEntries) {
+  const history = {};
+
+  for (const entry of workoutEntries || []) {
+    if (!entry || !Array.isArray(entry.exercises)) continue;
+    const time = getWorkoutDate(entry).getTime();
+    if (!Number.isFinite(time)) continue;
+
+    for (const exercise of entry.exercises) {
+      if (!exercise || !exercise.name) continue;
+      const sets = countEffectiveSets(exercise);
+      if (sets <= 0) continue;
+      const volume = calculateVolumeLoad(exercise);
+      if (volume <= 0) continue;
+
+      if (!history[exercise.name]) history[exercise.name] = [];
+      history[exercise.name].push({ time, volumePerSet: volume / sets });
+    }
+  }
+
+  for (const list of Object.values(history)) {
+    list.sort((a, b) => a.time - b.time);
+  }
+
+  return history;
+}
+
+/**
+ * Pull the prior-session volume-per-set values for one exercise.
+ * Strictly before the given time, so the session being scored never compares
+ * against itself.
+ *
+ * @param {object} exerciseHistory - Output of buildExerciseHistory
+ * @param {string} exerciseName
+ * @param {number} beforeTime - Timestamp (ms) of the session being scored
+ * @returns {Array<number>} Trailing volume-per-set values, oldest first
+ */
+function getPriorVolumePerSet(exerciseHistory, exerciseName, beforeTime) {
+  const list = (exerciseHistory && exerciseHistory[exerciseName]) || [];
+  return list
+    .filter(record => record.time < beforeTime)
+    .map(record => record.volumePerSet)
+    .slice(-LOAD_FACTOR_WINDOW);
+}
+
+/**
+ * Calculate fatigue contribution for a single exercise.
+ *
+ * Core formula (per muscle):
+ *   effectiveSets x rpeWeight x (activation/100) x tier x loadFactor
+ *   x 0.7 if secondary, x lengthening, x sleep
+ *
+ * The driver is HARD SETS AT AN RPE, not tonnage. Tonnage survives only inside
+ * loadFactor, as a ratio against this same exercise's own history, so the
+ * equipment's arbitrary scale cancels out. Result is in "fatigue points"
+ * compared against BASELINE_FATIGUE in processWorkoutHistory.
+ *
  * @param {object} exercise - Exercise from workout log
  * @param {number} sleepMultiplier - Sleep quality modifier (from calculateSleepMultiplier)
+ * @param {Array<number>} priorVolumePerSet - Prior volume-per-set for this exercise name (see getPriorVolumePerSet)
  * @returns {object} Fatigue contributions by muscle { muscleName: fatiguePoints, ... }
  */
-export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
+export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0, priorVolumePerSet = []) {
   // Get exercise data from library
   const exerciseData = getExerciseData(exercise.name, exercise.variant);
-  
+
   if (!exerciseData) {
     console.warn(`Exercise not found in library: ${exercise.name}`);
     return {};
   }
-  
-  // Calculate base volume load
-  const rawVolumeLoad = calculateVolumeLoad(exercise);
-  
-  if (rawVolumeLoad === 0) return {}; // No volume = no fatigue
-  
-  // NORMALIZE VOLUME LOAD TO 0-100 SCALE
-  // NOTE: Divisor tuned to 175 (not 500) — recovery color thresholds calibrated accordingly
-  // Dividing by 175 makes typical workout volumes produce 85-170 base points before multipliers; thresholds in getRecoveryColor() are calibrated to this scale
-  const volumeLoad = rawVolumeLoad / 175;
-  
+
+  // Hard sets are the driver. No sets performed = no fatigue.
+  const effectiveSets = countEffectiveSets(exercise);
+  if (effectiveSets === 0) return {};
+
   // Get multipliers
-  const rpeMultiplier = getRPEMultiplier(exercise.rpe || 8);
+  const rpeWeight = getRPEWeight(exercise.rpe || 8); // missing rpe still defaults to 8
   const tierMultiplier = EXERCISE_TIERS[exerciseData.tier]?.multiplier || 1.0;
-  
+
+  // Relative load: this session vs this exercise's own trailing median
+  const volumePerSet = calculateVolumeLoad(exercise) / effectiveSets;
+  const loadFactor = getLoadFactor(volumePerSet, priorVolumePerSet);
+
   // Lengthened partial bonus
   const lengtheningMultiplier = (exercise.isLengtheningPartial && exerciseData.lengtheningPartials)
     ? exerciseData.lengtheningMultiplier
     : 1.0;
-  
+
+  // Everything except activation and the secondary discount
+  const setFatigue = effectiveSets * rpeWeight * tierMultiplier * loadFactor;
+
   // Calculate fatigue for each muscle
   const muscleFatigue = {};
-  
+
   // Process primary muscles (>50% activation)
   for (const [muscleName, activationPercent] of Object.entries(exerciseData.primaryMuscles)) {
-    const baseFatigue = volumeLoad * (activationPercent / 100) * rpeMultiplier * tierMultiplier;
+    const baseFatigue = setFatigue * (activationPercent / 100);
     const actualFatigue = baseFatigue * lengtheningMultiplier * sleepMultiplier;
     muscleFatigue[muscleName] = actualFatigue;
   }
-  
+
   // Process secondary muscles (20-50% activation) - less fatigue accumulation
   for (const [muscleName, activationPercent] of Object.entries(exerciseData.secondaryMuscles)) {
-    const baseFatigue = volumeLoad * (activationPercent / 100) * rpeMultiplier * tierMultiplier * 0.7; // 30% reduction for secondary
+    const baseFatigue = setFatigue * (activationPercent / 100) * 0.7; // 30% reduction for secondary
     const actualFatigue = baseFatigue * lengtheningMultiplier * sleepMultiplier;
-    
+
     // Accumulate if muscle already has fatigue from primary role
     if (muscleFatigue[muscleName]) {
       muscleFatigue[muscleName] += actualFatigue;
@@ -156,7 +344,67 @@ export function calculateMuscleFatigue(exercise, sleepMultiplier = 1.0) {
       muscleFatigue[muscleName] = actualFatigue;
     }
   }
-  
+
+  return muscleFatigue;
+}
+
+/**
+ * Per-10-minute discount applied to steady-state cardio.
+ *
+ * Ten minutes on a step mill is materially less fatiguing than a hard working
+ * set: sub-maximal contractions, no eccentric overload, no proximity to
+ * failure. Calibrated by replay so a 15-minute Stairmaster after legs nudges
+ * quads and calves rather than dominating them.
+ */
+export const CARDIO_TIER = 0.5;
+
+/** Cardio effort default when `effort` is missing -- moderate, the cardio
+ *  analogue of the exercise rpe default of 8. */
+const DEFAULT_CARDIO_EFFORT = 7;
+
+/**
+ * Calculate fatigue contribution for a single cardio item.
+ *
+ *   cardioFatigue = (minutes / 10) x rpeWeight(effort) x (activation/100) x CARDIO_TIER
+ *
+ * MISSING IS NOT ZERO: a cardio item with null/missing `minutes` contributes
+ * NOTHING and is skipped -- it is never treated as 0 minutes, and never throws.
+ * A machine that is not in CARDIO_LIBRARY is skipped silently; there is no
+ * fuzzy name matching, so free text like "Dance/Walk" resolves to nothing
+ * rather than being guessed at.
+ *
+ * `timing` (e.g. "after lifting") is deliberately ignored. An after-lifting
+ * multiplier is plausible but there is no evidence base to set the number from,
+ * so it stays out rather than being guessed.
+ *
+ * @param {object} cardioItem - Cardio item from workout log { name, minutes, effort, ... }
+ * @param {number} sleepMultiplier - Sleep quality modifier, applied as for exercises
+ * @returns {object} Fatigue contributions by muscle { muscleName: fatiguePoints, ... }
+ */
+export function calculateCardioFatigue(cardioItem, sleepMultiplier = 1.0) {
+  if (!cardioItem || !cardioItem.name) return {};
+
+  const muscles = getCardioMuscles(cardioItem.name);
+  if (!muscles || Object.keys(muscles).length === 0) return {}; // unrecognised machine
+
+  // Missing minutes is not zero minutes -- it is an unknown, and contributes nothing.
+  if (cardioItem.minutes === null || cardioItem.minutes === undefined || cardioItem.minutes === '') return {};
+  const minutes = Number(cardioItem.minutes);
+  if (!Number.isFinite(minutes) || minutes <= 0) return {};
+
+  const effort = (cardioItem.effort === null || cardioItem.effort === undefined || cardioItem.effort === '')
+    ? DEFAULT_CARDIO_EFFORT
+    : cardioItem.effort;
+  const rpeWeight = getRPEWeight(effort);
+
+  const durationUnits = minutes / 10;
+  const muscleFatigue = {};
+
+  for (const [muscleName, activationPercent] of Object.entries(muscles)) {
+    muscleFatigue[muscleName] =
+      durationUnits * rpeWeight * (activationPercent / 100) * CARDIO_TIER * sleepMultiplier;
+  }
+
   return muscleFatigue;
 }
 
@@ -255,10 +503,33 @@ export function getRecoveryStatus(fatiguePercent) {
 // ============================================
 
 /**
+ * Per-muscle fatigue points that read as 100%.
+ *
+ * This is a PER-MUSCLE denominator, not a whole-session one. Under the old
+ * tonnage-driven model it was 88, a whole-session quantity, which meant a
+ * single muscle needed more volume load on one exercise than the user's entire
+ * session produced before it could read 100% -- quads never got above ~43% in
+ * four years of logs.
+ *
+ * Replayed across the full export, peak single-session per-muscle points under
+ * the sets x RPE model run from ~3.5 (gastrocnemius) to ~24 (mid traps) with a
+ * median near 6.6. Calibrated by replaying the 2026-09-12 Legs/Core session:
+ * 9.3 puts vastus lateralis at 88% at session end, 51% 24h later, and 17%
+ * after two full rest days -- the targets for a hard, directly-targeted
+ * session. getRecoveryColor / getRecoveryStatus thresholds are unchanged --
+ * the point of the recalibration is to make the percentages mean what those
+ * thresholds already assume.
+ */
+export const BASELINE_FATIGUE = 9.3;
+
+/**
  * Process workout history to calculate current recovery status
  * Analyzes last 7 days of training and applies time-based decay
  * Now includes sleep-adjusted recovery rates for personalized tracking
  * 
+ * Strength work and cardio both feed fatigue: cardio used to be invisible, so a
+ * 15-minute Stairmaster after a leg session contributed nothing at all.
+ *
  * @param {Array} workoutEntries - Workout entries (sorted oldest to newest)
  * @param {Array} sleepEntries - Sleep entries (sorted oldest to newest)  
  * @param {Date} currentDate - Current date/time (default: now)
@@ -281,6 +552,11 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
     };
   }
   
+  // Per-exercise load history for the relative loadFactor term. Built from the
+  // FULL entry list (not just the lookback window) so the baseline is "what he
+  // normally does on this machine", and threaded through explicitly below.
+  const exerciseHistory = buildExerciseHistory(workoutEntries);
+  
   // Get date range
   const cutoffDate = new Date(currentDate);
   cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
@@ -301,13 +577,15 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
   
   // Process each workout
   for (const workout of recentWorkouts) {
-    if (workout.trainingType === 'REST' || !workout.exercises) continue;
+    if (workout.trainingType === 'REST') continue;
+    
+    const hasExercises = Array.isArray(workout.exercises) && workout.exercises.length > 0;
+    const hasCardio = Array.isArray(workout.cardio) && workout.cardio.length > 0;
+    if (!hasExercises && !hasCardio) continue;
     
     // Use loggedAt (exact save time) if available; fall back to noon on the date string
     // to avoid midnight-UTC phantom recovery (date-only parses as 12:00am, adding up to 23h of fake recovery)
-    const workoutDate = workout.loggedAt
-      ? new Date(workout.loggedAt)
-      : (() => { const d = new Date(workout.date); d.setHours(12, 0, 0, 0); return d; })();
+    const workoutDate = getWorkoutDate(workout);
     const hoursAgo = (currentDate - workoutDate) / (1000 * 60 * 60);
     
     // Get sleep data for this workout (from night before)
@@ -330,11 +608,9 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
       avgRecoverySleepMultiplier = calculateSleepMultiplier(avgSleepHours, avgDeepSleep);
     }
     
-    // Process each exercise in the workout
-    for (const exercise of workout.exercises) {
-      const muscleFatigue = calculateMuscleFatigue(exercise, workoutSleepMultiplier);
-      
-      // Add fatigue to each affected muscle
+    // Decay each muscle's contribution and fold it into the running total.
+    // Shared by the strength and cardio paths so both are tracked identically.
+    const accumulate = (muscleFatigue, sourceName) => {
       for (const [muscleName, initialFatigue] of Object.entries(muscleFatigue)) {
         if (!muscleRecovery[muscleName]) continue; // Skip if muscle not in our database
         
@@ -349,7 +625,7 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
         // Track fatigue history
         muscleRecovery[muscleName].fatigueHistory.push({
           date: workout.date,
-          exercise: exercise.name,
+          exercise: sourceName,
           initialFatigue: initialFatigue,
           currentFatigue: currentFatigue,
           hoursAgo: hoursAgo.toFixed(1)
@@ -360,13 +636,29 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
           muscleRecovery[muscleName].lastTrained = workout.date;
         }
       }
+    };
+    
+    // Process each exercise in the workout
+    if (hasExercises) {
+      for (const exercise of workout.exercises) {
+        if (!exercise || !exercise.name) continue;
+        const priorVolumePerSet = getPriorVolumePerSet(exerciseHistory, exercise.name, workoutDate.getTime());
+        accumulate(calculateMuscleFatigue(exercise, workoutSleepMultiplier, priorVolumePerSet), exercise.name);
+      }
+    }
+    
+    // Process cardio. Unrecognised machines and items with no logged minutes
+    // return {} and so contribute nothing -- missing is not zero.
+    if (hasCardio) {
+      for (const cardioItem of workout.cardio) {
+        if (!cardioItem || !cardioItem.name) continue;
+        accumulate(calculateCardioFatigue(cardioItem, workoutSleepMultiplier), cardioItem.name);
+      }
     }
   }
   
   // Calculate final recovery percentages and status
-  // Baseline fatigue for comparison: 100 points = moderate single workout worth
-  const BASELINE_FATIGUE = 88;
-  
+  // BASELINE_FATIGUE is a PER-MUSCLE denominator -- see the constant's comment.
   for (const [muscleName, recovery] of Object.entries(muscleRecovery)) {
     const fatiguePercent = (recovery.totalFatigue / BASELINE_FATIGUE) * 100;
     recovery.currentFatiguePercent = Math.round(fatiguePercent * 10) / 10; // Round to 1 decimal
@@ -491,8 +783,13 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
 // ============================================
 
 export default {
+  BASELINE_FATIGUE,
+  CARDIO_TIER,
+  getRPEWeight,
   calculateSleepMultiplier,
+  buildExerciseHistory,
   calculateMuscleFatigue,
+  calculateCardioFatigue,
   calculateCurrentFatigue,
   getRecoveryColor,
   getRecoveryStatus,
