@@ -759,19 +759,32 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
     recommendation.volumeAdjustment = 0.75;
   }
   
-  // Fatigue impact
+  // Fatigue impact.
+  // maxFatigue (the single worst muscle about to be re-trained) is the primary
+  // signal -- avgFatigue can only ever be <= maxFatigue, so it exists to catch
+  // widespread moderate fatigue that isn't concentrated in one muscle, not to
+  // override a real peak. Every branch below produces a message: the old
+  // ladder had a 20-70% max / 20-50% avg gap that fell through silently,
+  // which the UI renders as no warning box at all (see app.js) -- indistinguishable
+  // from "checked and fine". A muscle sitting at 68% RECOVERING on its own card
+  // should never pair with an empty fatigue section here.
   if (maxFatigue >= 90) {
     recommendation.proceed = false;
     recommendation.fatigueWarning = `🔴 ${mostFatiguedMuscle} severely fatigued (${maxFatigue.toFixed(0)}%). REST DAY RECOMMENDED.`;
     recommendation.volumeAdjustment = 0;
-  } else if (maxFatigue >= 70) {
+  } else if (maxFatigue >= 60) {
     recommendation.fatigueWarning = `🟠 ${mostFatiguedMuscle} fatigued (${maxFatigue.toFixed(0)}%). Reduce volume by 30-40%.`;
     recommendation.volumeAdjustment *= 0.65;
   } else if (avgFatigue >= 50) {
-    recommendation.fatigueWarning = `🟡 Moderate fatigue (avg ${avgFatigue.toFixed(0)}%). Reduce volume by 15-20%.`;
+    recommendation.fatigueWarning = `🟡 Widespread fatigue (avg ${avgFatigue.toFixed(0)}%). Reduce volume by 15-20%.`;
     recommendation.volumeAdjustment *= 0.85;
+  } else if (maxFatigue >= 50) {
+    recommendation.fatigueWarning = `🟡 ${mostFatiguedMuscle} still recovering (${maxFatigue.toFixed(0)}%). Trim volume ~10%.`;
+    recommendation.volumeAdjustment *= 0.90;
   } else if (avgFatigue < 20) {
     recommendation.fatigueWarning = `✅ Muscles fresh (avg ${avgFatigue.toFixed(0)}%). Ready for progressive overload!`;
+  } else {
+    recommendation.fatigueWarning = `🔵 Some residual fatigue (avg ${avgFatigue.toFixed(0)}%, peak ${maxFatigue.toFixed(0)}% in ${mostFatiguedMuscle}). Proceed as planned.`;
   }
   
   // Suggested working sets based on sleep and fatigue
