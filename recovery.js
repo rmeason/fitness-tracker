@@ -57,31 +57,149 @@ export function getRPEWeight(rpe) {
   return last[1];
 }
 
+// ============================================
+// SLEEP SCORING
+// ============================================
+
+/**
+ * DURATION IS PRIMARY, AND DEEP SLEEP IS COUNTED IN MINUTES -- NOT PERCENT.
+ *
+ * Do not "fix" this back toward a deep-sleep PERCENTAGE. Slow-wave sleep is
+ * front-loaded and homeostatically defended: you get most of it in the first
+ * two or three cycles regardless of how long you stay asleep. Extra hours
+ * therefore add light and REM sleep, which DILUTES the percentage while adding
+ * recovery. A high deep percentage on a short night is mostly an artefact of
+ * truncation -- the denominator shrank, not the numerator grew.
+ *
+ * Measured over the 95-night history in the export:
+ *   - correlation(total hours, deep %) = -0.356. Longer nights score worse,
+ *     mechanically, under a percentage rule.
+ *   - deep MINUTES are near-flat across every duration bucket:
+ *     52 / 57 / 61 / 58 min for <6h / 6-7h / 7-8h / 8h+. The quantity barely
+ *     moves; only the ratio does.
+ *   - the matched pair that proves it: 2026-04-18 (4.8h, 79 min deep) and
+ *     2026-05-20 (9.4h, 78 min deep). Same deep sleep, opposite verdicts under
+ *     the old percentage rule -- the 4.8h night scored BETTER.
+ *
+ * The terms are multiplied, then governed by a floor, because the old structure
+ * let architecture fully cancel a severe duration deficit: durationMod topped
+ * out at 1.2 while qualityMod reached 0.8, so a 4.8h night could come out net
+ * recovery-positive. Duration now has the widest authority, deep minutes
+ * modulate within a narrower band, and the floor makes a short night
+ * un-rescuable.
+ */
+
+/** Duration is the primary term and carries the widest range. */
+function getSleepDurationTerm(hours) {
+  if (hours < 5) return 1.35;
+  if (hours < 6) return 1.22;
+  if (hours < 6.5) return 1.12;
+  if (hours < 7) return 1.05;
+  if (hours <= 9) return 0.92;   // optimal band
+  if (hours <= 10) return 0.95;
+  return 1.00;
+}
+
+/**
+ * Deep sleep as ABSOLUTE MINUTES, on a narrower range than duration so it
+ * modulates rather than overrides. The user's own range is roughly 35-85 min
+ * with a mean of 57, so neutral is centred there.
+ */
+function getSleepDeepTerm(deepMinutes) {
+  if (deepMinutes < 35) return 1.12;
+  if (deepMinutes < 50) return 1.06;
+  if (deepMinutes < 75) return 1.00;
+  if (deepMinutes < 100) return 0.94;
+  return 0.90;
+}
+
+/**
+ * Self-reported recovery, modest weight. rating 10 -> 0.964, 7 -> 1.0, 4 -> 1.036.
+ * MISSING IS NOT ZERO: absent, null or non-numeric means exactly 1.0. Treating
+ * a missing rating as 0 would read as a catastrophic night.
+ */
+function getSleepRatingTerm(recoveryRating) {
+  const rating = Number(recoveryRating);
+  if (!Number.isFinite(rating) || rating <= 0) return 1.0;
+  return 1.0 + (7 - rating) * 0.012;
+}
+
+/** A night under six hours can never come out net recovery-positive. */
+const SHORT_SLEEP_HOURS = 6;
+const SHORT_SLEEP_FLOOR = 1.05;
+const SLEEP_MULTIPLIER_MIN = 0.80;
+const SLEEP_MULTIPLIER_MAX = 1.45;
+
+/**
+ * THE one sleep verdict. Every sleep-driven decision in the app routes through
+ * this -- the fatigue multiplier, the "Sleep Quality" message, and the baseline
+ * set recommendation. The thresholds used to be written out three separate
+ * times, which is how the set recommendation ended up keyed off deep-sleep
+ * percentage alone and advising 20-22 sets after a 4.8h night.
+ *
+ * @param {number} totalSleepHours - Total sleep duration in hours
+ * @param {number} deepSleepPercent - Deep sleep as a percentage of total
+ * @param {number} [recoveryRating] - Optional self-reported 1-10 rating
+ * @returns {object} { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message }
+ */
+export function getSleepVerdict(totalSleepHours, deepSleepPercent, recoveryRating) {
+  const rawHours = Number(totalSleepHours);
+  const rawPercent = Number(deepSleepPercent);
+  const hours = Number.isFinite(rawHours) && rawHours > 0 ? rawHours : 8;
+  const deepPercent = Number.isFinite(rawPercent) && rawPercent >= 0 ? rawPercent : 15;
+  const deepMinutes = hours * 60 * (deepPercent / 100);
+
+  const durationTerm = getSleepDurationTerm(hours);
+  const deepTerm = getSleepDeepTerm(deepMinutes);
+  const ratingTerm = getSleepRatingTerm(recoveryRating);
+
+  let multiplier = durationTerm * deepTerm * ratingTerm;
+  // The floor is what actually fixes the reported bug: no amount of good
+  // architecture or a generous self-rating rescues a short night.
+  if (hours < SHORT_SLEEP_HOURS) multiplier = Math.max(multiplier, SHORT_SLEEP_FLOOR);
+  multiplier = Math.min(SLEEP_MULTIPLIER_MAX, Math.max(SLEEP_MULTIPLIER_MIN, multiplier));
+
+  // Baseline training volume. Duration gates FIRST -- it used to be ignored
+  // entirely here, which is how 15 sub-6h nights still recommended 20-22 sets.
+  // Deep minutes can only lift the baseline within what the duration allows.
+  let baselineSets;
+  if (hours < 6) baselineSets = 14;            // hard cap, whatever the deep % says
+  else if (hours < 6.5) baselineSets = 16;     // hard cap
+  else if (hours < 7) baselineSets = 18;
+  else if (deepMinutes >= 75) baselineSets = 22; // full volume needs BOTH 7h+ and 75+ min
+  else if (deepMinutes >= 50) baselineSets = 20;
+  else baselineSets = 18;
+
+  // Hours and minutes are legible; a bare "16.9%" actively misleads.
+  const summary = `${hours.toFixed(1)}h, ${Math.round(deepMinutes)} min deep`;
+  let quality, message;
+  if (multiplier <= 0.85) {
+    quality = 'excellent';
+    message = `💪 Excellent sleep (${summary}). Optimal for high volume.`;
+  } else if (multiplier >= 1.2) {
+    quality = 'poor';
+    message = `⚠️ Poor sleep (${summary}). Consider deload or rest.`;
+  } else {
+    quality = 'adequate';
+    message = `😴 Adequate sleep (${summary}).`;
+  }
+
+  return { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message };
+}
+
 /**
  * Calculate sleep quality multiplier
  * Better sleep = less fatigue accumulation
- * Based on user's validated correlation: 20%+ deep = optimal recovery
- * 
+ *
+ * Thin wrapper over getSleepVerdict, kept for its existing name and call sites.
+ *
  * @param {number} totalSleepHours - Total sleep duration
  * @param {number} deepSleepPercent - Deep sleep percentage
+ * @param {number} [recoveryRating] - Optional self-reported 1-10 rating
  * @returns {number} Multiplier for fatigue (lower = better recovery)
  */
-export function calculateSleepMultiplier(totalSleepHours, deepSleepPercent) {
-  // Duration modifier (7-9 hours optimal)
-  let durationMod = 1.0;
-  if (totalSleepHours < 6) durationMod = 1.2;      // Insufficient sleep
-  else if (totalSleepHours < 7) durationMod = 1.1; // Suboptimal
-  else if (totalSleepHours > 9) durationMod = 1.05; // Slightly too much
-  
-  // Deep sleep quality modifier (primary factor based on user's data)
-  let qualityMod = 1.0;
-  if (deepSleepPercent >= 20) qualityMod = 0.8;      // Excellent (20%+ = -20% fatigue)
-  else if (deepSleepPercent >= 15) qualityMod = 0.9; // Target range (-10% fatigue)
-  else if (deepSleepPercent >= 12) qualityMod = 1.0; // Baseline (neutral)
-  else if (deepSleepPercent >= 8) qualityMod = 1.15; // Poor (+15% fatigue)
-  else qualityMod = 1.3;                             // Very poor (+30% fatigue)
-  
-  return durationMod * qualityMod;
+export function calculateSleepMultiplier(totalSleepHours, deepSleepPercent, recoveryRating) {
+  return getSleepVerdict(totalSleepHours, deepSleepPercent, recoveryRating).multiplier;
 }
 
 /**
@@ -604,7 +722,7 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
     // For fatigue accumulation during workout
     const workoutSleep = sleepEntries.find(s => s.date === workout.date);
     const workoutSleepMultiplier = workoutSleep
-      ? calculateSleepMultiplier(workoutSleep.sleepHours, workoutSleep.deepSleepPercent)
+      ? calculateSleepMultiplier(workoutSleep.sleepHours, workoutSleep.deepSleepPercent, workoutSleep.recoveryRating)
       : 1.0;
     
     // Get average sleep quality for recovery period (all sleep since workout)
@@ -617,7 +735,13 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
     if (sleepsSinceWorkout.length > 0) {
       const avgSleepHours = sleepsSinceWorkout.reduce((sum, s) => sum + (s.sleepHours || 8), 0) / sleepsSinceWorkout.length;
       const avgDeepSleep = sleepsSinceWorkout.reduce((sum, s) => sum + (s.deepSleepPercent || 15), 0) / sleepsSinceWorkout.length;
-      avgRecoverySleepMultiplier = calculateSleepMultiplier(avgSleepHours, avgDeepSleep);
+      // Average only the ratings that exist -- a missing rating must not be
+      // averaged in as 0, which would read as a run of catastrophic nights.
+      const rated = sleepsSinceWorkout.filter(s => Number.isFinite(Number(s.recoveryRating)) && Number(s.recoveryRating) > 0);
+      const avgRating = rated.length > 0
+        ? rated.reduce((sum, s) => sum + Number(s.recoveryRating), 0) / rated.length
+        : undefined;
+      avgRecoverySleepMultiplier = calculateSleepMultiplier(avgSleepHours, avgDeepSleep, avgRating);
     }
     
     // Decay each muscle's contribution and fold it into the running total.
@@ -695,10 +819,13 @@ export function processWorkoutHistory(workoutEntries, sleepEntries, currentDate 
  * @returns {object} Recommendations for today's training
  */
 export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWorkout) {
-  const sleepMultiplier = calculateSleepMultiplier(
+  // ONE verdict drives the message, the volume nudge and the baseline sets.
+  const sleepVerdict = getSleepVerdict(
     todaysSleep.sleepHours || 8,
-    todaysSleep.deepSleepPercent || 15
+    todaysSleep.deepSleepPercent || 15,
+    todaysSleep.recoveryRating
   );
+  const sleepMultiplier = sleepVerdict.multiplier;
   
   // Get muscles involved in planned workout.
   // Keyword -> muscle table. Every training type in the log has to hit at least
@@ -762,12 +889,12 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
     fatigueWarning: ''
   };
   
-  // Sleep impact
-  if (sleepMultiplier <= 0.85) {
-    recommendation.sleepImpact = `💪 Excellent sleep (${todaysSleep.deepSleepPercent}%)! Optimal for high volume.`;
+  // Sleep impact -- message and verdict both come from getSleepVerdict, so the
+  // thresholds live in exactly one place.
+  recommendation.sleepImpact = sleepVerdict.message;
+  if (sleepVerdict.quality === 'excellent') {
     recommendation.volumeAdjustment = 1.1;
-  } else if (sleepMultiplier >= 1.2) {
-    recommendation.sleepImpact = `⚠️ Poor sleep (${todaysSleep.deepSleepPercent}%). Consider deload or rest.`;
+  } else if (sleepVerdict.quality === 'poor') {
     recommendation.volumeAdjustment = 0.75;
   }
   
@@ -799,11 +926,10 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
     recommendation.fatigueWarning = `🔵 Some residual fatigue (avg ${avgFatigue.toFixed(0)}%, peak ${maxFatigue.toFixed(0)}% in ${mostFatiguedMuscle}). Proceed as planned.`;
   }
   
-  // Suggested working sets based on sleep and fatigue
-  let baselineSets = 18;
-  if (todaysSleep.deepSleepPercent >= 20) baselineSets = 22;
-  else if (todaysSleep.deepSleepPercent >= 15) baselineSets = 20;
-  else if (todaysSleep.deepSleepPercent < 12) baselineSets = 14;
+  // Suggested working sets. Baseline comes from the shared sleep verdict, which
+  // gates on DURATION first -- this used to read deepSleepPercent alone and
+  // ignore duration entirely.
+  const baselineSets = sleepVerdict.baselineSets;
   
   const suggestedSets = Math.round(baselineSets * recommendation.volumeAdjustment);
   
@@ -821,6 +947,7 @@ export default {
   BASELINE_FATIGUE,
   CARDIO_TIER,
   getRPEWeight,
+  getSleepVerdict,
   calculateSleepMultiplier,
   buildExerciseHistory,
   calculateMuscleFatigue,
