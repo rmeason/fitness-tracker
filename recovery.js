@@ -140,7 +140,7 @@ const SLEEP_MULTIPLIER_MAX = 1.45;
  * @param {number} totalSleepHours - Total sleep duration in hours
  * @param {number} deepSleepPercent - Deep sleep as a percentage of total
  * @param {number} [recoveryRating] - Optional self-reported 1-10 rating
- * @returns {object} { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message }
+ * @returns {object} { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message, tier, qualityLabel }
  */
 export function getSleepVerdict(totalSleepHours, deepSleepPercent, recoveryRating) {
   const rawHours = Number(totalSleepHours);
@@ -184,7 +184,17 @@ export function getSleepVerdict(totalSleepHours, deepSleepPercent, recoveryRatin
     message = `😴 Adequate sleep (${summary}).`;
   }
 
-  return { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message };
+  // Four-tier display label. The daily panel renders THIS rather than keeping
+  // its own threshold ladder -- that duplication is exactly what let a 9.5h
+  // night with 62 min of deep sleep show "POOR" in one panel while this same
+  // verdict called it adequate in another, purely because 62/570 is 10.9%.
+  let tier, qualityLabel;
+  if (multiplier <= 0.90) { tier = 0; qualityLabel = '⭐⭐⭐ PR RANGE'; }
+  else if (multiplier <= 0.97) { tier = 1; qualityLabel = '⭐⭐ TARGET RANGE'; }
+  else if (multiplier <= 1.10) { tier = 2; qualityLabel = '⭐ BASELINE RANGE'; }
+  else { tier = 3; qualityLabel = '⚠️ POOR'; }
+
+  return { hours, deepPercent, deepMinutes, multiplier, baselineSets, quality, message, tier, qualityLabel };
 }
 
 /**

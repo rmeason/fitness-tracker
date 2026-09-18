@@ -26,7 +26,8 @@ import {
   processWorkoutHistory,
   getTrainingRecommendation,
   getRecoveryStatus,
-  calculateSleepMultiplier
+  calculateSleepMultiplier,
+  getSleepVerdict
 } from './recovery.js';
 
 // Alias React.createElement to 'h' for brevity
@@ -544,22 +545,24 @@ const recalculateCycleDays = (trainingCycle) => {
   return { migrated: true, entriesUpdated: sortedEntries.length };
 };
 
-const getGrade = (deepSleepPercent, totalSets) => {
-  if (deepSleepPercent === null || totalSets === null) return 'N/A';
-  if (deepSleepPercent >= 20 && totalSets >= 22) return 'S++';
-  if (deepSleepPercent >= 15 && totalSets >= 20) return 'S/A+';
-  if (deepSleepPercent >= 12 && totalSets >= 16) return 'A/A+';
-  if (deepSleepPercent >= 10 && totalSets >= 14) return 'B+';
-  if (deepSleepPercent < 10 && totalSets < 14) return 'C';
+// Sleep quality is judged by getSleepVerdict in recovery.js -- duration first,
+// deep sleep in absolute MINUTES. These two used to run their own deep-sleep
+// PERCENTAGE ladders, which meant the daily panel labelled a 9h30m night with
+// 62 min of deep sleep "POOR" (62/570 = 10.9%) while the recovery panel called
+// the same night adequate. Percentage falls as duration rises; that is the bug.
+const getGrade = (sleep, totalSets) => {
+  if (!sleep || totalSets === null || totalSets === undefined) return 'N/A';
+  const { tier } = getSleepVerdict(sleep.sleepHours, sleep.deepSleepPercent, sleep.recoveryRating);
+  if (tier <= 0 && totalSets >= 22) return 'S++';
+  if (tier <= 1 && totalSets >= 20) return 'S/A+';
+  if (tier <= 2 && totalSets >= 16) return 'A/A+';
+  if (tier <= 2 && totalSets >= 14) return 'B+';
+  if (tier === 3 && totalSets < 14) return 'C';
   return 'B';
 };
 
-const getSleepQualityStars = (deepSleepPercent) => {
-  if (deepSleepPercent >= 20) return '⭐⭐⭐ PR RANGE';
-  if (deepSleepPercent >= 15) return '⭐⭐ TARGET RANGE';
-  if (deepSleepPercent >= 12) return '⭐ BASELINE RANGE';
-  return '⚠️ POOR';
-};
+const getSleepQualityStars = (totalSleepHours, deepSleepPercent, recoveryRating) =>
+  getSleepVerdict(totalSleepHours, deepSleepPercent, recoveryRating).qualityLabel;
 
 // Flat, symmetric training-day bonus. A weekly training/rest split would need
 // day-counting and divides by zero on an all-training cycle; this cannot.
@@ -2806,7 +2809,7 @@ const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
           )
         ),
         h('p', { className: 'text-xs text-slate-400 mt-1' }, `Deep: ${formatSleepTime(deepSleepDecimal)} (${deepSleepPercent.toFixed(1)}%)`),
-        h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(deepSleepPercent))
+        h('p', { className: 'text-sm mt-1' }, getSleepQualityStars(totalSleepDecimal, deepSleepPercent, recoveryRating))
       ),
       h(Slider, { label: 'Recovery Rating', min: 1, max: 10, value: recoveryRating, onChange: (e) => setRecoveryRating(Number(e.target.value)) })
     ),
@@ -3713,7 +3716,7 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
 
   // Calculate grade using sleep data
   const grade = sleep
-    ? getGrade(sleep.deepSleepPercent, totalSets)
+    ? getGrade(sleep, totalSets)
     : 'N/A';
 
   return h('div', { className: 'bg-slate-800 rounded-lg shadow-lg overflow-hidden mb-4' },
@@ -3752,7 +3755,7 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
               h('div', {},
                 h('div', { className: 'text-sm font-medium text-slate-400' }, 'Deep Sleep'),
                 h('div', {}, `${formatSleepTime(sleep.sleepHours * (sleep.deepSleepPercent / 100))} (${sleep.deepSleepPercent.toFixed(1)}%)`),
-                h('div', { className: 'text-sm' }, getSleepQualityStars(sleep.deepSleepPercent))
+                h('div', { className: 'text-sm' }, getSleepQualityStars(sleep.sleepHours, sleep.deepSleepPercent, sleep.recoveryRating))
               ),
               h('div', {},
                 h('div', { className: 'text-sm font-medium text-slate-400' }, 'Recovery Rating'),
