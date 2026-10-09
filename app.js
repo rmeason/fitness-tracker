@@ -55,6 +55,12 @@ const MAINTENANCE_MIN_INTAKE_DAYS = 10;
 const MAINTENANCE_MIN_WEIGH_INS = 6;
 const MAINTENANCE_CLAMP_LOW = 0.7;
 const MAINTENANCE_CLAMP_HIGH = 1.5;
+// A run of logged days ends when the next logged day is further off than this, so
+// intake from before a long break is never paired with weight change from after it.
+const MAINTENANCE_MAX_GAP_DAYS = 5;
+// Stop estimating once food logging has simply stopped -- unless a marked sick/away
+// range explains the silence, in which case the gap is accounted for, not missing.
+const MAINTENANCE_MAX_STALE_DAYS = 7;
 const MAINTENANCE_ANNOUNCE_THRESHOLD_KCAL = 150;
 const GOAL_DRIFT_LB_THRESHOLD = 3;
 const GOAL_DRIFT_MIN_WEIGHINS = 3;
@@ -145,7 +151,8 @@ const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tr
 const DEFAULT_DIET_GOALS = {
   protein: 140, calories: 2200, enabled: false,
   goalType: null, calculatedAtWeight: null, calculatedAt: null,
-  maintenanceSource: null, maintenanceLastShown: null
+  maintenanceSource: null, maintenanceLastShown: null,
+  maintenanceExclusions: []
 };
 
 // --- 🛠️ HELPER FUNCTIONS ---
@@ -1088,16 +1095,16 @@ const calculateMifflinTdee = (weight, activityLevel) => {
 
 // Shared windows. The estimator and the drift check both use these, so they cannot
 // disagree about what "recent" means.
-const getWindowedWeighIns = (sleepEntries, days) => {
-  const cutoff = new Date();
+const getWindowedWeighIns = (sleepEntries, days, now = new Date()) => {
+  const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - days);
   return sleepEntries
     .filter(e => Number(e.weight) > 0 && new Date(e.date) >= cutoff)
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 };
 
-const getWindowedIntakeDays = (nutrition, days) => {
-  const cutoff = new Date();
+const getWindowedIntakeDays = (nutrition, days, now = new Date()) => {
+  const cutoff = new Date(now);
   cutoff.setDate(cutoff.getDate() - days);
   const dates = [...new Set(
     nutrition.filter(n => new Date(n.date) >= cutoff).map(n => n.date)
@@ -1108,24 +1115,106 @@ const getWindowedIntakeDays = (nutrition, days) => {
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 };
 
+// --- Sick / away ranges ----------------------------------------------------
+// Days the user has marked as unrepresentative. Illness and travel produce real but
+// atypical intake (200-750 kcal) whose weight swing is water and glycogen, and it
+// rebounds; worse, mean intake counts only days with food logged while the weight
+// slope counts every weigh-in, so an unmarked sick spell pairs intake from one
+// period with weight change from another.
+//
+// Shape: [{ id, from, to, reason }] with inclusive "YYYY-MM-DD" dates. Stored on
+// dietGoals, so an old backup without the field reads as [].
+const normaliseMaintenanceExclusions = (exclusions) => {
+  if (!Array.isArray(exclusions)) return [];
+  const isRealDate = (s) =>
+    typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && formatDate(parseLocalDate(s)) === s;
+  return exclusions.filter(r => r && isRealDate(r.from) && isRealDate(r.to) && r.from <= r.to);
+};
+
+// Whole days between two "YYYY-MM-DD" dates. Rounded, so a DST boundary inside the
+// span cannot turn an exact number of days into 5.958.
+const daysBetweenDates = (fromStr, toStr) =>
+  Math.round((parseLocalDate(toStr) - parseLocalDate(fromStr)) / 86400000);
+
+// ISO dates compare correctly as strings, and every range is already normalised.
+const isDateExcluded = (dateStr, ranges) => ranges.some(r => dateStr >= r.from && dateStr <= r.to);
+
+const MAINTENANCE_EXCLUSION_REASONS = { sick: 'Sick', away: 'Away', other: 'Other' };
+
+// Last calendar day with any food logged, or null. Drives the "mark the gap" prefill.
+const latestIntakeDate = (nutrition) => {
+  const dates = (nutrition || [])
+    .filter(n => n && typeof n.date === 'string')
+    .map(n => n.date)
+    .sort();
+  return dates.length ? dates[dates.length - 1] : null;
+};
+
+// "Sep 25 – today", the span the stale prefill would cover.
+const staleRangeLabel = (nutrition) => {
+  const lastLogged = latestIntakeDate(nutrition);
+  if (!lastLogged) return 'the gap';
+  const dayAfter = parseLocalDate(lastLogged);
+  dayAfter.setDate(dayAfter.getDate() + 1);
+  return `${dayAfter.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – today`;
+};
+
 // Maintenance from logged data: mean intake minus the calories implied by the weight
 // trend (3500 kcal/lb). The formula survives only as a cold start and a sanity clamp.
 // Returns { available: false, gateProgress } until there is enough history, so the UI
 // can say "log more" rather than look broken. mifflinTdee is echoed back for display.
-const estimateEmpiricalMaintenance = (nutrition, sleepEntries, mifflinTdee) => {
-  const weighIns = getWindowedWeighIns(sleepEntries, MAINTENANCE_WINDOW_PREFERRED_DAYS);
-  const intakeDays = getWindowedIntakeDays(nutrition, MAINTENANCE_WINDOW_PREFERRED_DAYS);
+const estimateEmpiricalMaintenance = (nutrition, sleepEntries, mifflinTdee, exclusions = [], now = new Date()) => {
+  const ranges = normaliseMaintenanceExclusions(exclusions);
+  const nowStr = formatDate(now);
 
-  const oldestRelevant = [...weighIns, ...intakeDays.map(d => ({ date: d.date }))]
-    .reduce((min, e) => (!min || new Date(e.date) < new Date(min)) ? e.date : min, null);
-  const daysOfHistory = oldestRelevant
-    ? Math.round((new Date() - new Date(oldestRelevant)) / 86400000)
-    : 0;
+  // 1. Marked days are not evidence, on either series.
+  const windowWeighIns = getWindowedWeighIns(sleepEntries, MAINTENANCE_WINDOW_PREFERRED_DAYS, now)
+    .filter(e => !isDateExcluded(e.date, ranges));
+  const windowIntakeDays = getWindowedIntakeDays(nutrition, MAINTENANCE_WINDOW_PREFERRED_DAYS, now)
+    .filter(d => !isDateExcluded(d.date, ranges));
+
+  // 2. Keep only the run of logged days after the last break. A break is either a
+  //    stretch of unlogged days too long to be noise, or a marked range sitting
+  //    wholly between two logged days -- both mean the weight either side belongs
+  //    to a different period than the intake.
+  let segmentStart = 0;
+  for (let i = 1; i < windowIntakeDays.length; i++) {
+    const prev = windowIntakeDays[i - 1].date;
+    const cur = windowIntakeDays[i].date;
+    const tooFarApart = daysBetweenDates(prev, cur) > MAINTENANCE_MAX_GAP_DAYS + 1;
+    const rangeBetween = ranges.some(r => r.from > prev && r.to < cur);
+    if (tooFarApart || rangeBetween) segmentStart = i;
+  }
+  const intakeDays = windowIntakeDays.slice(segmentStart);
+
+  // 3. Weight only counts where there is intake to pair it with.
+  const firstIntake = intakeDays.length ? intakeDays[0].date : null;
+  const lastIntake = intakeDays.length ? intakeDays[intakeDays.length - 1].date : null;
+  const weighIns = firstIntake
+    ? windowWeighIns.filter(e => e.date >= firstIntake && e.date <= lastIntake)
+    : [];
 
   const gateProgress = {
     intakeDays: intakeDays.length, intakeDaysNeeded: MAINTENANCE_MIN_INTAKE_DAYS,
     weighIns: weighIns.length, weighInsNeeded: MAINTENANCE_MIN_WEIGH_INS
   };
+
+  // 4. Staleness. A marked range that has already ended still counts as covered --
+  //    the user told us what those days were, so they are accounted for, not absent.
+  if (lastIntake) {
+    const rangeEnds = ranges.filter(r => r.to <= nowStr).map(r => r.to);
+    const lastCovered = [lastIntake, ...rangeEnds].reduce((a, b) => (b > a ? b : a), lastIntake);
+    const staleDays = daysBetweenDates(lastCovered, nowStr);
+    if (staleDays > MAINTENANCE_MAX_STALE_DAYS) {
+      return { available: false, gateProgress, mifflinTdee, staleDays };
+    }
+  }
+
+  const oldestRelevant = [...weighIns, ...intakeDays.map(d => ({ date: d.date }))]
+    .reduce((min, e) => (!min || new Date(e.date) < new Date(min)) ? e.date : min, null);
+  const daysOfHistory = oldestRelevant
+    ? Math.round((now - new Date(oldestRelevant)) / 86400000)
+    : 0;
 
   if (daysOfHistory < MAINTENANCE_WINDOW_MIN_DAYS
       || intakeDays.length < MAINTENANCE_MIN_INTAKE_DAYS
@@ -1152,7 +1241,13 @@ const estimateEmpiricalMaintenance = (nutrition, sleepEntries, mifflinTdee) => {
     return { available: false, gateProgress, mifflinTdee, discardedAsUnreliable: true };
   }
 
-  return { available: true, empiricalTdee, gateProgress, mifflinTdee };
+  // spanDays is what the copy quotes, so it never claims a fixed 28 days the data
+  // does not cover. loggedDays is how many of those days actually have food on them.
+  return {
+    available: true, empiricalTdee, gateProgress, mifflinTdee,
+    loggedDays: intakeDays.length,
+    spanDays: daysBetweenDates(firstIntake, lastIntake) + 1
+  };
 };
 
 // Protein (1 g/lb) is only recomputed inside the calculator, so nothing keeps it
@@ -4134,6 +4229,53 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   // Seeded from the saved mode so re-running the calculator keeps the mode you chose.
   const [goalType, setGoalType] = useState(dietGoals.goalType || 'gaintain');
   const [activityLevel, setActivityLevel] = useState('moderate');
+  const [exclusionFrom, setExclusionFrom] = useState('');
+  const [exclusionTo, setExclusionTo] = useState('');
+  const [exclusionReason, setExclusionReason] = useState('sick');
+  const [exclusionError, setExclusionError] = useState('');
+
+  const maintenanceExclusions = normaliseMaintenanceExclusions(dietGoals.maintenanceExclusions);
+
+  // "Sep 25 – Oct 7" -- parsed as local dates so the label cannot slip a day.
+  const formatExclusionRange = (from, to) => {
+    const opts = { month: 'short', day: 'numeric' };
+    const a = parseLocalDate(from).toLocaleDateString(undefined, opts);
+    const b = parseLocalDate(to).toLocaleDateString(undefined, opts);
+    return from === to ? a : `${a} – ${b}`;
+  };
+
+  const addExclusion = () => {
+    if (!exclusionFrom || !exclusionTo) { setExclusionError('Pick both dates.'); return; }
+    if (exclusionFrom > exclusionTo) { setExclusionError('"From" must be on or before "To".'); return; }
+    setExclusionError('');
+    setDietGoals({
+      ...dietGoals,
+      maintenanceExclusions: [
+        ...maintenanceExclusions,
+        { id: generateId(), from: exclusionFrom, to: exclusionTo, reason: exclusionReason }
+      ]
+    });
+    setExclusionFrom(''); setExclusionTo(''); setExclusionReason('sick');
+  };
+
+  const removeExclusion = (id) => {
+    setDietGoals({
+      ...dietGoals,
+      maintenanceExclusions: maintenanceExclusions.filter(r => r.id !== id)
+    });
+  };
+
+  // Offered when logging simply stopped: prefills the gap the estimator is stuck on.
+  const prefillStaleExclusion = () => {
+    const lastLogged = latestIntakeDate(nutrition);
+    if (!lastLogged) return;
+    const dayAfter = parseLocalDate(lastLogged);
+    dayAfter.setDate(dayAfter.getDate() + 1);
+    setExclusionFrom(formatDate(dayAfter));
+    setExclusionTo(formatDate(new Date()));
+    setExclusionReason('sick');
+    setExclusionError('');
+  };
 
   // Display only. The maintenance estimate is computed once in App and arrives as a
   // prop; Settings never recomputes its own copy from nutrition or sleepEntries.
@@ -4193,7 +4335,10 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       calculatedAtWeight: weight,
       calculatedAt: formatDate(new Date()),
       maintenanceSource: 'formula',
-      maintenanceLastShown: dietGoals.maintenanceLastShown == null ? null : dietGoals.maintenanceLastShown
+      maintenanceLastShown: dietGoals.maintenanceLastShown == null ? null : dietGoals.maintenanceLastShown,
+      // Built from scratch rather than spread, so anything not named here is erased.
+      // Sick/away ranges are the user's own annotations and survive a recalculation.
+      maintenanceExclusions: normaliseMaintenanceExclusions(dietGoals.maintenanceExclusions)
     };
     setDietGoals(newGoals); // App persists this; no direct write from here
     showToast(`Diet goals set: ${protein}g protein, ${calories} kcal`, 'success');
@@ -4279,8 +4424,12 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
           // No warning when absent: most export files predate diet goals, so a missing
           // key is the normal case rather than a red flag.
           if (imported.dietGoals) {
-            setDietGoals(imported.dietGoals);
-            localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(imported.dietGoals));
+            // Spread over the defaults, as the initial load does: a backup written
+            // before a field existed restores it as the default rather than undefined.
+            const restoredGoals = { ...DEFAULT_DIET_GOALS, ...imported.dietGoals };
+            restoredGoals.maintenanceExclusions = normaliseMaintenanceExclusions(restoredGoals.maintenanceExclusions);
+            setDietGoals(restoredGoals);
+            localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(restoredGoals));
             console.log('[Import] Restored diet goals');
           }
           // Also absent from every export written before today, so no warning.
@@ -4383,22 +4532,75 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       // Gate progress while history accumulates: a missing switch reads as "log more".
       !maintenanceEstimate.available && h('p', { className: 'text-xs text-slate-400' },
         `Empirical maintenance: ${maintenanceEstimate.gateProgress.intakeDays} of ${maintenanceEstimate.gateProgress.intakeDaysNeeded} days with logged intake, ${maintenanceEstimate.gateProgress.weighIns} of ${maintenanceEstimate.gateProgress.weighInsNeeded} weigh-ins.`
+        + (maintenanceEstimate.staleDays
+          ? ` No food logged for ${maintenanceEstimate.staleDays} days — maintenance estimate paused; your calorie target is unchanged.`
+          : '')
         + (maintenanceEstimate.discardedAsUnreliable
           ? ' The latest estimate fell outside the plausible range and was discarded.'
           : '')
       ),
       maintenanceEstimate.available && h('p', { className: 'text-xs text-slate-400' },
-        `Last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days: ${maintenanceEstimate.empiricalTdee} kcal maintenance`
+        `Your last ${maintenanceEstimate.spanDays} days of logs: ${maintenanceEstimate.empiricalTdee} kcal maintenance`
         + (dietGoals.maintenanceSource === 'empirical' ? ' — in use, updates itself.' : ' — formula in use.')
       ),
       showTransitionCard && h('div', { className: 'bg-slate-900 border border-cyan-700 p-3 rounded-lg space-y-2' },
         h('p', { className: 'text-sm' },
-          `Your last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days say ${maintenanceEstimate.empiricalTdee} kcal maintenance; the formula estimated ${formulaMaintenance} kcal.`
+          `Your last ${maintenanceEstimate.spanDays} days of logs say ${maintenanceEstimate.empiricalTdee} kcal maintenance; the formula estimated ${formulaMaintenance} kcal.`
         ),
         h('div', { className: 'flex gap-2' },
           h(Button, { onClick: applyEmpiricalMaintenance, variant: 'primary', className: 'flex-1' }, 'Apply'),
           h(Button, { onClick: keepFormulaMaintenance, variant: 'secondary', className: 'flex-1' }, 'Keep formula')
         )
+      ),
+      // Sick or away: days the estimator should not read as normal eating.
+      h('div', { className: 'bg-slate-900 p-3 rounded-lg space-y-2' },
+        h('div', { className: 'text-sm font-semibold' }, 'Sick or away'),
+        h('p', { className: 'text-xs text-slate-400' },
+          'These days are left out of the maintenance estimate. Include your first couple of days back to normal eating — weight rebounds faster than fat.'
+        ),
+        maintenanceExclusions.length > 0 && h('div', { className: 'space-y-1' },
+          maintenanceExclusions.map(r => h('div', {
+            key: r.id,
+            className: 'flex justify-between items-center text-xs bg-slate-800 px-2 py-1 rounded'
+          },
+            h('span', {}, `${formatExclusionRange(r.from, r.to)} · ${MAINTENANCE_EXCLUSION_REASONS[r.reason] || 'Other'}`),
+            h('button', {
+              type: 'button',
+              onClick: () => removeExclusion(r.id),
+              className: 'text-slate-400 hover:text-red-400 px-2',
+              'aria-label': 'Remove'
+            }, '✕')
+          ))
+        ),
+        maintenanceEstimate.staleDays && h(Button, {
+          onClick: prefillStaleExclusion, variant: 'secondary', size: 'sm', className: 'w-full'
+        }, `Mark ${staleRangeLabel(nutrition)} as sick or away`),
+        h('div', { className: 'grid grid-cols-2 gap-2' },
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'From'),
+            h(Input, { type: 'date', value: exclusionFrom, onChange: (e) => setExclusionFrom(e.target.value) })
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'To'),
+            h(Input, { type: 'date', value: exclusionTo, onChange: (e) => setExclusionTo(e.target.value) })
+          )
+        ),
+        h('div', { className: 'flex gap-2 items-end' },
+          h('div', { className: 'flex-1' },
+            h('label', { className: 'block text-xs text-slate-400 mb-1' }, 'Reason'),
+            h('select', {
+              className: 'w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-md text-white text-sm',
+              value: exclusionReason,
+              onChange: (e) => setExclusionReason(e.target.value)
+            },
+              h('option', { value: 'sick' }, 'Sick'),
+              h('option', { value: 'away' }, 'Away'),
+              h('option', { value: 'other' }, 'Other')
+            )
+          ),
+          h(Button, { onClick: addExclusion, variant: 'secondary', size: 'sm' }, 'Add')
+        ),
+        exclusionError && h('p', { className: 'text-xs text-red-400' }, exclusionError)
       ),
       goalDrift && h('p', { className: 'text-xs text-yellow-500' },
         `Weight has moved ${goalDrift.drift > 0 ? '+' : ''}${goalDrift.drift.toFixed(1)} lbs since goals were last calculated (${goalDrift.calculatedAtWeight} → ${goalDrift.latestWeight}) — protein target may be stale.`
@@ -4474,7 +4676,7 @@ const MaintenanceAutoApply = ({ maintenanceEstimate, dietGoals, setDietGoals }) 
       maintenanceLastShown: maintenanceEstimate.empiricalTdee
     });
     if (Math.abs(delta) >= MAINTENANCE_ANNOUNCE_THRESHOLD_KCAL) {
-      showToast(`Maintenance updated to ${maintenanceEstimate.empiricalTdee} kcal based on your last ${MAINTENANCE_WINDOW_PREFERRED_DAYS} days.`, 'success');
+      showToast(`Maintenance updated to ${maintenanceEstimate.empiricalTdee} kcal based on your last ${maintenanceEstimate.spanDays} days of logs.`, 'success');
     }
   }, [maintenanceEstimate, dietGoals]);
   return null;
@@ -4620,8 +4822,12 @@ const App = () => {
   // what it is handed and never recomputes its own copy. 'moderate' feeds the sanity
   // clamp only and is never saved.
   const maintenanceEstimate = React.useMemo(
-    () => estimateEmpiricalMaintenance(nutrition, sleepEntries, calculateMifflinTdee(getCurrentWeight(sleepEntries), 'moderate')),
-    [nutrition, sleepEntries]
+    () => estimateEmpiricalMaintenance(
+      nutrition, sleepEntries,
+      calculateMifflinTdee(getCurrentWeight(sleepEntries), 'moderate'),
+      dietGoals?.maintenanceExclusions || []
+    ),
+    [nutrition, sleepEntries, dietGoals?.maintenanceExclusions]
   );
 
   // --- DERIVED STATE (Upgraded) ---
