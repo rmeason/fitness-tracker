@@ -2806,11 +2806,17 @@ const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
   const [deepSleepHours, setDeepSleepHours] = useState(1);
   const [deepSleepMinutes, setDeepSleepMinutes] = useState(36);
   const [recoveryRating, setRecoveryRating] = useState(8);
-  const [weight, setWeight] = useState(() => {
-    // Get last weight from sleep entries
-    const lastSleep = sleepEntries.length > 0 ? sleepEntries[sleepEntries.length - 1] : null;
-    return lastSleep?.weight || USER_CONTEXT.startWeight;
-  });
+  // Blank, never carried over from the last entry. Prefilling meant every saved
+  // sleep entry recorded a weigh-in whether or not one happened -- ten identical
+  // 133 lb entries in a row, each counted by the maintenance estimator as a real
+  // data point for both its gate and its weight slope.
+  const [weight, setWeight] = useState('');
+
+  // Most recent actual weigh-in, shown only as a placeholder hint.
+  const lastWeighIn = [...sleepEntries]
+    .filter(e => Number(e.weight) > 0)
+    .sort((a, b) => new Date(a.date) - new Date(b.date))
+    .pop();
 
   // Auto-calculate deep sleep percentage
   const totalSleepDecimal = timeToDecimal(sleepHours, sleepMinutes);
@@ -2831,7 +2837,9 @@ const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
       setDeepSleepMinutes(deepSleep.minutes);
 
       setRecoveryRating(entryToEdit.recoveryRating || 8);
-      setWeight(entryToEdit.weight || USER_CONTEXT.startWeight);
+      // Only a real weigh-in prefills; an entry saved without one stays blank so
+      // editing it for some other reason cannot invent a weight.
+      setWeight(Number(entryToEdit.weight) > 0 ? entryToEdit.weight : '');
     }
   }, [entryToEdit]);
 
@@ -2843,9 +2851,12 @@ const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
       date,
       sleepHours: totalSleepDecimal,
       deepSleepPercent: deepSleepPercent,
-      weight: Number(weight) || USER_CONTEXT.startWeight,
       recoveryRating: Number(recoveryRating)
     };
+    // No weigh-in means no key at all -- not 0, and not a stand-in start weight.
+    // handleSaveSleep replaces the stored entry rather than merging into it, so
+    // clearing the field while editing genuinely removes the weight.
+    if (Number(weight) > 0) entry.weight = Number(weight);
 
     onSave(entry);
     showToast('Sleep entry saved!', 'success');
@@ -2916,8 +2927,13 @@ const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
         'Weight'
       ),
       h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Weight (lbs)'),
-        h(Input, { type: 'number', step: 0.1, value: weight, onChange: (e) => setWeight(e.target.value) })
+        h('label', { className: 'block text-sm font-medium mb-1' }, 'Weight (optional)'),
+        h(Input, {
+          type: 'number', step: 0.1, value: weight,
+          placeholder: lastWeighIn ? `Last: ${lastWeighIn.weight} lb` : undefined,
+          onChange: (e) => setWeight(e.target.value)
+        }),
+        h('p', { className: 'text-xs text-slate-400 mt-1' }, "Leave blank if you didn't weigh in.")
       )
     ),
 
