@@ -158,6 +158,10 @@ const DEFAULT_DIET_GOALS = {
 // --- 🛠️ HELPER FUNCTIONS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
 
+// One rule for "is this a dumbbell exercise", shared by the PR card's per-hand display
+// and the logging form's each-hand default, so the two cannot drift apart.
+const isDumbbellExercise = (name) => /dumbbell|^db\b|\bdb\s/i.test(String(name || ''));
+
 // Parse a YYYY-MM-DD string as LOCAL time (not UTC)
 // This fixes the timezone issue where "2025-12-02" parsed as UTC becomes Dec 1 in some timezones
 const parseLocalDate = (dateStr) => {
@@ -2012,7 +2016,7 @@ const PRDashboard = ({ prs }) => {
       ? h('p', { className: 'text-slate-400' }, 'No PRs logged yet. Start training!')
       : h('ul', { className: 'space-y-2' },
         topPRs.map(pr => {
-          const isDumbbell = /dumbbell|^db\b|\bdb\s/i.test(pr.name);
+          const isDumbbell = isDumbbellExercise(pr.name);
           const isPerHand = isDumbbell && pr.weight < 100;
           return h('li', { key: pr.name, className: 'flex justify-between items-center bg-slate-700 p-2 rounded' },
             h('span', { className: 'font-semibold' }, pr.name),
@@ -3084,9 +3088,32 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const addExercise = (data = null) => {
     setExercises([...exercises, data || { name: '', weights: ['', '', ''], eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
   };
+  // Default for "Weight is each hand". Your own last log of this exact exercise wins:
+  // it already encodes what a name rule cannot see -- a dumbbell skull-crusher is one
+  // dumbbell held in both hands, so it is NOT each hand. The dumbbell name rule only
+  // decides for exercises you have never logged.
+  const defaultEachHandFor = (name) => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    for (let i = allEntries.length - 1; i >= 0; i--) {
+      const match = (allEntries[i].exercises || [])
+        .find(ex => ex.name === trimmed && typeof ex.eachHand === 'boolean');
+      if (match) return match.eachHand;
+    }
+    return isDumbbellExercise(trimmed);
+  };
+
   const updateExercise = (index, field, value) => {
     const newExercises = [...exercises];
     newExercises[index] = { ...newExercises[index], [field]: value };
+    if (field === 'name') {
+      // Follow the name, but only when its default actually changes. That way a box
+      // you ticked or unticked by hand survives typo fixes, while switching to a
+      // different kind of exercise still updates it.
+      const before = defaultEachHandFor(exercises[index].name);
+      const after = defaultEachHandFor(value);
+      if (before !== after) newExercises[index].eachHand = after;
+    }
     if (field === 'sets') {
       const newSets = Number(value) || 0;
       // Resize reps array
@@ -3155,7 +3182,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
         newExercises[index] = {
           ...lastEx,
           weights: weights,
-          rpe: lastEx.rpe || 8
+          rpe: lastEx.rpe || 8,
+          // Older logs can lack the key; the resolver walks back to the last log
+          // that has one, then falls back to the dumbbell rule.
+          eachHand: defaultEachHandFor(exName)
         };
         setExercises(newExercises);
         showToast('Exercise pre-filled!');
