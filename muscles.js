@@ -836,6 +836,28 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Palms facing, elbows flared wide. Shifts work toward the side delts while keeping the neutral grip's shoulder comfort."
   },
+
+  // Seated version of the elbows-forward neutral-grip press above, adjusted the same
+  // way the library already adjusts "Seated Arnold Press" from "Arnold Press": a few
+  // points off the delts and triceps (standing recruits more in total), and the
+  // erectors dropped because the backrest holds the trunk.
+  "Seated Neutral-Grip Dumbbell Shoulder Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      deltsFront: 77,
+      deltsMid: 47
+    },
+    secondaryMuscles: {
+      deltsRear: 6,
+      tricepsLong: 58,
+      tricepsLateral: 56,
+      trapsUpper: 22,
+      pectoralsUpper: 30
+    },
+    lengtheningPartials: false,
+    notes: "Palms facing, elbows forward, back supported. Stricter front-delt and triceps work with little core demand."
+  },
   
   "Arnold Press": {
     category: "compound",
