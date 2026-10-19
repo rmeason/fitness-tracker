@@ -794,6 +794,48 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Standing > seated for total activation"
   },
+
+  // Neutral-grip variants. Activations are estimated from the movement's mechanics
+  // relative to "Dumbbell Shoulder Press" above, not taken from a cited EMG study:
+  // the grip barely changes delt loading on its own -- what matters is where the
+  // elbows travel, which is what separates these two.
+  "Neutral-Grip Dumbbell Shoulder Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      deltsFront: 80,  // elbows forward: more shoulder flexion than a pronated press
+      deltsMid: 50     // less abduction, so less side delt
+    },
+    secondaryMuscles: {
+      deltsRear: 8,
+      tricepsLong: 60,
+      tricepsLateral: 58,
+      trapsUpper: 25,
+      pectoralsUpper: 32, // flexion pattern recruits the clavicular head more
+      erectorSpinae: 25
+    },
+    lengtheningPartials: false,
+    notes: "Palms facing, elbows forward. Front-delt and triceps biased; shoulder-friendly."
+  },
+
+  "Wide-Path Neutral-Grip Dumbbell Shoulder Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      deltsFront: 72,
+      deltsMid: 65     // elbows travel wide, in the scapular plane: more abduction
+    },
+    secondaryMuscles: {
+      deltsRear: 12,
+      tricepsLong: 55,
+      tricepsLateral: 55,
+      trapsUpper: 35,     // abduction at the top brings in upward rotation
+      pectoralsUpper: 22,
+      erectorSpinae: 25
+    },
+    lengtheningPartials: false,
+    notes: "Palms facing, elbows flared wide. Shifts work toward the side delts while keeping the neutral grip's shoulder comfort."
+  },
   
   "Arnold Press": {
     category: "compound",
