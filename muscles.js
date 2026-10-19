@@ -858,6 +858,25 @@ export const EXERCISE_LIBRARY = {
     lengtheningPartials: false,
     notes: "Palms facing, elbows forward, back supported. Stricter front-delt and triceps work with little core demand."
   },
+
+  // Seated version of the wide-path press, given the same seated adjustment as above.
+  "Seated Wide-Path Neutral-Grip Dumbbell Shoulder Press": {
+    category: "compound",
+    tier: 2,
+    primaryMuscles: {
+      deltsFront: 69,
+      deltsMid: 62
+    },
+    secondaryMuscles: {
+      deltsRear: 9,
+      tricepsLong: 53,
+      tricepsLateral: 53,
+      trapsUpper: 32,
+      pectoralsUpper: 20
+    },
+    lengtheningPartials: false,
+    notes: "Palms facing, elbows flared wide, back supported. Side-delt biased with little core demand."
+  },
   
   "Arnold Press": {
     category: "compound",
