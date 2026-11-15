@@ -30,6 +30,9 @@ import {
   getSleepVerdict
 } from './recovery.js';
 
+// Cloud sync: watches localStorage, mirrors it to Supabase, restores it on a wiped phone.
+import * as Sync from './sync.js';
+
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
 
@@ -4219,6 +4222,149 @@ const EntryCard = ({ entry, nutrition, onEdit, onDelete, allEntries }) => {
 };
 
 // --- ⚙️ SETTINGS COMPONENT (UPGRADED) ---
+// --- ☁️ CLOUD SYNC UI ---
+const SYNC_LABELS = {
+  entries: 'Workouts', trainingCycle: 'Training cycle', customCycles: 'Saved cycles',
+  nutrition: 'Nutrition', sleep: 'Sleep & weight', dietGoals: 'Diet goals', profile: 'Profile'
+};
+const syncLabelList = (names) => names.map(n => SYNC_LABELS[n] || n).join(', ');
+
+const useSyncStatus = () => {
+  const [status, setStatus] = useState(Sync.getStatus());
+  useEffect(() => {
+    const unsubscribe = Sync.subscribe(setStatus);
+    return () => { unsubscribe(); };
+  }, []);
+  return status;
+};
+
+const formatSyncTime = (iso) => {
+  if (!iso) return 'never';
+  const d = new Date(iso);
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+};
+
+// Shown above every screen, only when sync needs a decision or a reload.
+const SyncBanner = () => {
+  const status = useSyncStatus();
+  if (status.state === 'blocked' && status.blockedKeys.length) {
+    return h('div', { className: 'mb-4 p-3 rounded-lg bg-amber-900/60 border border-amber-600 text-sm space-y-2' },
+      h('p', { className: 'font-semibold' }, '⚠️ Sync paused to protect your data'),
+      h('p', {}, `This phone has much less ${syncLabelList(status.blockedKeys)} data than the cloud. That usually means the phone's storage was wiped.`),
+      h('div', { className: 'flex gap-2' },
+        h(Button, { size: 'sm', onClick: async () => { await Sync.keepCloud(); window.location.reload(); } }, 'Restore from cloud'),
+        h(Button, { size: 'sm', variant: 'secondary', onClick: () => {
+          if (window.confirm(`Replace the cloud copy of ${syncLabelList(status.blockedKeys)} with what's on this phone? The 5am backups are kept either way.`)) Sync.overwriteCloud();
+        } }, 'Overwrite cloud')
+      )
+    );
+  }
+  if (status.needsReload) {
+    return h('div', { className: 'mb-4 p-3 rounded-lg bg-blue-900/60 border border-blue-600 text-sm flex items-center justify-between gap-2' },
+      h('span', {}, '☁️ Newer data came down from the cloud.'),
+      h(Button, { size: 'sm', onClick: () => window.location.reload() }, 'Reload')
+    );
+  }
+  return null;
+};
+
+const CloudSyncCard = () => {
+  const { showToast } = useToast();
+  const status = useSyncStatus();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [backups, setBackups] = useState(null);
+  const [backupId, setBackupId] = useState('');
+
+  const card = (...children) => h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
+    h('h3', { className: 'text-lg font-semibold' }, '☁️ Cloud Sync'),
+    ...children
+  );
+
+  if (!status.enabled) {
+    return card(h('p', { className: 'text-sm text-slate-400' },
+      'Cloud sync is not set up yet. Add your Supabase URL and key to sync-config.js.'));
+  }
+
+  if (!status.signedIn) {
+    const handleSignIn = async (e) => {
+      e.preventDefault();
+      setBusy(true);
+      try {
+        const result = await Sync.signIn(email.trim(), password);
+        setPassword('');
+        if (result?.changedLocal) {
+          showToast('Restored your data from the cloud. Reloading…');
+          setTimeout(() => window.location.reload(), 900);
+        } else {
+          showToast('Signed in. Sync is on.');
+        }
+      } catch (err) {
+        showToast(err.message || 'Sign in failed', 'error');
+      } finally {
+        setBusy(false);
+      }
+    };
+    return card(
+      h('p', { className: 'text-sm text-slate-400' }, 'Sign in to back up this phone and restore it if it ever gets wiped.'),
+      h('form', { onSubmit: handleSignIn, className: 'space-y-2' },
+        h(Input, { type: 'email', placeholder: 'Email', value: email, autoComplete: 'username', onChange: (e) => setEmail(e.target.value) }),
+        h(Input, { type: 'password', placeholder: 'Password', value: password, autoComplete: 'current-password', onChange: (e) => setPassword(e.target.value) }),
+        h(Button, { type: 'submit', className: 'w-full' }, busy ? 'Signing in…' : 'Sign in')
+      )
+    );
+  }
+
+  const stateText = {
+    idle: status.pendingKeys.length ? 'Waiting to upload' : 'Up to date',
+    syncing: 'Syncing…',
+    offline: 'Offline. Changes will upload when you reconnect.',
+    blocked: 'Paused (see the warning at the top)',
+    error: `Error: ${status.error || 'unknown'}`,
+    'signed-out': 'Signed out'
+  }[status.state] || status.state;
+  const dot = { idle: 'bg-green-500', syncing: 'bg-blue-400', offline: 'bg-slate-400', blocked: 'bg-amber-500', error: 'bg-red-500' }[status.state] || 'bg-slate-400';
+
+  const loadBackups = async () => {
+    try {
+      const list = await Sync.listBackups();
+      setBackups(list);
+      setBackupId(list[0] ? String(list[0].id) : '');
+      if (!list.length) showToast('No daily backups yet. The first one runs at 5am.');
+    } catch (err) {
+      showToast(err.message || 'Could not load backups', 'error');
+    }
+  };
+
+  return card(
+    h('div', { className: 'flex items-center gap-2 text-sm' },
+      h('span', { className: `inline-block w-2.5 h-2.5 rounded-full ${dot}` }),
+      h('span', {}, stateText)
+    ),
+    h('p', { className: 'text-xs text-slate-400' }, `${status.email} · Last synced ${formatSyncTime(status.lastSyncAt)}`),
+    status.pendingKeys.length > 0 && h('p', { className: 'text-xs text-slate-400' }, `Not uploaded yet: ${syncLabelList(status.pendingKeys)}`),
+    h('div', { className: 'flex gap-2' },
+      h(Button, { size: 'sm', onClick: () => Sync.syncNow() }, 'Sync now'),
+      h(Button, { size: 'sm', variant: 'secondary', onClick: () => Sync.signOut() }, 'Sign out')
+    ),
+    h('div', { className: 'pt-2 border-t border-slate-700 space-y-2' },
+      h('p', { className: 'text-sm font-medium' }, 'Daily backups (5am, kept 30 days)'),
+      backups === null
+        ? h(Button, { size: 'sm', variant: 'secondary', onClick: loadBackups }, 'Show backups')
+        : backups.length > 0 && h('div', { className: 'flex gap-2' },
+            h('select', {
+              value: backupId,
+              onChange: (e) => setBackupId(e.target.value),
+              className: 'flex-1 p-2 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm'
+            }, backups.map(b => h('option', { key: b.id, value: String(b.id) }, formatSyncTime(b.taken_at)))),
+            h(Button, { size: 'sm', onClick: () => Sync.downloadBackup(Number(backupId)).catch(err => showToast(err.message, 'error')) }, 'Download')
+          ),
+      h('p', { className: 'text-xs text-slate-500' }, 'A downloaded backup can be restored with Import below.')
+    )
+  );
+};
+
 const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate }) => {
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
@@ -4688,6 +4834,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         h(Button, { onClick: calculateDietGoals, variant: 'primary', className: 'w-full' }, 'Calculate & Save Goals')
       )
     ),
+    h(CloudSyncCard),
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
@@ -5244,6 +5391,7 @@ const App = () => {
       h('header', { className: 'text-center my-6' },
         h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA V 1.0')
       ),
+      h(SyncBanner),
       h('main', {}, renderView()),
       
       // Modals
@@ -5369,6 +5517,10 @@ window.debugSleepData = () => {
 console.log('💡 Debug helper available: Type debugSleepData() in console to check sleep data state');
 
 // --- 🚀 MOUNT THE APP ---
+// Cloud data is pulled before the first render, because every useState above reads
+// localStorage once at mount. initSync never throws and gives up waiting after 5s.
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(h(App));
+Sync.initSync()
+  .catch((err) => console.error('[Sync] init failed, running local-only:', err))
+  .finally(() => root.render(h(App)));
 

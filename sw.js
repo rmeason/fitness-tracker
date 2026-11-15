@@ -1,10 +1,12 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v24'; // v6 anchors cycle days to Sundays (D0 = Sunday)
+const CACHE_NAME = 'hypertrophy-pwa-cache-v25'; // v25 adds cloud sync (sync.js, sync-config.js)
 
 const FILES_TO_CACHE = [
   './',
   './index.html',
   './app.js',
   './coach.js',
+  './sync.js',
+  './sync-config.js',
   './manifest.json'
 ];
 
