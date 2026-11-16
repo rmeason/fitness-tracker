@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v25'; // v25 adds cloud sync (sync.js, sync-config.js)
+const CACHE_NAME = 'hypertrophy-pwa-cache-v26'; // v26 adds Google Health import (health-import.js)
 
 const FILES_TO_CACHE = [
   './',
@@ -7,6 +7,7 @@ const FILES_TO_CACHE = [
   './coach.js',
   './sync.js',
   './sync-config.js',
+  './health-import.js',
   './manifest.json'
 ];
 

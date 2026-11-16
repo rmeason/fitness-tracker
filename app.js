@@ -33,6 +33,9 @@ import {
 // Cloud sync: watches localStorage, mirrors it to Supabase, restores it on a wiped phone.
 import * as Sync from './sync.js';
 
+// Google Health (Takeout) import: sleep, steps, calories burned.
+import { readHealthExport, mergeHealthImport, keepActivityFields } from './health-import.js';
+
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
 
@@ -3903,7 +3906,16 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
               ),
               h('div', {},
                 h('div', { className: 'text-sm font-medium text-slate-400' }, 'Recovery Rating'),
-                h('div', {}, `${sleep.recoveryRating}/10`)
+                // Imported nights have no self-rating until one is added via Edit.
+                h('div', {}, Number(sleep.recoveryRating) > 0 ? `${sleep.recoveryRating}/10` : '—')
+              ),
+              Number(sleep.steps) > 0 && h('div', {},
+                h('div', { className: 'text-sm font-medium text-slate-400' }, 'Steps'),
+                h('div', {}, Number(sleep.steps).toLocaleString())
+              ),
+              Number(sleep.caloriesBurned) > 0 && h('div', {},
+                h('div', { className: 'text-sm font-medium text-slate-400' }, 'Calories Burned'),
+                h('div', {}, `${Number(sleep.caloriesBurned).toLocaleString()}${Number(sleep.activeCalories) > 0 ? ` (${Number(sleep.activeCalories).toLocaleString()} active)` : ''}`)
               )
             ),
             h('div', { className: 'flex gap-2 mt-4' },
@@ -4361,6 +4373,89 @@ const CloudSyncCard = () => {
             h(Button, { size: 'sm', onClick: () => Sync.downloadBackup(Number(backupId)).catch(err => showToast(err.message, 'error')) }, 'Download')
           ),
       h('p', { className: 'text-xs text-slate-500' }, 'A downloaded backup can be restored with Import below.')
+    )
+  );
+};
+
+// --- ⌚ GOOGLE HEALTH IMPORT UI ---
+const daysAgoLocal = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const HealthImportCard = ({ sleepEntries, setSleepEntries }) => {
+  const { showToast } = useToast();
+  const [files, setFiles] = useState([]);
+  const [from, setFrom] = useState(() => daysAgoLocal(60));
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [preview, setPreview] = useState(null); // { result, dayCount }
+
+  // Yesterday is the last complete day; today's steps and calories are still counting.
+  const to = daysAgoLocal(1);
+
+  const handleRead = async () => {
+    if (!files.length) { showToast('Choose your Takeout ZIP first', 'error'); return; }
+    setBusy(true);
+    setPreview(null);
+    setProgress(0);
+    try {
+      const { days } = await readHealthExport(files, { from, to, onProgress: setProgress });
+      const result = mergeHealthImport(sleepEntries, days, { makeId: generateId });
+      setPreview({ result, dayCount: Object.keys(days).length });
+    } catch (err) {
+      console.error('[HealthImport]', err);
+      showToast(err.message || 'Could not read the export', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleApply = () => {
+    if (!preview) return;
+    setSleepEntries(preview.result.next);
+    const { created, updated } = preview.result.stats;
+    showToast(`Imported: ${created} new nights, ${updated} days updated`, 'success');
+    setPreview(null);
+  };
+
+  const stats = preview?.result.stats;
+  const sample = preview ? preview.result.changes.slice(-5).reverse() : [];
+
+  return h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
+    h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
+    h('p', { className: 'text-sm text-slate-400' },
+      'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps and calories burned are read on this phone; nothing is uploaded.'),
+    h(Input, {
+      type: 'file', multiple: true, accept: '.zip,.csv',
+      onChange: (e) => { setFiles(Array.from(e.target.files || [])); setPreview(null); }
+    }),
+    h('div', { className: 'flex items-center gap-2 text-sm' },
+      h('label', { htmlFor: 'health-from', className: 'text-slate-300' }, 'Import from'),
+      h('input', {
+        id: 'health-from', type: 'date', value: from, max: to,
+        onChange: (e) => { setFrom(e.target.value); setPreview(null); },
+        className: 'p-2 bg-slate-700 border border-slate-600 rounded-lg text-white'
+      }),
+      h('span', { className: 'text-slate-400' }, `to ${to}`)
+    ),
+    h(Button, { type: 'button', onClick: handleRead, className: 'w-full' },
+      busy ? `Reading… ${Math.round(progress * 100)}%` : 'Read export'),
+    stats && h('div', { className: 'p-3 rounded-lg bg-slate-900 text-sm space-y-1' },
+      h('p', { className: 'font-medium' }, `Found ${preview.dayCount} days of data`),
+      h('p', {}, `• ${stats.created} new nights of sleep`),
+      h('p', {}, `• ${stats.updated} existing days get steps / calories`),
+      stats.keptManualSleep > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.keptManualSleep} nights you typed in keep your numbers`),
+      stats.skippedNoSleep > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.skippedNoSleep} days skipped (no sleep recorded)`),
+      stats.noStages > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.noStages} nights skipped (no sleep stages)`),
+      sample.length > 0 && h('div', { className: 'pt-2 text-xs text-slate-400 space-y-0.5' },
+        sample.map(c => h('p', { key: c.date },
+          `${c.date}: ${c.entry.sleepHours ? `${c.entry.sleepHours.toFixed(1)}h sleep · ` : ''}${(c.entry.steps ?? 0).toLocaleString()} steps · ${(c.entry.caloriesBurned ?? 0).toLocaleString()} cal`))
+      ),
+      (stats.created + stats.updated) > 0
+        ? h(Button, { type: 'button', onClick: handleApply, className: 'w-full mt-2' }, `Import ${stats.created + stats.updated} days`)
+        : h('p', { className: 'text-slate-400 pt-1' }, 'Everything is already up to date.')
     )
   );
 };
@@ -4835,6 +4930,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       )
     ),
     h(CloudSyncCard),
+    h(HealthImportCard, { sleepEntries, setSleepEntries }),
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
@@ -5128,14 +5224,15 @@ const App = () => {
     setSleepEntries(prev => {
       const existing = prev.find(e => e.id === entry.id);
       if (existing) {
-        // Update existing
-        return prev.map(e => e.id === entry.id ? entry : e);
+        // Update existing. The form rebuilds the entry from scratch, so carry over the
+        // imported steps/calories rather than silently dropping them.
+        return prev.map(e => e.id === entry.id ? keepActivityFields(entry, existing) : e);
       } else {
         // Check if there's already a sleep entry for this date (one per day)
         const existingForDate = prev.find(e => e.date === entry.date);
         if (existingForDate) {
           // Replace the existing entry for this date
-          return prev.map(e => e.date === entry.date ? entry : e);
+          return prev.map(e => e.date === entry.date ? keepActivityFields(entry, existingForDate) : e);
         } else {
           // Add new
           return [...prev, entry];
