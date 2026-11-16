@@ -1,9 +1,16 @@
 // --- ⌚ GOOGLE HEALTH IMPORT ---
 // Reads a Google Takeout "Google Health" export (the ZIP itself, several ZIP parts, or
 // CSVs pulled out of it) and turns it into one record per day:
-//   { date, sleepHours, deepSleepPercent, steps, caloriesBurned, activeCalories }
-// then merges those into the app's sleep entries. Everything runs on the phone; the
-// export is never uploaded anywhere.
+//   { date, sleepHours, deepSleepPercent, steps, totalCaloriesBurned, activeCaloriesBurned,
+//     workout: { minutes, calories, start, activities, avgHeartRate } | undefined }
+// then merges sleep/activity into the app's sleep entries, and workout days into the
+// workout log. Everything runs on the phone; the export is never uploaded anywhere.
+//
+// CALORIES -- two different numbers, never mix them with calories EATEN (nutrition):
+//  - sleep entry .totalCaloriesBurned  = the WHOLE day's burn incl. resting (~2,500-3,300)
+//  - sleep entry .activeCaloriesBurned = the day's burn from movement only
+//  - workout entry .caloriesBurned     = that one session's burn (~70-250), the field the
+//    workout form has always had. Fitbit's Weights session fills it when it is empty.
 //
 // Facts about the export this code depends on (checked against a real Nov 2026 export):
 //  - Sleep:   Health Fitness Data_GoogleData/UserSleeps_YYYY-MM-DD.csv (one file per year)
@@ -16,6 +23,10 @@
 //    by LOCAL calendar day -- bucketing by the UTC date would shift ~6h of every evening
 //    into the next day (the same class of bug as the old UTC-midnight workout dates).
 //  - Total calories INCLUDES basal burn. active_energy_burned EXCLUDES it.
+//  - Workouts: Health Fitness Data_GoogleData/UserExercises_YYYY-MM-DD.csv. Every logged
+//    lifting day from Nov 2025 to Oct 2026 (68 of 68) has a "Weights" session, and no
+//    logged rest day has one. Auto-detected "Outdoor Walk" sessions happen most days and
+//    are NOT workouts.
 //
 // Arithmetic stays here in JS; nothing in this file asks the AI for numbers.
 
@@ -24,7 +35,27 @@ const FFLATE = 'https://esm.sh/fflate@0.8.2';
 // Fields the importer may write. Sleep fields are only written when the user hasn't
 // typed them in; activity fields are only ever written by the importer.
 export const SLEEP_FIELDS = ['sleepHours', 'deepSleepPercent'];
-export const ACTIVITY_FIELDS = ['steps', 'caloriesBurned', 'activeCalories'];
+export const ACTIVITY_FIELDS = ['steps', 'totalCaloriesBurned', 'activeCaloriesBurned'];
+
+// The first release (Nov 15, 2026) saved these under names that collided with the workout
+// form's own caloriesBurned. Sleep entries never had a caloriesBurned before the importer,
+// so any sleep entry carrying one got it from the import and can be renamed safely.
+const LEGACY_SLEEP_FIELDS = { caloriesBurned: 'totalCaloriesBurned', activeCalories: 'activeCaloriesBurned' };
+
+/** Returns the same object when there's nothing to rename, so callers can detect no-ops. */
+export const renameLegacyActivityFields = (entry) => {
+  if (!entry || !Object.keys(LEGACY_SLEEP_FIELDS).some(k => k in entry)) return entry;
+  const out = { ...entry };
+  for (const [oldKey, newKey] of Object.entries(LEGACY_SLEEP_FIELDS)) {
+    if (!(oldKey in out)) continue;
+    if (out[newKey] === undefined) out[newKey] = out[oldKey];
+    delete out[oldKey];
+  }
+  if (Array.isArray(out.importedFields)) {
+    out.importedFields = [...new Set(out.importedFields.map(f => LEGACY_SLEEP_FIELDS[f] || f))];
+  }
+  return out;
+};
 
 // --- which files we want ---
 const KINDS = [
@@ -32,7 +63,8 @@ const KINDS = [
   { kind: 'stages', re: /(?:^|\/)UserSleepStages_(\d{4}-\d{2}-\d{2})\.csv$/ },
   { kind: 'steps', re: /(?:^|\/)steps_(\d{4}-\d{2}-\d{2})\.csv$/ },
   { kind: 'calories', re: /(?:^|\/)calories_(\d{4}-\d{2}-\d{2})\.csv$/ },
-  { kind: 'active', re: /(?:^|\/)active_energy_burned_(\d{4}-\d{2}-\d{2})\.csv$/ }
+  { kind: 'active', re: /(?:^|\/)active_energy_burned_(\d{4}-\d{2}-\d{2})\.csv$/ },
+  { kind: 'exercises', re: /(?:^|\/)UserExercises_(\d{4}-\d{2}-\d{2})\.csv$/ }
 ];
 
 export const classify = (path) => {
@@ -135,6 +167,46 @@ export const summarizeSleep = (sleepRows, stageRows) => {
       sleepHours: s.asleep / 60,
       deepSleepPercent: (deep / s.asleep) * 100
     };
+  }
+  return out;
+};
+
+// --- workouts: Fitbit exercise sessions that count as a training day ---
+// Lifting sessions make a workout day. Anything else you started on purpose (a bike ride,
+// "Aerobic Workout") makes it "not a rest day" without guessing a workout for it.
+// Auto-detected walks count as neither.
+const LIFTING = /^(weights|workout|weight ?lifting|strength training|circuit training)$/i;
+
+export const summarizeWorkouts = (rows) => {
+  const out = {};
+  for (const r of rows) {
+    const name = (r.activity_name || '').trim();
+    const start = Date.parse(r.exercise_start);
+    const end = Date.parse(r.exercise_end);
+    // deletion_reason reads "UNSPECIFIED" on every live session; anything else means deleted.
+    const deleted = r.deletion_reason && r.deletion_reason !== 'UNSPECIFIED';
+    if (!name || !Number.isFinite(start) || !Number.isFinite(end) || deleted) continue;
+    const lifting = LIFTING.test(name);
+    const deliberate = r.log_type && r.log_type !== 'AUTO_DETECTED';
+    if (!lifting && !deliberate) continue;
+    const date = dateAtOffset(r.exercise_start, r.utc_offset);
+    const day = out[date] ||= { lifting: false, other: false, minutes: 0, calories: 0, start: null, activities: [], hr: [] };
+    if (!lifting) { day.other = true; continue; }
+    day.lifting = true;
+    const minutes = (end - start) / 60000;
+    day.minutes += minutes;
+    day.calories += Number(r.summary_calories_kcal || r.tracker_total_calories || r.manually_logged_total_calories) || 0;
+    if (!day.start || r.exercise_start < day.start) day.start = new Date(start).toISOString();
+    if (!day.activities.includes(name)) day.activities.push(name);
+    const hr = Number(r.summary_avg_heart_rate || r.tracker_avg_heart_rate);
+    if (hr > 0) day.hr.push([hr, minutes]);
+  }
+  for (const day of Object.values(out)) {
+    const w = day.hr.reduce((s, [, m]) => s + m, 0);
+    day.avgHeartRate = w > 0 ? Math.round(day.hr.reduce((s, [h, m]) => s + h * m, 0) / w) : null;
+    day.minutes = Math.round(day.minutes);
+    day.calories = Math.round(day.calories);
+    delete day.hr;
   }
   return out;
 };
@@ -274,14 +346,16 @@ export const readHealthExport = async (files, { from, to, onProgress, fflate } =
   const steps = sumByLocalDay(rowsOf('steps'), 'steps');
   const calories = sumByLocalDay(rowsOf('calories'), 'calories');
   const active = sumByLocalDay(rowsOf('active'), 'Kilocalories');
+  const workouts = summarizeWorkouts(rowsOf('exercises'));
 
   const days = {};
   const inRange = (d) => d >= from && d <= to;
   const put = (d, patch) => { if (inRange(d)) days[d] = { ...(days[d] || {}), ...patch }; };
   Object.entries(sleep).forEach(([d, s]) => put(d, s));
   Object.entries(steps).forEach(([d, v]) => put(d, { steps: Math.round(v) }));
-  Object.entries(calories).forEach(([d, v]) => put(d, { caloriesBurned: Math.round(v) }));
-  Object.entries(active).forEach(([d, v]) => put(d, { activeCalories: Math.round(v) }));
+  Object.entries(calories).forEach(([d, v]) => put(d, { totalCaloriesBurned: Math.round(v) }));
+  Object.entries(active).forEach(([d, v]) => put(d, { activeCaloriesBurned: Math.round(v) }));
+  Object.entries(workouts).forEach(([d, w]) => put(d, { workout: w }));
 
   const kinds = [...new Set(chosen.map(s => s.kind))];
   return { days, kinds };
@@ -301,6 +375,7 @@ export const readHealthExport = async (files, { from, to, onProgress, fflate } =
  */
 export const mergeHealthImport = (sleepEntries, days, { makeId } = {}) => {
   const newId = makeId || (() => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`);
+  sleepEntries = sleepEntries.map(renameLegacyActivityFields);
   const byDate = new Map(sleepEntries.map(e => [e.date, e]));
   const stats = { created: 0, updated: 0, unchanged: 0, keptManualSleep: 0, skippedNoSleep: 0, noStages: 0 };
   const changes = [];
@@ -357,11 +432,96 @@ export const mergeHealthImport = (sleepEntries, days, { makeId } = {}) => {
   return { next, stats, changes };
 };
 
+// Watch worn that day: a night's sleep or a real step count. Without this, a day the
+// watch sat on the charger would be marked REST even if you lifted.
+const MIN_STEPS_WORN = 1000;
+const wasWorn = (day) => Number(day.sleepHours) > 0 || Number(day.steps) >= MIN_STEPS_WORN;
+
+const noonLocalIso = (date) => {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d, 12, 0, 0).toISOString();
+};
+
+/**
+ * Fills the workout log from Fitbit. Only ever ADDS entries for days with nothing logged,
+ * or fills blank duration/calories on a workout you logged. Never changes a type you chose.
+ *  - No entry + Fitbit lifting session -> a "Workout" placeholder (needsDetails) carrying
+ *    the session's duration and calories, for you to fill in exercises via Edit. It has
+ *    no exercises, so it adds no fatigue until you do.
+ *  - No entry + no session + watch worn -> REST.
+ *  - No entry + watch not worn, or only a non-lifting session you started -> left alone.
+ *  - A day you logged as REST is left as REST even if Fitbit saw a session (counted).
+ * @returns {{ next: Array, stats: object, changes: Array }}
+ */
+export const mergeWorkoutImport = (entries, days, { makeId } = {}) => {
+  const newId = makeId || (() => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`);
+  const byDate = new Map();
+  entries.forEach(e => { if (!byDate.has(e.date)) byDate.set(e.date, []); byDate.get(e.date).push(e); });
+  const stats = { workoutsCreated: 0, restCreated: 0, detailsFilled: 0, restButFitbitWorkout: 0, notWorn: 0, otherActivity: 0 };
+  const changes = [];
+  const replaced = new Map();
+  const added = [];
+
+  for (const date of Object.keys(days).sort()) {
+    const day = days[date];
+    const w = day.workout;
+    const existing = byDate.get(date) || [];
+
+    if (existing.length) {
+      if (!w || !w.lifting) continue;
+      const target = existing.find(e => e.trainingType !== 'REST');
+      if (!target) { stats.restButFitbitWorkout++; continue; }
+      const imported = new Set(target.importedFields || []);
+      const next = { ...target };
+      let changed = false;
+      if (!(Number(next.duration) > 0) && w.minutes > 0) { next.duration = w.minutes; imported.add('duration'); changed = true; }
+      if (!(Number(next.caloriesBurned) > 0) && w.calories > 0) { next.caloriesBurned = w.calories; imported.add('caloriesBurned'); changed = true; }
+      if (changed) {
+        next.importedFields = [...imported];
+        replaced.set(target.id, next);
+        stats.detailsFilled++;
+        changes.push({ date, action: 'details', entry: next });
+      }
+      continue;
+    }
+
+    if (w && w.lifting) {
+      const entry = {
+        id: newId(), date, loggedAt: w.start || noonLocalIso(date),
+        trainingType: 'Workout', needsDetails: true, fromFitbit: true,
+        exercises: [], cardio: [], totalSets: 0, totalVolume: 0,
+        duration: w.minutes, caloriesBurned: w.calories || null,
+        fitbit: { activities: w.activities, avgHeartRate: w.avgHeartRate },
+        importedFields: ['duration', 'caloriesBurned']
+      };
+      added.push(entry);
+      stats.workoutsCreated++;
+      changes.push({ date, action: 'workout', entry });
+    } else if (w && w.other) {
+      stats.otherActivity++;
+    } else if (wasWorn(day)) {
+      const entry = {
+        id: newId(), date, loggedAt: noonLocalIso(date), trainingType: 'REST', fromFitbit: true,
+        exercises: [], cardio: [], totalSets: 0, totalVolume: 0
+      };
+      added.push(entry);
+      stats.restCreated++;
+      changes.push({ date, action: 'rest', entry });
+    } else {
+      stats.notWorn++;
+    }
+  }
+
+  const next = [...entries.map(e => replaced.get(e.id) || e), ...added];
+  return { next, stats, changes };
+};
+
 // When the sleep form saves, it rebuilds the entry from scratch. This carries the imported
 // activity numbers over so editing a night's sleep doesn't silently erase its steps.
 // The edited sleep fields now count as typed by the user.
 export const keepActivityFields = (newEntry, oldEntry) => {
   if (!oldEntry) return newEntry;
+  oldEntry = renameLegacyActivityFields(oldEntry);
   const out = { ...newEntry };
   for (const f of ACTIVITY_FIELDS) {
     if (out[f] === undefined && oldEntry[f] !== undefined) out[f] = oldEntry[f];

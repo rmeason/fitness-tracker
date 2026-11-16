@@ -34,7 +34,7 @@ import {
 import * as Sync from './sync.js';
 
 // Google Health (Takeout) import: sleep, steps, calories burned.
-import { readHealthExport, mergeHealthImport, keepActivityFields } from './health-import.js';
+import { readHealthExport, mergeHealthImport, mergeWorkoutImport, keepActivityFields, renameLegacyActivityFields } from './health-import.js';
 
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
@@ -3005,7 +3005,8 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const cardioMachines = getAllCardioNames();
   const cardioTotals = getCardioTotals({ cardio });
 
-  const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES])];
+  // An imported Fitbit placeholder is typed 'Workout' until you pick the real split.
+  const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES, ...(entryToEdit?.trainingType ? [entryToEdit.trainingType] : [])])];
 
   // Get recent exercises (last 10 unique)
   const recentExercises = [...new Set(
@@ -3913,9 +3914,10 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
                 h('div', { className: 'text-sm font-medium text-slate-400' }, 'Steps'),
                 h('div', {}, Number(sleep.steps).toLocaleString())
               ),
-              Number(sleep.caloriesBurned) > 0 && h('div', {},
-                h('div', { className: 'text-sm font-medium text-slate-400' }, 'Calories Burned'),
-                h('div', {}, `${Number(sleep.caloriesBurned).toLocaleString()}${Number(sleep.activeCalories) > 0 ? ` (${Number(sleep.activeCalories).toLocaleString()} active)` : ''}`)
+              // Whole-day burn (incl. resting) -- not the workout's own calories.
+              Number(sleep.totalCaloriesBurned) > 0 && h('div', {},
+                h('div', { className: 'text-sm font-medium text-slate-400' }, 'Calories Burned (day)'),
+                h('div', {}, `${Number(sleep.totalCaloriesBurned).toLocaleString()}${Number(sleep.activeCaloriesBurned) > 0 ? ` (${Number(sleep.activeCaloriesBurned).toLocaleString()} active)` : ''}`)
               )
             ),
             h('div', { className: 'flex gap-2 mt-4' },
@@ -3975,6 +3977,9 @@ const DailyCard = ({ dailyData, allEntries, onEditWorkout, onDeleteWorkout, onEd
       onToggle: () => setWorkoutExpanded(!workoutExpanded)
     },
       h('div', { className: 'space-y-4' },
+        workout.needsDetails && h('div', { className: 'p-3 rounded-lg bg-amber-900/40 border border-amber-700 text-sm' },
+          `⌚ Fitbit recorded ${workout.duration || '?'} min of ${(workout.fitbit?.activities || ['weights']).join(', ').toLowerCase()}${workout.caloriesBurned ? `, ${workout.caloriesBurned} cal` : ''}. Tap Edit to pick the split and add your exercises.`
+        ),
         // Summary stats
         workoutType !== 'REST' && h('div', { className: 'grid grid-cols-3 gap-4 text-center' },
           h('div', {},
@@ -4384,7 +4389,7 @@ const daysAgoLocal = (n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const HealthImportCard = ({ sleepEntries, setSleepEntries }) => {
+const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }) => {
   const { showToast } = useToast();
   const [files, setFiles] = useState([]);
   const [from, setFrom] = useState(() => daysAgoLocal(60));
@@ -4403,7 +4408,8 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries }) => {
     try {
       const { days } = await readHealthExport(files, { from, to, onProgress: setProgress });
       const result = mergeHealthImport(sleepEntries, days, { makeId: generateId });
-      setPreview({ result, dayCount: Object.keys(days).length });
+      const workouts = mergeWorkoutImport(entries, days, { makeId: generateId });
+      setPreview({ result, workouts, dayCount: Object.keys(days).length });
     } catch (err) {
       console.error('[HealthImport]', err);
       showToast(err.message || 'Could not read the export', 'error');
@@ -4415,18 +4421,23 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries }) => {
   const handleApply = () => {
     if (!preview) return;
     setSleepEntries(preview.result.next);
+    if (preview.workouts.changes.length > 0) setEntries(preview.workouts.next);
     const { created, updated } = preview.result.stats;
-    showToast(`Imported: ${created} new nights, ${updated} days updated`, 'success');
+    const { workoutsCreated, restCreated } = preview.workouts.stats;
+    showToast(`Imported: ${created} new nights, ${updated} days updated, ${workoutsCreated} workouts, ${restCreated} rest days`, 'success');
     setPreview(null);
   };
 
   const stats = preview?.result.stats;
+  const wStats = preview?.workouts.stats;
+  const workoutDays = preview ? preview.workouts.changes.filter(c => c.action === 'workout') : [];
+  const totalChanges = preview ? stats.created + stats.updated + preview.workouts.changes.length : 0;
   const sample = preview ? preview.result.changes.slice(-5).reverse() : [];
 
   return h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
     h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
     h('p', { className: 'text-sm text-slate-400' },
-      'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps and calories burned are read on this phone; nothing is uploaded.'),
+      'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps, calories burned and Fitbit workout days are read on this phone; nothing is uploaded.'),
     h(Input, {
       type: 'file', multiple: true, accept: '.zip,.csv',
       onChange: (e) => { setFiles(Array.from(e.target.files || [])); setPreview(null); }
@@ -4449,12 +4460,21 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries }) => {
       stats.keptManualSleep > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.keptManualSleep} nights you typed in keep your numbers`),
       stats.skippedNoSleep > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.skippedNoSleep} days skipped (no sleep recorded)`),
       stats.noStages > 0 && h('p', { className: 'text-slate-400' }, `• ${stats.noStages} nights skipped (no sleep stages)`),
+      h('p', { className: 'font-medium pt-2' }, 'Workout log (days with nothing logged)'),
+      h('p', {}, `• ${wStats.workoutsCreated} workout days from Fitbit${wStats.workoutsCreated ? ' (add your exercises)' : ''}`),
+      workoutDays.length > 0 && h('p', { className: 'text-xs text-slate-400 pl-3' },
+        workoutDays.map(c => `${c.date} (${c.entry.duration} min)`).join(', ')),
+      h('p', {}, `• ${wStats.restCreated} rest days (no Fitbit workout)`),
+      wStats.detailsFilled > 0 && h('p', {}, `• ${wStats.detailsFilled} logged workouts get Fitbit duration / calories`),
+      wStats.notWorn > 0 && h('p', { className: 'text-slate-400' }, `• ${wStats.notWorn} days left blank (watch not worn)`),
+      wStats.otherActivity > 0 && h('p', { className: 'text-slate-400' }, `• ${wStats.otherActivity} days left blank (non-lifting activity)`),
+      wStats.restButFitbitWorkout > 0 && h('p', { className: 'text-slate-400' }, `• ${wStats.restButFitbitWorkout} days you marked rest kept as rest (Fitbit saw a workout)`),
       sample.length > 0 && h('div', { className: 'pt-2 text-xs text-slate-400 space-y-0.5' },
         sample.map(c => h('p', { key: c.date },
-          `${c.date}: ${c.entry.sleepHours ? `${c.entry.sleepHours.toFixed(1)}h sleep · ` : ''}${(c.entry.steps ?? 0).toLocaleString()} steps · ${(c.entry.caloriesBurned ?? 0).toLocaleString()} cal`))
+          `${c.date}: ${c.entry.sleepHours ? `${c.entry.sleepHours.toFixed(1)}h sleep · ` : ''}${(c.entry.steps ?? 0).toLocaleString()} steps · ${(c.entry.totalCaloriesBurned ?? 0).toLocaleString()} cal burned`))
       ),
-      (stats.created + stats.updated) > 0
-        ? h(Button, { type: 'button', onClick: handleApply, className: 'w-full mt-2' }, `Import ${stats.created + stats.updated} days`)
+      totalChanges > 0
+        ? h(Button, { type: 'button', onClick: handleApply, className: 'w-full mt-2' }, `Import ${totalChanges} changes`)
         : h('p', { className: 'text-slate-400 pt-1' }, 'Everything is already up to date.')
     )
   );
@@ -4930,7 +4950,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       )
     ),
     h(CloudSyncCard),
-    h(HealthImportCard, { sleepEntries, setSleepEntries }),
+    h(HealthImportCard, { sleepEntries, setSleepEntries, entries, setEntries }),
     h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
       h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
@@ -5030,7 +5050,9 @@ const App = () => {
     const saved = localStorage.getItem(SLEEP_KEY);
     const parsed = saved ? JSON.parse(saved) : [];
     console.log(`[App Init] Sleep entries loaded from localStorage: ${parsed.length} entries`);
-    return parsed;
+    // First-release imports used caloriesBurned/activeCalories; rename to the unambiguous
+    // totalCaloriesBurned/activeCaloriesBurned. Idempotent, so it is safe on every load.
+    return parsed.map(renameLegacyActivityFields);
   });
 
   // Diet goals live in App, not Settings: the dashboard reads them, Settings writes
