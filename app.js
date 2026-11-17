@@ -3549,7 +3549,9 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
 
     sheet === 'details' && renderDetails(),
     sheet === 'add' && h(AddExerciseSheet, {
-      names: allExerciseNames,
+      // Your own names first, then the exercise library: library names are what
+      // the recovery model knows, so picking one keeps fatigue tracking accurate.
+      names: [...new Set([...allExerciseNames.filter(Boolean), ...getAllLibraryExercises()])],
       recent: recentExercises,
       onClose: () => setSheet(null),
       onPick: (name) => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v31'; // v31 redesign: workout flow
+const CACHE_NAME = 'hypertrophy-pwa-cache-v32'; // v32 redesign: workout flow
 
 const FILES_TO_CACHE = [
   './',

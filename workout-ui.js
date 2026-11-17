@@ -191,7 +191,7 @@ export const ExerciseCard = ({
     ),
     h('div', { className: 'flex gap-2' },
       h('button', { type: 'button', onClick: onAddSet, className: 'flex-1 h-11 rounded-full border border-ink-line font-bold text-sm' }, '＋ Add set'),
-      h('button', { type: 'button', onClick: onCopyWeight, className: 'flex-1 h-11 rounded-full border border-ink-line font-bold text-sm' }, '📋 Same weight all sets')
+      h('button', { type: 'button', onClick: onCopyWeight, className: 'flex-1 h-11 rounded-full border border-ink-line font-bold text-sm' }, '📋 Copy weight')
     ),
     h(RpeChips, { value: ex.rpe, onChange: onRpe }),
     h('button', {
@@ -403,8 +403,10 @@ export const PRCelebration = ({ exercise, weight, reps, oldBest, oldDate, record
 export const AddExerciseSheet = ({ names, recent, onPick, onClose }) => {
   const [q, setQ] = useState('');
   const query = q.trim().toLowerCase();
-  const matches = query
-    ? names.filter(n => n.toLowerCase().includes(query)).slice(0, 30)
+  // Every word has to appear, in any order: "pulldown lat" finds "Lat Pulldown".
+  const words = query.split(/\s+/).filter(Boolean);
+  const matches = words.length
+    ? names.filter(n => { const low = n.toLowerCase(); return words.every(w => low.includes(w)); }).slice(0, 30)
     : [];
   const exact = names.some(n => n.toLowerCase() === query);
   const row = (n) => h('button', {
