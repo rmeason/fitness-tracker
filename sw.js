@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v28'; // v28 redesign: new shell, menu and home screen
+const CACHE_NAME = 'hypertrophy-pwa-cache-v29'; // v29 redesign: recovery body map
 
 const FILES_TO_CACHE = [
   './',
@@ -11,6 +11,7 @@ const FILES_TO_CACHE = [
   './ui.js',
   './shell.js',
   './home.js',
+  './recovery-screen.js',
   './manifest.json'
 ];
 
