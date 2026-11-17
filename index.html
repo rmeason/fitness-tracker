@@ -7,7 +7,11 @@
   
   <link rel="manifest" href="manifest.json">
   
-  <meta name="theme-color" content="#1e293b">
+  <meta name="theme-color" content="#0D1320">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
 
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -15,10 +19,33 @@
       darkMode: 'class', // Enable dark mode
       theme: {
         extend: {
+          fontFamily: {
+            sans: ['Nunito', 'ui-rounded', 'system-ui', 'sans-serif'],
+          },
           colors: {
+            // Redesign palette (Nov 2026): dark navy with a blue accent. New screens
+            // use these names; ui.js holds the same hex values for SVG.
+            ink: { DEFAULT: '#0D1320', card: '#161E2E', line: '#243049', key: '#1E2840', text: '#EEF2FA', muted: '#A3B0C7' },
+            accent: { DEFAULT: '#4C9BFF', on: '#08111F', deep: '#1C3B66' },
+            // Screens not rebuilt yet still say slate/blue/cyan, so those names are
+            // re-pointed at the same palette. Each contrast pair still passes 4.5:1.
             slate: {
-              850: '#172033',
+              50: '#F5F7FC', 100: '#EEF2FA', 200: '#D6DDEB', 300: '#BAC5D9', 400: '#A3B0C7',
+              500: '#8592AD', 600: '#33405E', 700: '#243049', 800: '#161E2E', 850: '#121A28',
+              900: '#0D1320', 950: '#080D17',
             },
+            blue: {
+              200: '#C4DDFF', 300: '#9CC8FF', 400: '#6BAEFF', 500: '#4C9BFF', 600: '#2A6FD6',
+              700: '#225DB5', 800: '#1C3B66', 900: '#16294A',
+            },
+            cyan: {
+              300: '#9CC8FF', 400: '#4C9BFF', 500: '#4C9BFF', 600: '#2A6FD6', 700: '#225DB5',
+              800: '#1C3B66', 900: '#16294A',
+            },
+          },
+          borderRadius: {
+            lg: '1rem',
+            xl: '1.25rem',
           },
         },
       },
@@ -38,13 +65,28 @@
   </script>
 
   <style>
+    html { -webkit-tap-highlight-color: transparent; }
     body {
-      background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+      background: #0D1320;
+      font-family: Nunito, ui-rounded, system-ui, sans-serif;
+    }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes drawer-in { from { transform: translateX(-100%); } to { transform: none; } }
+    @keyframes start-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(76, 155, 255, 0.35); }
+      50% { box-shadow: 0 0 0 14px rgba(76, 155, 255, 0); }
+    }
+    .anim-fade-in { animation: fade-in 0.2s ease-out both; }
+    .anim-drawer-in { animation: drawer-in 0.26s cubic-bezier(.2, .8, .2, 1) both; }
+    .start-pulse { animation: start-pulse 3s ease-in-out infinite; }
+    /* The phone's Reduce Motion setting turns every animation and transition off. */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
     }
     .toast {
       position: fixed;
-      top: 20px;
-      right: 20px;
+      top: calc(env(safe-area-inset-top) + 80px);
+      right: 16px;
       padding: 12px 20px;
       border-radius: 8px;
       z-index: 9999;
@@ -76,7 +118,7 @@
     }
   </style>
 </head>
-<body class="bg-slate-900 text-slate-100 dark">
+<body class="bg-ink text-ink-text dark">
   <div id="root"><p class="text-center text-slate-400 mt-24">Loading…</p></div>
 
   <script>

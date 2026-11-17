@@ -944,6 +944,13 @@ export function getTrainingRecommendation(recoveryStatus, todaysSleep, plannedWo
   const suggestedSets = Math.round(baselineSets * recommendation.volumeAdjustment);
   
   recommendation.suggestedSets = suggestedSets;
+  // Exposed for the home screen's readiness ring and coach line (additive; nothing
+  // above reads them).
+  recommendation.avgFatigue = avgFatigue;
+  recommendation.maxFatigue = maxFatigue;
+  recommendation.mostFatiguedMuscle = mostFatiguedMuscle;
+  recommendation.involvedMuscleCount = involvedMuscles.length;
+  recommendation.baselineSets = baselineSets;
   recommendation.reasoning = `Baseline: ${baselineSets} sets (sleep-based). Adjusted to ${suggestedSets} sets (fatigue × ${recommendation.volumeAdjustment.toFixed(2)}).`;
   
   return recommendation;

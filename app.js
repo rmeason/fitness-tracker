@@ -36,6 +36,11 @@ import * as Sync from './sync.js';
 // Google Health (Takeout) import: sleep, steps, calories burned.
 import { readHealthExport, mergeHealthImport, mergeWorkoutImport, keepActivityFields, renameLegacyActivityFields } from './health-import.js';
 
+// Redesign (Nov 2026): shared UI kit, the header + menu shell, and the new home screen.
+import { C as UI_COLORS, fatigueColor, formatWorkoutName } from './ui.js';
+import { AppHeader, MenuDrawer, scrollToTop } from './shell.js';
+import { HomeScreen } from './home.js';
+
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
 
@@ -4434,7 +4439,7 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   const totalChanges = preview ? stats.created + stats.updated + preview.workouts.changes.length : 0;
   const sample = preview ? preview.result.changes.slice(-5).reverse() : [];
 
-  return h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
+  return h('div', { id: 'health-import', className: 'space-y-3 bg-slate-800 p-4 rounded-lg scroll-mt-24' },
     h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
     h('p', { className: 'text-sm text-slate-400' },
       'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps, calories burned and Fitbit workout days are read on this phone; nothing is uploaded.'),
@@ -5184,19 +5189,7 @@ const App = () => {
   const cycleDay = coachCycleDay;
 
 
-  const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
-
   const todaysNutrition = getTodaysNutrition(nutrition);
-
-  // Calculate weekly calories burned (last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const weeklyCaloriesBurned = sortedEntries
-    .filter(e => new Date(e.date) >= sevenDaysAgo && e.caloriesBurned)
-    .reduce((sum, e) => sum + (e.caloriesBurned || 0), 0);
-
-  // Analyze recovery status from sleep data
-  const recoveryAnalysis = Coach.analyzeRecoveryPattern(sleepEntries);
 
   // Modals
   const [showAIModal, setShowAIModal] = useState(false);
@@ -5205,6 +5198,212 @@ const App = () => {
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [showCycleStartModal, setShowCycleStartModal] = useState(false);
   const [pendingCycle, setPendingCycle] = useState(null);
+
+  // --- 🏠 HOME + SHELL DATA (redesign) ---
+  // Every number the new home screen and header show is worked out here, from the
+  // same App-owned state the rest of the app reads. home.js only renders it.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // A new screen starts at its top, like a new page.
+  useEffect(() => { window.scrollTo(0, 0); }, [view]);
+
+  const cycleLength = trainingCycle.length;
+  const shortDate = (dateStr) => parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const todaysSleep = sleepEntries.find(s => s.date === todayStr) || null;
+  const latestSleep = React.useMemo(
+    () => sleepEntries.filter(s => Number(s.sleepHours) > 0).sort((a, b) => a.date.localeCompare(b.date)).pop() || null,
+    [sleepEntries]
+  );
+
+  // Same call SmartRecoveryCard makes, for today's PLANNED session.
+  const todayRecommendation = React.useMemo(
+    () => getTrainingRecommendation(
+      recoveryStatus,
+      todaysSleep || latestSleep || { sleepHours: 8, deepSleepPercent: 15 },
+      nextWorkout
+    ),
+    [recoveryStatus, todaysSleep, latestSleep, nextWorkout]
+  );
+
+  // Readiness = how recovered the muscles today trains are (100 - their average
+  // fatigue). On a rest day it covers whatever was trained in the last 10 days.
+  const readiness = React.useMemo(() => {
+    const muscles = Object.values(recoveryStatus || {});
+    let avg = null;
+    if (todayRecommendation.involvedMuscleCount > 0) {
+      avg = todayRecommendation.avgFatigue;
+    } else {
+      const recent = muscles.filter(m => m.lastTrained);
+      if (recent.length) avg = recent.reduce((sum, m) => sum + (m.currentFatiguePercent || 0), 0) / recent.length;
+    }
+    const restCount = muscles.filter(m => m.currentFatiguePercent >= 70).length;
+    const recoveringCount = muscles.filter(m => m.currentFatiguePercent >= 40 && m.currentFatiguePercent < 70).length;
+    if (avg === null) return { pct: null, restCount, recoveringCount };
+    const pct = Math.max(0, Math.min(100, 100 - avg));
+    return {
+      pct, restCount, recoveringCount,
+      color: fatigueColor(avg),
+      label: todayRecommendation.involvedMuscleCount > 0
+        ? `Today's muscles are ${Math.round(pct)}% recovered`
+        : `Recently trained muscles are ${Math.round(pct)}% recovered`
+    };
+  }, [recoveryStatus, todayRecommendation]);
+
+  const homeHero = (() => {
+    const kickerDay = `DAY ${cycleDay + 1} OF ${cycleLength}`;
+    const tomorrow = trainingCycle[(cycleDay + 1) % cycleLength];
+    if (todaysActualEntry) {
+      const isRestEntry = todaysActualEntry.trainingType === 'REST';
+      const sets = Number(todaysActualEntry.totalSets) || 0;
+      const grade = todaysSleep ? getGrade(todaysSleep, sets) : 'N/A';
+      let doneDetail;
+      if (isRestEntry) doneDetail = 'Rest day logged';
+      else if (todaysActualEntry.needsDetails) doneDetail = 'Fitbit recorded this one. Add your exercises.';
+      else doneDetail = `${sets} working sets${grade !== 'N/A' ? ` · grade ${grade}` : ''}`;
+      return {
+        done: true,
+        kicker: `DONE TODAY · ${kickerDay}`,
+        title: formatWorkoutName(todaysActualEntry.trainingType),
+        doneDetail,
+        next: `Tomorrow: ${formatWorkoutName(tomorrow)}`
+      };
+    }
+    const isRest = nextWorkout === 'REST';
+    let note;
+    if (isRest) {
+      note = 'Scheduled rest. Your muscles keep recovering today, so keep protein up.';
+    } else {
+      const r = todayRecommendation;
+      const muscle = r.mostFatiguedMuscle;
+      const max = Math.round(r.maxFatigue || 0);
+      const avg = Math.round(r.avgFatigue || 0);
+      let fatigue;
+      if (!r.proceed) fatigue = `${muscle} is still very fatigued (${max}%), so a rest day would help more.`;
+      else if (max >= 60) fatigue = `${muscle} is at ${max}% fatigue, so trim volume by about a third.`;
+      else if (avg >= 50) fatigue = `Fatigue is widespread (about ${avg}%), so trim volume a little.`;
+      else if (max >= 50) fatigue = `${muscle} is still recovering (${max}%), so go a little lighter there.`;
+      else if (avg < 20) fatigue = 'The muscles today trains are fresh.';
+      else fatigue = `A little leftover fatigue (about ${avg}%), but you're good to go.`;
+      const sets = r.proceed
+        ? ` Aim for about ${r.suggestedSets} working sets${todaysSleep ? '' : ' (log last night’s sleep to fine-tune this)'}.`
+        : '';
+      note = fatigue + sets;
+    }
+    return {
+      done: false,
+      isRest,
+      kicker: `TODAY · ${kickerDay}`,
+      title: formatWorkoutName(nextWorkout),
+      note
+    };
+  })();
+
+  const homeSleep = (() => {
+    if (!todaysSleep || !(Number(todaysSleep.sleepHours) > 0)) return null;
+    const minutes = Number(todaysSleep.sleepHours) * 60;
+    const deepPercent = Number(todaysSleep.deepSleepPercent) || 0;
+    const deepMinutes = Number(todaysSleep.deepSleepMinutes) > 0 ? Number(todaysSleep.deepSleepMinutes) : minutes * deepPercent / 100;
+    const rem = Number(todaysSleep.remMinutes) || 0;
+    const light = Number(todaysSleep.lightMinutes) || 0;
+    // Typed and imported nights only carry total + deep, so the bar splits deep
+    // from the rest; light/REM show up if an entry ever has them.
+    const segments = (rem > 0 || light > 0)
+      ? [
+          { label: 'Light', minutes: light, color: UI_COLORS.light },
+          { label: 'REM', minutes: rem, color: UI_COLORS.rem },
+          { label: 'Deep', minutes: deepMinutes, color: UI_COLORS.deep }
+        ]
+      : [
+          { label: 'Other sleep', minutes: Math.max(0, minutes - deepMinutes), color: UI_COLORS.light },
+          { label: 'Deep', minutes: deepMinutes, color: UI_COLORS.deep }
+        ];
+    const verdict = getSleepVerdict(todaysSleep.sleepHours, todaysSleep.deepSleepPercent, todaysSleep.recoveryRating);
+    const tierLabels = ['PR range', 'Target range', 'Baseline', 'Poor'];
+    const tierColors = [UI_COLORS.good, UI_COLORS.good, UI_COLORS.warn, UI_COLORS.bad];
+    return { minutes, deepMinutes, deepPercent, segments, verdict: { label: tierLabels[verdict.tier], color: tierColors[verdict.tier] } };
+  })();
+
+  const homeWeight = (() => {
+    const weighIns = sleepEntries
+      .filter(e => Number(e.weight) > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const latest = weighIns[weighIns.length - 1];
+    if (!latest) return { value: null, sub: 'No weigh-ins yet' };
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    const recent = weighIns.filter(e => e.date >= formatDate(weekAgo));
+    const parts = [];
+    if (recent.length >= 2) {
+      const avg = recent.reduce((sum, e) => sum + Number(e.weight), 0) / recent.length;
+      parts.push(`7-day avg ${avg.toFixed(1)}`);
+    }
+    parts.push(latest.date === todayStr ? 'weighed today' : `weighed ${shortDate(latest.date)}`);
+    const text = parts.join(' · ');
+    return { value: Number(latest.weight), sub: text.charAt(0).toUpperCase() + text.slice(1) };
+  })();
+
+  const homeRecords = (() => {
+    const weighted = allPRs.filter(p => Number(p.weight) > 0);
+    if (!weighted.length) return { value: '', sub: 'No records yet' };
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    const recentCount = weighted.filter(p => p.date >= formatDate(monthAgo)).length;
+    const newest = [...weighted].sort((a, b) => b.date.localeCompare(a.date))[0];
+    return {
+      value: recentCount ? `${recentCount} in 30 days` : '',
+      sub: `Latest: ${newest.name} ${newest.weight} lb · ${shortDate(newest.date)}`
+    };
+  })();
+
+  const recoverySub = (() => {
+    const { restCount, recoveringCount } = readiness;
+    if (restCount) return `${restCount} muscle${restCount === 1 ? ' needs' : 's need'} rest${recoveringCount ? ` · ${recoveringCount} recovering` : ''}`;
+    if (recoveringCount) return `${recoveringCount} recovering, none need rest`;
+    return 'Everything is fresh';
+  })();
+
+  // Sunday..Saturday of this week for the menu's week strip.
+  const menuWeek = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const ds = formatDate(d);
+      return {
+        key: ds,
+        letter: 'SMTWTFS'[i],
+        day: d.getDate(),
+        isToday: ds === todayStr,
+        trained: sortedEntries.some(e => e.date === ds && e.trainingType && e.trainingType !== 'REST'),
+        planned: formatWorkoutName(trainingCycle[getCycleDayForDate(d, cycleLength)])
+      };
+    });
+  })();
+
+  const lastImportDate = (() => {
+    const imported = sleepEntries.filter(e => Array.isArray(e.importedFields) && e.importedFields.length);
+    if (!imported.length) return null;
+    return shortDate(imported.reduce((max, e) => (e.date > max ? e.date : max), imported[0].date));
+  })();
+
+  const navigate = (next) => {
+    setMenuOpen(false);
+    setView(next);
+  };
+
+  const VIEW_TITLES = {
+    calendar: 'Calendar', log: 'Daily log', recovery: 'Recovery', charts: 'Charts',
+    records: 'Personal records', settings: 'Settings', sleepForm: 'Sleep'
+  };
+  const headerTitle = view === 'dashboard'
+    ? new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : view === 'form'
+      ? (entryToEdit && entryToEdit.id ? 'Edit workout' : 'Log workout')
+      : (VIEW_TITLES[view] || 'Hypertrophy');
+  const headerSubtitle = view === 'recovery' && readiness.pct !== null ? readiness.label : null;
 
   // --- HANDLERS ---
   const handleSaveEntry = (entry) => {
@@ -5389,97 +5588,10 @@ const App = () => {
             recoveryStatus: recoveryStatus
           });
 
-      case 'dashboard':
-      default:
-        const cycleLength = trainingCycle.length;  // ADD THIS LINE at the top of the case
-        
-        return h('div', { className: 'space-y-6' },
-          // Enhanced Header with Planned Workout + Today's Stats
-          h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
-            h('div', { className: 'mb-4' },
-              h('h3', { className: 'text-sm font-semibold text-slate-400 mb-1' }, planTitle),
-              h('p', { className: 'text-3xl font-bold text-cyan-400' }, nextWorkout),
-              // ADD THESE 2 LINES:
-              h('p', { className: 'text-sm text-blue-300 mt-1' }, 
-                `Day ${cycleDay + 1} of ${cycleLength} in your ${cycleLength}-day cycle`
-              ),
-              h('p', { className: 'text-sm text-slate-300 mt-2' }, coachNote)
-            ),
-            h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Macros'),
-                h('div', { className: 'flex justify-center gap-2 mt-1' },
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-green-400 leading-tight' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'P')
-                  ),
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-amber-400 leading-tight' }, formatMacro(todaysNutrition.carbsTracked ? todaysNutrition.totalCarbs : null)),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'C')
-                  ),
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-pink-400 leading-tight' }, formatMacro(todaysNutrition.fatTracked ? todaysNutrition.totalFat : null)),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'F')
-                  )
-                ),
-                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein, dietGoals)),
-                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
-                h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString()),
-                h('div', { className: 'text-xs mt-1 text-slate-400' },
-                  `Target: ${todaysCalorieTarget === null ? '—' : todaysCalorieTarget.toLocaleString()} kcal`
-                ),
-                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
-                h('div', { className: 'text-2xl font-bold' }, `${getCurrentWeight(sleepEntries)} lbs`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
-                h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned.toLocaleString()),
-                h('div', { className: 'text-xs mt-1 text-slate-500' }, 'kcal (7 days)')
-              )
-            )
-          ),
-
-          // In the dashboard view, add the SmartRecoveryCard after the plan card:
-
-          h(SmartRecoveryCard, {
-            entries: sortedEntries,
-            sleepEntries: sleepEntries,
-            plannedWorkout: nextWorkout,
-            recoveryStatus: recoveryStatus
-          }),
-
-          h('div', { className: 'grid grid-cols-3 gap-4' },
-            h(Button, {
-              onClick: () => handleShowSleepForm(),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '🌙 Log Sleep'),
-            h(Button, {
-              onClick: () => setShowNutritionModal(true),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '🍽️ Quick Add Meal'),
-            h(Button, {
-              onClick: () => handleShowForm(null),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '💪 Log Workout')
-          ),
-          !hasLoggedToday && h(Button, {
-            onClick: () => setShowAIModal(true),
-            variant: 'primary',
-            className: 'w-full text-lg'
-          }, '🤖 Get AI Workout Suggestion'),
-          h(PRDashboard, { prs: allPRs }),
-
-          // Daily Log (unified view)
-          h('h2', { className: 'text-xl font-bold' }, '📅 Daily Log'),
+      case 'log':
+        // The old home screen's daily log, moved here until the Calendar rebuild
+        // takes it over. Same cards, same edit and delete buttons.
+        return h('div', { className: 'space-y-4' },
           h('div', { className: 'space-y-4' },
             (() => {
               const dailyData = groupDataByDate(sortedEntries, nutrition, sleepEntries);
@@ -5499,17 +5611,65 @@ const App = () => {
             })()
           )
         );
+
+      case 'records':
+        return h(PRDashboard, { prs: allPRs });
+
+      case 'dashboard':
+      default:
+        return h(HomeScreen, {
+          hero: homeHero,
+          hasLoggedToday,
+          protein: {
+            value: Number(todaysNutrition.totalProtein) || 0,
+            target: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget
+          },
+          calories: { value: Number(todaysNutrition.totalCalories) || 0, target: todaysCalorieTarget },
+          sleep: homeSleep,
+          weight: homeWeight,
+          recovery: { pct: readiness.pct, sub: recoverySub },
+          records: homeRecords,
+          sleepButtonLabel: todaysSleep ? '🌙 Edit sleep' : '🌙 Log sleep',
+          onStart: () => handleShowForm(null),
+          onEditToday: () => handleShowForm(todaysActualEntry),
+          onAddMeal: () => setShowNutritionModal(true),
+          onSleep: () => handleShowSleepForm(todaysSleep),
+          onOpenLog: () => setView('log'),
+          onOpenCharts: () => setView('charts'),
+          onOpenRecovery: () => setView('recovery'),
+          onOpenRecords: () => setView('records'),
+          onOpenAI: () => setShowAIModal(true)
+        });
     }
   };
 
   return h(ToastProvider, null,
     h(MaintenanceAutoApply, { maintenanceEstimate, dietGoals, setDietGoals }),
-    // 💡💡💡 THIS IS THE NAV BAR FIX 💡💡💡
-    // The Nav Bar is now *outside* the main scrolling container.
-    h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
-      h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA V 1.0')
-      ),
+    // The page is the scroller and the header is sticky, so nothing slides when you
+    // scroll and the iPhone status-bar tap still jumps to the top.
+    h(AppHeader, {
+      title: headerTitle,
+      subtitle: headerSubtitle,
+      readiness: view === 'recovery' || readiness.pct === null ? null : readiness,
+      onMenu: () => setMenuOpen(true),
+      onReadiness: () => setView('recovery')
+    }),
+    h(MenuDrawer, {
+      open: menuOpen,
+      onClose: () => setMenuOpen(false),
+      view,
+      onNavigate: navigate,
+      week: menuWeek,
+      lastImport: lastImportDate,
+      onImport: () => {
+        navigate('settings');
+        setTimeout(() => {
+          const card = document.getElementById('health-import');
+          if (card) card.scrollIntoView({ block: 'start' });
+        }, 80);
+      }
+    }),
+    h('div', { className: 'mx-auto max-w-2xl px-4 pt-4 pb-12' },
       h(SyncBanner),
       h('main', {}, renderView()),
       
@@ -5575,34 +5735,7 @@ const App = () => {
           }
         })
       )
-    ), // <-- Main scrolling div closes here
-    
-    // Bottom Nav Bar is now a sibling to the scrolling div
-    h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-6' }, // 👈 Changed from cols-5 to cols-6
-      h(NavButton, { icon: '🔥', label: 'Log', active: view === 'dashboard', onClick: () => setView('dashboard') }),
-      h(NavButton, { icon: '📅', label: 'Calendar', active: view === 'calendar', onClick: () => setView('calendar') }),
-      h('div', { className: 'relative' },
-        h('button', {
-          className: 'absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-4xl shadow-lg hover:bg-blue-700',
-          onClick: () => handleShowForm(null)
-        }, '+')
-      ),
-      // 👇 NEW Recovery tab
-      h(NavButton, { icon: '💪', label: 'Recovery', active: view === 'recovery', onClick: () => setView('recovery') }),
-      h(NavButton, { icon: '📊', label: 'Charts', active: view === 'charts', onClick: () => setView('charts') }),
-      h(NavButton, { icon: '⚙️', label: 'Settings', active: view === 'settings', onClick: () => setView('settings') })
-    )
-  );
-};
-
-// Nav Button Component
-const NavButton = ({ icon, label, active, onClick }) => {
-  return h('button', {
-    onClick,
-    className: `flex flex-col items-center justify-center p-2 pt-3 hover:bg-slate-700 ${active ? 'text-blue-400' : 'text-slate-400'}`
-  },
-    h('span', { className: 'text-2xl' }, icon),
-    h('span', { className: 'text-xs' }, label)
+    ) // <-- Main content closes here
   );
 };
 
