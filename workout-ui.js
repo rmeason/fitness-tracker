@@ -479,7 +479,7 @@ export const FinishSummary = ({ grade, gradeNote, stats, rows, skippedSets, dura
         h('span', null, 'EXERCISE'), h('span', null, 'TOP SET')),
       rows.map((r, i) => h('div', { key: i, className: 'flex items-center gap-2.5 py-2.5 border-t border-ink-line' },
         h('span', { className: 'flex-1 min-w-0 text-[15px] font-bold truncate' }, r.pr ? `🏆 ${r.name}` : r.name),
-        h('span', { className: 'text-[13px] text-ink-muted' }, `${r.sets} sets`),
+        h('span', { className: 'text-[13px] text-ink-muted' }, `${r.sets} set${r.sets === 1 ? '' : 's'}`),
         h('span', { className: 'w-[88px] text-right text-[15px] font-extrabold' }, r.top)))
     ),
     skippedSets > 0 && h('div', { className: 'text-[13px] text-ink-muted px-1' },
