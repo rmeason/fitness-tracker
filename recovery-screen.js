@@ -170,9 +170,9 @@ const BodyMap = ({ view, regions, selected, onSelect }) => {
 };
 
 const Legend = () =>
-  h('div', { className: 'flex justify-center gap-4 text-xs text-ink-muted' },
-    [['Fresh', C.good, 'under 40%'], ['Recovering', C.warn, '40–69%'], ['Rest', C.bad, '70%+']].map(([label, color, range]) =>
-      h('span', { key: label, className: 'flex items-center gap-1.5' },
+  h('div', { className: 'flex justify-center gap-3 text-xs text-ink-muted' },
+    [['Fresh', C.good, '<40%'], ['Recovering', C.warn, '40–69%'], ['Rest', C.bad, '70%+']].map(([label, color, range]) =>
+      h('span', { key: label, className: 'flex items-center gap-1.5 whitespace-nowrap' },
         h('span', { className: 'w-2.5 h-2.5 rounded-full', style: { background: color }, 'aria-hidden': 'true' }),
         `${label} `, h('span', { className: 'opacity-80' }, range)
       )

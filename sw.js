@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v29'; // v29 redesign: recovery body map
+const CACHE_NAME = 'hypertrophy-pwa-cache-v30'; // v30 redesign: recovery body map
 
 const FILES_TO_CACHE = [
   './',
