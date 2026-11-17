@@ -79,6 +79,16 @@
     .anim-fade-in { animation: fade-in 0.2s ease-out; }
     .anim-drawer-in { animation: drawer-in 0.26s cubic-bezier(.2, .8, .2, 1); }
     .start-pulse { animation: start-pulse 3s ease-in-out infinite; }
+    @keyframes sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+    .anim-sheet-in { animation: sheet-in 0.28s cubic-bezier(.2, .8, .2, 1); }
+    @keyframes confetti-fall {
+      0% { transform: translateY(0) rotate(0deg); }
+      100% { transform: translateY(110vh) rotate(600deg); }
+    }
+    /* Pieces start above the screen, so if animations are off they simply never show. */
+    .confetti-piece { position: absolute; top: -24px; animation-name: confetti-fall; animation-timing-function: cubic-bezier(.3, .6, .5, 1); animation-fill-mode: forwards; }
+    @keyframes pr-pop { 0% { transform: scale(.4); } 70% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    .pr-pop { animation: pr-pop 0.5s cubic-bezier(.2, .8, .2, 1); }
     /* The phone's Reduce Motion setting turns every animation and transition off. */
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

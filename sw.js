@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v30'; // v30 redesign: recovery body map
+const CACHE_NAME = 'hypertrophy-pwa-cache-v31'; // v31 redesign: workout flow
 
 const FILES_TO_CACHE = [
   './',
@@ -12,6 +12,7 @@ const FILES_TO_CACHE = [
   './shell.js',
   './home.js',
   './recovery-screen.js',
+  './workout-ui.js',
   './manifest.json'
 ];
 

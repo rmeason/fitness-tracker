@@ -36,8 +36,8 @@ const Hero = ({ hero, onStart, onEditToday, onAddMeal, onSleep, sleepButtonLabel
           type: 'button', onClick: onStart,
           className: 'mt-6 w-[168px] h-[168px] rounded-full border-[6px] border-accent-deep bg-accent text-accent-on font-extrabold text-[22px] flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform start-pulse'
         },
-          h('span', { className: 'text-[40px] leading-none', 'aria-hidden': 'true' }, hero.isRest ? '😴' : '💪'),
-          hero.isRest ? 'Log rest' : 'Start'
+          h('span', { className: 'text-[40px] leading-none', 'aria-hidden': 'true' }, hero.resume ? '⏯️' : hero.isRest ? '😴' : '💪'),
+          hero.resume ? 'Resume' : hero.isRest ? 'Log rest' : 'Start'
         ),
 
     hero.next && h('div', { className: 'text-[13px] text-ink-muted mt-3' }, hero.next),

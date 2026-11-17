@@ -41,6 +41,7 @@ import { C as UI_COLORS, fatigueColor, formatWorkoutName } from './ui.js';
 import { AppHeader, MenuDrawer, scrollToTop } from './shell.js';
 import { HomeScreen } from './home.js';
 import { RecoveryScreen } from './recovery-screen.js';
+import { SessionBar, ExerciseCard, KeypadSheet, RestTimerBar, PRCelebration, AddExerciseSheet, ExerciseOptionsSheet, FinishSummary, Sheet } from './workout-ui.js';
 
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
@@ -2750,34 +2751,113 @@ const CollapsibleSection = ({ title, isOpen, onToggle, children, icon = '📋' }
   );
 };
 
-// --- 📜 WORKOUT LOG FORM (UPDATED) ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries }) => {
+// --- 📜 WORKOUT LOGGING (redesign, Nov 2026) ---
+// One card per exercise, a number keypad, a rest timer you start yourself and a
+// record celebration. Saves exactly the same entry shape as the old form.
+// In-progress workouts survive a reload, a swipe-away or a trip to another
+// screen: the form keeps a local draft until the workout is saved or discarded.
+// Local only (not one of the synced keys), and ignored once it is 18 hours old.
+const WORKOUT_DRAFT_KEY = 'hypertrophy-workout-draft';
+const REST_SECONDS_KEY = 'hypertrophy-rest-seconds';
+const readWorkoutDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY) || 'null');
+    return d && Array.isArray(d.exercises) && Date.now() - (d.savedAt || 0) < 18 * 3600 * 1000 ? d : null;
+  } catch (e) { return null; }
+};
+const clearWorkoutDraft = () => { try { localStorage.removeItem(WORKOUT_DRAFT_KEY); } catch (e) { /* ignore */ } };
+
+const isBlankVal = (v) => v === '' || v === null || v === undefined;
+const nowHHMM = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
+// Saved exercise -> form exercise. reps[] decides the set count (it is what volume
+// is computed from); weights[] is padded to match; old single-weight logs expand.
+// done[] is form-only: sets that already hold numbers count as done.
+const exerciseToForm = (ex) => {
+  const sets = Array.isArray(ex.reps) && ex.reps.length ? ex.reps.length : Math.max(1, Number(ex.sets) || 3);
+  const reps = Array.isArray(ex.reps) ? [...ex.reps] : Array(sets).fill(isBlankVal(ex.reps) ? '' : ex.reps);
+  const weights = Array.isArray(ex.weights) ? [...ex.weights] : Array(sets).fill(isBlankVal(ex.weight) ? '' : ex.weight);
+  while (reps.length < sets) reps.push('');
+  while (weights.length < sets) weights.push('');
+  reps.length = sets;
+  weights.length = sets;
+  return {
+    ...ex,
+    sets,
+    reps,
+    weights,
+    rpe: ex.rpe || 8,
+    done: reps.map((r, i) => !isBlankVal(r) || !isBlankVal(weights[i]))
+  };
+};
+
+// Sets with neither weight nor reps typed are dropped at save, so an untouched row
+// never becomes a logged 0 x 0 set. Exercises with no name or no sets are dropped.
+const cleanFormExercises = (list) => list
+  .filter(ex => String(ex.name || '').trim())
+  .map(ex => {
+    const keep = ex.reps.map((r, i) => !(isBlankVal(r) && isBlankVal(ex.weights[i])));
+    const reps = ex.reps.filter((_, i) => keep[i]);
+    const weights = ex.weights.filter((_, i) => keep[i]);
+    return { ...ex, name: String(ex.name).trim(), reps, weights, sets: reps.length };
+  })
+  .filter(ex => ex.sets > 0);
+
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries, suggestedSets }) => {
   const { showToast } = useToast();
+  const isEdit = !!(entryToEdit && entryToEdit.id);
+  const entryId = isEdit ? entryToEdit.id : null;
+
+  // A new workout picks up where a draft left off.
+  const draftRef = useRef(isEdit ? null : readWorkoutDraft());
+  const draft = draftRef.current;
+
   // Form state
-  const [date, setDate] = useState(formatDate(new Date()));
-  const [workoutTime, setWorkoutTime] = useState(() => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  });
-  const [trainingType, setTrainingType] = useState(plannedToday);
-  const [exercises, setExercises] = useState([]);
-  const [cardio, setCardio] = useState([]);
+  const [date, setDate] = useState(draft?.date || formatDate(new Date()));
+  const [workoutTime, setWorkoutTime] = useState(draft?.workoutTime || nowHHMM());
+  const [trainingType, setTrainingType] = useState(draft?.trainingType || plannedToday);
+  const [exercises, setExercises] = useState(() => (draft?.exercises || []).map(exerciseToForm).map((ex, i) => ({ ...ex, done: draft.exercises[i].done || ex.done })));
+  const [cardio, setCardio] = useState(draft?.cardio || []);
   const [duration, setDuration] = useState(60);
-  const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
-
-  // Sleep lives in sleepEntries (post-V3), not in the nutrition array. Reading it
-  // from nutrition pinned todaySleepPercent at 0, which silently degraded every
-  // Smart Coach suggestion and kept the 'no sleep logged' banner permanently on.
-  const todaysSleepEntry = (sleepEntries || []).find(s => s.date === formatDate(new Date()));
-  const todaySleepPercent = Number(todaysSleepEntry?.deepSleepPercent) > 0
-    ? Number(todaysSleepEntry.deepSleepPercent)
-    : 0;
+  const [caloriesBurned, setCaloriesBurned] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [cardioSectionOpen, setCardioSectionOpen] = useState((draft?.cardio || []).length > 0);
 
-  // UI state for collapsible sections and quick log
-  const [quickLogMode, setQuickLogMode] = useState(false);
-  const [trainingSectionOpen, setTrainingSectionOpen] = useState(true);
-  const [cardioSectionOpen, setCardioSectionOpen] = useState(false);
+  // Flow state
+  const [activeIndex, setActiveIndex] = useState(draft?.activeIndex ?? 0);
+  const [keypad, setKeypad] = useState(null);   // { ex, set, field, weight, reps, fresh }
+  const [sheet, setSheet] = useState(null);     // 'add' | 'options' | 'details'
+  const [renameIndex, setRenameIndex] = useState(null);
+  const [rest, setRest] = useState(null);       // { endsAt, total }
+  const [celebration, setCelebration] = useState(null);
+  const [sessionPRs, setSessionPRs] = useState(draft?.sessionPRs || {}); // name -> [weights]
+  const [phase, setPhase] = useState('log');    // 'log' | 'summary'
+  const durationTouched = useRef(false);
+
+  // Workout timer: new workouts only, from the first exercise added.
+  const [workoutStartTime, setWorkoutStartTime] = useState(draft?.startTime || null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  useEffect(() => {
+    if (!isEdit && (exercises.length > 0 || cardio.length > 0) && !workoutStartTime) setWorkoutStartTime(Date.now());
+  }, [exercises.length, cardio.length]);
+  useEffect(() => {
+    if (!workoutStartTime) return undefined;
+    const tick = () => setElapsedTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [workoutStartTime]);
+
+  useEffect(() => {
+    if (draft && draft.exercises.length) showToast('Picked up your workout where you left off');
+  }, []);
+
+  // Sleep lives in sleepEntries (post-V3), not in the nutrition array.
+  const todaysSleepEntry = (sleepEntries || []).find(s => s.date === formatDate(new Date()));
+  const todaySleepPercent = Number(todaysSleepEntry?.deepSleepPercent) > 0 ? Number(todaysSleepEntry.deepSleepPercent) : 0;
 
   const cardioMachines = getAllCardioNames();
   const cardioTotals = getCardioTotals({ cardio });
@@ -2785,93 +2865,67 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   // An imported Fitbit placeholder is typed 'Workout' until you pick the real split.
   const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES, ...(entryToEdit?.trainingType ? [entryToEdit.trainingType] : [])])];
 
-  // Get recent exercises (last 10 unique)
+  // Most recent first, unique, last 10.
   const recentExercises = [...new Set(
-    allEntries
-      .flatMap(e => (e.exercises || []).map(ex => ex.name))
-      .filter(Boolean)
-      .reverse()
+    allEntries.flatMap(e => (e.exercises || []).map(ex => ex.name)).filter(Boolean).reverse()
   )].slice(0, 10);
 
-  // Workout timer
-  const [workoutStartTime, setWorkoutStartTime] = useState(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-
+  // Populate from the entry being edited (once).
   useEffect(() => {
-    if ((exercises.length > 0 || cardio.length > 0) && !workoutStartTime) {
-      setWorkoutStartTime(Date.now());
+    if (!entryToEdit) return;
+    setDate(entryToEdit.date);
+    if (entryToEdit.loggedAt) {
+      const t = new Date(entryToEdit.loggedAt);
+      setWorkoutTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
     }
-  }, [exercises.length, cardio.length]);
+    setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
+    setExercises((entryToEdit.exercises || []).map(exerciseToForm));
+    const normalizedCardio = normalizeCardioForForm(entryToEdit.cardio);
+    setCardio(normalizedCardio);
+    if (normalizedCardio.length > 0) setCardioSectionOpen(true);
+    setDuration(entryToEdit.duration || 60);
+    setCaloriesBurned(entryToEdit.caloriesBurned || '');
+    setActiveIndex(0);
+  }, [entryToEdit]);
 
+  // Keep the draft current while a new workout is being logged.
   useEffect(() => {
-    if (!workoutStartTime) return;
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - workoutStartTime) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [workoutStartTime]);
+    if (isEdit) return;
+    if (exercises.length === 0 && cardio.length === 0) return;
+    try {
+      localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({
+        savedAt: Date.now(), date, workoutTime, trainingType, exercises, cardio,
+        startTime: workoutStartTime, activeIndex, sessionPRs
+      }));
+    } catch (e) { /* storage full: the workout is still on screen */ }
+  }, [exercises, cardio, date, workoutTime, trainingType, activeIndex, sessionPRs]);
 
-  const formatElapsedTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  // --- History lookups (this entry excluded) ---
+  const lastTimeFor = (name) => {
+    if (!name) return null;
+    for (let i = allEntries.length - 1; i >= 0; i--) {
+      const entry = allEntries[i];
+      if (entry.id === entryId) continue;
+      const ex = (entry.exercises || []).find(x => x.name === name);
+      if (ex) {
+        const f = exerciseToForm(ex);
+        return { date: entry.date, rpe: ex.rpe, eachHand: ex.eachHand, sets: f.reps.map((r, k) => ({ weight: f.weights[k], reps: r })) };
+      }
+    }
+    return null;
+  };
+  const bestFor = (name) => (name ? getPreviousPR(name, allEntries, entryId) : 0);
+  const bestDateFor = (name, weight) => {
+    for (const entry of allEntries) {
+      if (entry.id === entryId) continue;
+      const ex = (entry.exercises || []).find(x => x.name === name);
+      if (ex && getMaxWeight(Array.isArray(ex.weights) ? ex.weights : [ex.weight]) === weight) {
+        return parseLocalDate(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    }
+    return null;
   };
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const form = document.querySelector('form');
-        if (form) form.requestSubmit();
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
-
-  // Populate form
-  useEffect(() => {
-    if (entryToEdit) {
-      setDate(entryToEdit.date);
-      // Pre-populate time from loggedAt if available
-      if (entryToEdit.loggedAt) {
-        const t = new Date(entryToEdit.loggedAt);
-        setWorkoutTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
-      }
-      setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
-      // Convert old format exercises to new format with weights array
-      const normalizedExercises = (entryToEdit.exercises || []).map(ex => {
-        const weights = Array.isArray(ex.weights)
-          ? [...ex.weights]
-          : (ex.weight ? Array(ex.sets || 3).fill(ex.weight) : ['', '', '']);
-        return {
-          ...ex,
-          weights: weights,
-          rpe: ex.rpe || 8
-        };
-      });
-      setExercises(normalizedExercises);
-      // Entries saved before cardio existed have no `cardio` key -> empty list
-      const normalizedCardio = normalizeCardioForForm(entryToEdit.cardio);
-      setCardio(normalizedCardio);
-      if (normalizedCardio.length > 0) setCardioSectionOpen(true);
-      setDuration(entryToEdit.duration || 60);
-      setCaloriesBurned(entryToEdit.caloriesBurned || '');
-    } else {
-      setTrainingType(plannedToday);
-      setCardio([]);
-    }
-  }, [entryToEdit, allEntries, plannedToday]);
-
-  // --- Exercise Handlers ---
-  const addExercise = (data = null) => {
-    setExercises([...exercises, data || { name: '', weights: ['', '', ''], eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
-  };
   // Default for "Weight is each hand". Your own last log of this exact exercise wins:
   // it already encodes what a name rule cannot see -- a dumbbell skull-crusher is one
   // dumbbell held in both hands, so it is NOT each hand. The dumbbell name rule only
@@ -2880,103 +2934,178 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     const trimmed = String(name || '').trim();
     if (!trimmed) return false;
     for (let i = allEntries.length - 1; i >= 0; i--) {
-      const match = (allEntries[i].exercises || [])
-        .find(ex => ex.name === trimmed && typeof ex.eachHand === 'boolean');
+      const match = (allEntries[i].exercises || []).find(ex => ex.name === trimmed && typeof ex.eachHand === 'boolean');
       if (match) return match.eachHand;
     }
     return isDumbbellExercise(trimmed);
   };
 
-  const updateExercise = (index, field, value) => {
-    const newExercises = [...exercises];
-    newExercises[index] = { ...newExercises[index], [field]: value };
-    if (field === 'name') {
-      // Follow the name, but only when its default actually changes. That way a box
-      // you ticked or unticked by hand survives typo fixes, while switching to a
-      // different kind of exercise still updates it.
-      const before = defaultEachHandFor(exercises[index].name);
-      const after = defaultEachHandFor(value);
-      if (before !== after) newExercises[index].eachHand = after;
-    }
-    if (field === 'sets') {
-      const newSets = Number(value) || 0;
-      // Resize reps array
-      const newReps = new Array(newSets).fill('');
-      for (let i = 0; i < Math.min(newReps.length, newExercises[index].reps.length); i++) {
-        newReps[i] = newExercises[index].reps[i];
-      }
-      newExercises[index].reps = newReps;
+  // --- Exercise edits ---
+  const patchExercise = (i, fn) => setExercises(list => list.map((ex, k) => (k === i ? fn(ex) : ex)));
+  const setAt = (arr, idx, val) => { const next = [...arr]; next[idx] = val; return next; };
 
-      // Resize weights array
-      const newWeights = new Array(newSets).fill('');
-      const oldWeights = newExercises[index].weights || [];
-      for (let i = 0; i < Math.min(newWeights.length, oldWeights.length); i++) {
-        newWeights[i] = oldWeights[i];
-      }
-      newExercises[index].weights = newWeights;
-    }
-    setExercises(newExercises);
+  const addExerciseNamed = (name) => {
+    const last = lastTimeFor(name);
+    const count = last ? last.sets.length : 3;
+    const ex = {
+      name,
+      sets: count,
+      weights: Array(count).fill(''),
+      reps: Array(count).fill(''),
+      done: Array(count).fill(false),
+      rpe: (last && last.rpe) || 8,
+      eachHand: defaultEachHandFor(name)
+    };
+    setExercises(list => [...list, ex]);
+    setActiveIndex(exercises.length);
   };
-  const updateExerciseRep = (exIndex, repIndex, value) => {
-    const newExercises = [...exercises];
-    const newReps = [...newExercises[exIndex].reps];
-    newReps[repIndex] = value;
-    newExercises[exIndex] = { ...newExercises[exIndex], reps: newReps };
-    setExercises(newExercises);
-  };
-  const updateExerciseWeight = (exIndex, weightIndex, value) => {
-    const newExercises = [...exercises];
-    const newWeights = [...(newExercises[exIndex].weights || [])];
-    newWeights[weightIndex] = value;
-    // Auto-propagate Set 1 weight to all empty downstream sets
-    if (weightIndex === 0 && value) {
-      for (let i = 1; i < newWeights.length; i++) {
-        if (!newWeights[i]) newWeights[i] = value;
-      }
-    }
-    newExercises[exIndex] = { ...newExercises[exIndex], weights: newWeights };
-    setExercises(newExercises);
-  };
-  const copyWeightToAllSets = (exIndex) => {
-    const newExercises = [...exercises];
-    const firstWeight = newExercises[exIndex].weights?.[0] || '';
-    if (firstWeight) {
-      const numSets = newExercises[exIndex].sets || 0;
-      newExercises[exIndex].weights = new Array(numSets).fill(firstWeight);
-      setExercises(newExercises);
-      showToast('Weight copied to all sets!');
-    }
-  };
-  const removeExercise = (index) => {
-    setExercises(exercises.filter((_, i) => i !== index));
-  };
-  const prefillExercise = (index, exName) => {
-    const lastEntry = [...allEntries].reverse().find(entry =>
-      entry.exercises && entry.exercises.some(ex => ex.name === exName)
-    );
-    if (lastEntry) {
-      const lastEx = lastEntry.exercises.find(ex => ex.name === exName);
-      if (lastEx) {
-        const newExercises = [...exercises];
-        // Convert old format to new format if needed
-        const weights = Array.isArray(lastEx.weights)
-          ? [...lastEx.weights]
-          : (lastEx.weight ? Array(lastEx.sets || 3).fill(lastEx.weight) : ['', '', '']);
 
-        newExercises[index] = {
-          ...lastEx,
-          weights: weights,
-          rpe: lastEx.rpe || 8,
-          // Older logs can lack the key; the resolver walks back to the last log
-          // that has one, then falls back to the dumbbell rule.
-          eachHand: defaultEachHandFor(exName)
-        };
-        setExercises(newExercises);
-        showToast('Exercise pre-filled!');
-      }
-    } else {
-      updateExercise(index, 'name', exName);
+  const renameExercise = (i, name) => {
+    // Follow the name only when its each-hand default actually changes, so a box set
+    // by hand survives typo fixes but a different kind of exercise still updates it.
+    const before = defaultEachHandFor(exercises[i].name);
+    const after = defaultEachHandFor(name);
+    patchExercise(i, ex => ({ ...ex, name, ...(before !== after ? { eachHand: after } : {}) }));
+  };
+
+  const addSet = (i) => patchExercise(i, ex => ({
+    ...ex, sets: ex.reps.length + 1, weights: [...ex.weights, ''], reps: [...ex.reps, ''], done: [...(ex.done || []), false]
+  }));
+  const removeLastSet = (i) => patchExercise(i, ex => (ex.reps.length <= 1 ? ex : {
+    ...ex, sets: ex.reps.length - 1, weights: ex.weights.slice(0, -1), reps: ex.reps.slice(0, -1), done: (ex.done || []).slice(0, ex.reps.length - 1)
+  }));
+  const copyWeightToAllSets = (i) => {
+    const ex = exercises[i];
+    const first = ex.weights.find(w => !isBlankVal(w));
+    if (isBlankVal(first)) { showToast('Enter a weight on one set first'); return; }
+    patchExercise(i, x => ({ ...x, weights: x.weights.map((w, k) => ((x.done || [])[k] ? w : first)) }));
+    showToast('Same weight on every set left to do');
+  };
+  const moveExercise = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= exercises.length) return;
+    setExercises(list => { const next = [...list]; [next[i], next[j]] = [next[j], next[i]]; return next; });
+    setActiveIndex(j);
+  };
+  const removeExercise = (i) => {
+    const ex = exercises[i];
+    if ((ex.done || []).some(Boolean) && !window.confirm(`Remove ${ex.name || 'this exercise'} and its logged sets?`)) return;
+    setExercises(list => list.filter((_, k) => k !== i));
+    setActiveIndex(a => Math.max(0, Math.min(a > i ? a - 1 : a, exercises.length - 2)));
+    setSheet(null);
+  };
+
+  // What to put in a set you haven't typed: weight follows your previous set today
+  // (or this set last time); reps follow this set last time (or your previous set).
+  const suggestFor = (i, s) => {
+    const ex = exercises[i];
+    const last = lastTimeFor(ex.name);
+    const lastSet = last && (last.sets[s] || last.sets[last.sets.length - 1]);
+    let prevToday = null;
+    for (let k = s - 1; k >= 0; k--) if ((ex.done || [])[k]) { prevToday = { weight: ex.weights[k], reps: ex.reps[k] }; break; }
+    return {
+      weight: prevToday && !isBlankVal(prevToday.weight) ? prevToday.weight : (lastSet ? lastSet.weight : ''),
+      reps: lastSet && !isBlankVal(lastSet.reps) ? lastSet.reps : (prevToday ? prevToday.reps : '')
+    };
+  };
+
+  // --- Records ---
+  const sessionBestFor = (name) => Math.max(bestFor(name), ...(sessionPRs[name] || [0]));
+  const checkRecord = (name, weight, reps) => {
+    const w = Number(weight) || 0;
+    const prev = bestFor(name);
+    if (!name || w <= 0 || prev <= 0) return; // first time on an exercise isn't a record
+    const sessionBest = sessionBestFor(name);
+    if (w <= sessionBest) return;
+    const nextPRs = { ...sessionPRs, [name]: [...(sessionPRs[name] || []), w] };
+    setSessionPRs(nextPRs);
+    setCelebration({
+      exercise: name, weight: w, reps: Number(reps) || 0,
+      oldBest: sessionBest, oldDate: sessionBest === prev ? bestDateFor(name, prev) : 'Earlier today',
+      recordCount: Object.keys(nextPRs).length
+    });
+  };
+
+  // --- Rest timer (only when you start it) ---
+  const restSeconds = () => {
+    const saved = Number(localStorage.getItem(REST_SECONDS_KEY));
+    return saved >= 15 && saved <= 900 ? saved : 120;
+  };
+  const startRest = () => {
+    const total = restSeconds();
+    setRest({ endsAt: Date.now() + total * 1000, total });
+  };
+  const adjustRest = (delta) => setRest(r => {
+    if (!r) return r;
+    const total = Math.max(15, r.total + delta);
+    try { localStorage.setItem(REST_SECONDS_KEY, String(total)); } catch (e) { /* ignore */ }
+    return { endsAt: r.endsAt + delta * 1000, total };
+  });
+  const finishRest = () => {
+    setRest(null);
+    if (navigator.vibrate) navigator.vibrate([300, 120, 300]);
+    showToast("Rest's up. Next set 💪");
+  };
+
+  // --- Logging a set ---
+  const commitSet = (i, s, weight, reps, thenRest) => {
+    const name = exercises[i].name;
+    patchExercise(i, ex => ({
+      ...ex,
+      weights: setAt(ex.weights, s, isBlankVal(weight) ? '' : String(weight)),
+      reps: setAt(ex.reps, s, isBlankVal(reps) ? '' : String(reps)),
+      done: setAt(ex.done || [], s, true)
+    }));
+    checkRecord(name, weight, reps);
+    if (thenRest) startRest();
+  };
+
+  const openKeypad = (i, s, field) => {
+    const ex = exercises[i];
+    const sug = suggestFor(i, s);
+    setActiveIndex(i);
+    setKeypad({
+      ex: i, set: s, field,
+      weight: String(isBlankVal(ex.weights[s]) ? (sug.weight ?? '') : ex.weights[s]),
+      reps: String(isBlankVal(ex.reps[s]) ? (sug.reps ?? '') : ex.reps[s]),
+      fresh: { weight: true, reps: true }
+    });
+  };
+
+  const toggleDone = (i, s) => {
+    const ex = exercises[i];
+    if ((ex.done || [])[s]) { patchExercise(i, x => ({ ...x, done: setAt(x.done || [], s, false) })); return; }
+    const sug = suggestFor(i, s);
+    const weight = isBlankVal(ex.weights[s]) ? sug.weight : ex.weights[s];
+    const reps = isBlankVal(ex.reps[s]) ? sug.reps : ex.reps[s];
+    if (isBlankVal(weight) && isBlankVal(reps)) { openKeypad(i, s, 'weight'); return; }
+    commitSet(i, s, weight, reps, false);
+  };
+
+  const keypadKey = (k) => setKeypad(kp => {
+    const f = kp.field;
+    let v = kp.fresh[f] ? '' : kp[f];
+    if (k === '⌫') v = (kp.fresh[f] ? kp[f] : v).slice(0, -1);
+    else if (k === '.') { if (f === 'reps' || v.includes('.')) return kp; v = (v || '0') + '.'; }
+    else if (v.length < 6) v = v === '0' ? k : v + k;
+    return { ...kp, [f]: v, fresh: { ...kp.fresh, [f]: false } };
+  });
+  const keypadChip = (d) => setKeypad(kp => {
+    if (d === 'same') {
+      const last = lastTimeFor(exercises[kp.ex].name);
+      const s = last && (last.sets[kp.set] || last.sets[last.sets.length - 1]);
+      if (!s) { showToast('No earlier log of this exercise'); return kp; }
+      return { ...kp, weight: String(s.weight ?? ''), reps: String(s.reps ?? ''), fresh: { weight: false, reps: false } };
     }
+    const f = kp.field;
+    const next = Math.max(0, Math.round(((Number(kp[f]) || 0) + d) * 10) / 10);
+    return { ...kp, [f]: String(next), fresh: { ...kp.fresh, [f]: false } };
+  });
+  const keypadSave = (thenRest) => {
+    const kp = keypad;
+    setKeypad(null);
+    if (isBlankVal(kp.weight) && isBlankVal(kp.reps)) return;
+    commitSet(kp.ex, kp.set, kp.weight, kp.reps, thenRest);
   };
 
   // --- Cardio Handlers ---
@@ -3008,88 +3137,81 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     }
   };
 
-  // --- Submit Handler (Upgraded) ---
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    const totalSets = trainingType === 'REST' ? 0 : exercises.reduce((sum, ex) => sum + Number(ex.sets), 0);
-
-    const newNames = new Set(allExerciseNames);
-    exercises.forEach(ex => {
-      if (ex.name && !newNames.has(ex.name)) newNames.add(ex.name);
+  // --- Building the saved entry (same shape as before the redesign) ---
+  const buildEntry = () => {
+    const cleaned = trainingType === 'REST' ? [] : cleanFormExercises(exercises);
+    const savedExercises = cleaned.map(ex => {
+      const weights = (ex.weights || []).map(w => Number(w) || 0);
+      const reps = ex.reps.map(r => Number(r) || 0);
+      return {
+        name: ex.name,
+        weights,
+        eachHand: ex.eachHand,
+        sets: Number(ex.sets),
+        reps,
+        rpe: Number(ex.rpe),
+        volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand)
+      };
     });
-    setAllExerciseNames(Array.from(newNames));
-
-    const entry = {
+    return {
       id: entryToEdit ? entryToEdit.id : generateId(),
       date,
       loggedAt: (() => {
         // Combine date + workoutTime into a precise local ISO timestamp
         const [year, month, day] = date.split('-').map(Number);
         const [hours, minutes] = workoutTime.split(':').map(Number);
-        const d = new Date(year, month - 1, day, hours, minutes, 0);
-        return d.toISOString();
+        return new Date(year, month - 1, day, hours, minutes, 0).toISOString();
       })(),
       trainingType,
       plannedTrainingType: plannedToday,
       cycleDay: cycleDay,
-      exercises: trainingType === 'REST' ? [] : exercises.map(ex => {
-        const weights = (ex.weights || []).map(w => Number(w) || 0);
-        const reps = ex.reps.map(r => Number(r) || 0);
-        return {
-          name: ex.name,
-          weights: weights,
-          eachHand: ex.eachHand,
-          sets: Number(ex.sets),
-          reps: reps,
-          rpe: Number(ex.rpe),
-          volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand)
-        };
-      }),
-      totalSets,
-      totalVolume: exercises.reduce((sum, ex) => {
-        const weights = (ex.weights || []).map(w => Number(w) || 0);
-        const reps = ex.reps.map(r => Number(r) || 0);
-        return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
-      }, 0),
+      exercises: savedExercises,
+      totalSets: trainingType === 'REST' ? 0 : savedExercises.reduce((sum, ex) => sum + Number(ex.sets), 0),
+      totalVolume: savedExercises.reduce((sum, ex) => sum + ex.volumeLoad, 0),
       duration: Number(duration),
-      caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
-      // NEW: Cardio sessions - time + steps instead of weight x reps.
+      caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null,
       // Rows with no machine name are dropped so blank rows never persist.
       cardio: trainingType === 'REST' ? [] : cardio
         .filter(c => c.name && String(c.name).trim())
         .map(toSavedCardioItem),
     };
-
-    const prsFound = [];
-    if (entry.trainingType !== 'REST') {
-      entry.exercises.forEach(ex => {
-        const prevPR = getPreviousPR(ex.name, allEntries, entry.id);
-        const maxWeight = getMaxWeight(ex.weights);
-        if (maxWeight > 0 && maxWeight > prevPR) {
-          const percent = prevPR > 0 ? `+${((maxWeight - prevPR) / prevPR * 100).toFixed(0)}%` : '+100%';
-          prsFound.push(`🏆 New PR! ${ex.name}: ${maxWeight} lbs (${percent})`);
-        }
-      });
-    }
-
-    // Haptic feedback on PR detection
-    if (prsFound.length > 0 && 'vibrate' in navigator) {
-      // Three short bursts for celebration: [200ms vibrate, 100ms pause, 200ms vibrate, 100ms pause, 200ms vibrate]
-      navigator.vibrate([200, 100, 200, 100, 200]);
-    }
-
-    onSave(entry);
-    prsFound.forEach(pr => showToast(pr, 'success'));
-    if (prsFound.length === 0) showToast('Entry saved!', 'success');
   };
-  
-  // --- 💡 FILE UPLOAD (UPGRADED) 💡 ---
+
+  const handleSave = () => {
+    const entry = buildEntry();
+    const newNames = new Set(allExerciseNames);
+    entry.exercises.forEach(ex => { if (ex.name) newNames.add(ex.name); });
+    setAllExerciseNames(Array.from(newNames));
+    const records = Object.keys(sessionPRs).length;
+    onSave(entry);
+    clearWorkoutDraft();
+    showToast(records ? `Workout saved · ${records} new record${records === 1 ? '' : 's'} 🏆` : 'Workout saved!', 'success');
+  };
+
+  const closeWorkout = () => {
+    if (!isEdit && (exercises.length || cardio.length)) showToast('Saved as a draft. Tap Resume on Home to carry on');
+    onCancel();
+  };
+  const discardWorkout = () => {
+    if (!window.confirm('Discard this workout? Nothing from it will be saved.')) return;
+    clearWorkoutDraft();
+    onCancel();
+  };
+
+  const goToSummary = () => {
+    if (!durationTouched.current && !isEdit && workoutStartTime) {
+      setDuration(Math.max(1, Math.round(elapsedTime / 60)));
+    }
+    setRest(null);
+    setPhase('summary');
+  };
+
+  // --- 💡 FILE UPLOAD (AI fill from a photo or text log) ---
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setIsUploading(true);
-    
+
     const extractPrompt = `Extract fitness data from this file/image.
 Provide ONLY a JSON object with the following fields (use null if not found):
 {
@@ -3105,8 +3227,8 @@ Provide ONLY a JSON object with the following fields (use null if not found):
 Example from Fitbit screenshot: "8h 15m sleep", "1h 40m deep" -> "sleepHours": 8.25, "deepSleepPercent": 20.4
 Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "weight": 175, "sets": 3, "reps": [5, 5, 5]}]
 `;
-    
-    let apiContent = [ { type: "text", text: extractPrompt } ];
+
+    let apiContent = [{ type: "text", text: extractPrompt }];
 
     try {
       if (file.type.startsWith('image/')) {
@@ -3116,12 +3238,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
           reader.onload = () => resolve(reader.result.split(',')[1]);
           reader.onerror = error => reject(error);
         });
-        
-        apiContent.unshift({
-          type: "image",
-          source: { type: "base64", media_type: file.type, data: base64Data }
-        });
-        
+        apiContent.unshift({ type: "image", source: { type: "base64", media_type: file.type, data: base64Data } });
       } else if (file.type === 'text/plain') {
         const textData = await file.text();
         apiContent.unshift({ type: "text", text: `FILE CONTENT:\n${textData}` });
@@ -3129,46 +3246,33 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         throw new Error("Unsupported file type");
       }
 
-      console.log("Calling REAL AI Vision Gateway...");
-
       const res = await fetch(`/.netlify/functions/get-vision-extraction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: apiContent })
       });
-
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(`AI Gateway failed: ${errData.error || res.statusText}`);
       }
-
       const data = await res.json();
       const resultJson = parseAiJson(data.text);
 
-      // Auto-populate form (workout data only - nutrition/sleep handled separately)
+      // Workout data only - nutrition/sleep are logged separately.
       if (resultJson.exercises && resultJson.exercises.length > 0) {
-        // Convert extracted exercises to new format with weights array
-        const normalizedExercises = resultJson.exercises.map(ex => {
-          const weights = ex.weight
-            ? Array(ex.sets || 3).fill(ex.weight)
-            : (ex.weights || ['', '', '']);
-          return {
-            ...ex,
-            weights: weights,
-            rpe: 8
-          };
-        });
-        setExercises(normalizedExercises);
+        setExercises(resultJson.exercises.map(ex => exerciseToForm({
+          ...ex,
+          weights: ex.weight ? Array(ex.sets || 3).fill(ex.weight) : (ex.weights || ['', '', '']),
+          rpe: 8
+        })));
+        setActiveIndex(0);
+        setSheet(null);
       }
-      
       if (resultJson.protein || resultJson.calories) {
-        const prot = resultJson.protein || 0;
-        const cals = resultJson.calories || 0;
-        showToast(`Extracted ${prot}g P / ${cals} kCal. Please add to nutrition log.`, 'success');
+        showToast(`Extracted ${resultJson.protein || 0}g P / ${resultJson.calories || 0} kCal. Please add to nutrition log.`, 'success');
       } else {
         showToast('Data extracted!', 'success');
       }
-
     } catch (err) {
       console.error("Upload error:", err);
       showToast(err.message, 'error');
@@ -3177,406 +3281,325 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
     }
   };
 
-  // --- Render Form ---
-  return h('form', { onSubmit: handleSubmit, className: 'space-y-6 p-4 pb-24' },
-    h('div', { className: 'flex justify-between items-center mb-4' },
-      h('h2', { className: 'text-2xl font-bold' }, entryToEdit ? 'Edit Log Entry' : 'New Log Entry'),
-      h('button', {
-        type: 'button',
-        onClick: () => setQuickLogMode(!quickLogMode),
-        className: 'px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700'
-      }, quickLogMode ? '📝 Full Mode' : '⚡ Quick Log')
-    ),
+  // --- Derived numbers for the screen ---
+  const totalSetRows = exercises.reduce((sum, ex) => sum + ex.reps.length, 0);
+  const doneSets = exercises.reduce((sum, ex) => sum + (ex.done || []).filter(Boolean).length, 0);
+  const isToday = date === formatDate(new Date());
+  const dateLabel = isToday ? 'Today' : parseLocalDate(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const typeLabel = trainingType === 'REST' ? 'Rest day' : String(trainingType).split('/').join(' / ');
+  const active = exercises[activeIndex];
+  const currentSetOf = (ex) => (ex ? (ex.done || []).findIndex(d => !d) : -1);
+  const restNext = (() => {
+    if (!active) return null;
+    const s = currentSetOf(active);
+    if (s >= 0) return `${active.name || 'exercise'}, set ${s + 1}`;
+    const nextEx = exercises.find((ex, k) => k > activeIndex && currentSetOf(ex) >= 0);
+    return nextEx ? nextEx.name : null;
+  })();
 
-    !quickLogMode && h('div', { className: 'p-4 bg-slate-800 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-2' }, '⚡ Auto-Populate (REAL AI)'),
-      h('label', { className: 'block text-sm font-medium mb-1', htmlFor: 'file-upload' }, 'Upload Fitbit Image or .txt Log'),
-      h(Input, { type: 'file', id: 'file-upload', onChange: handleFileUpload, accept: 'image/*,.txt' }),
-      isUploading && h('div', { className: 'flex items-center gap-2 text-blue-400 mt-2' }, 
-        h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
-        'Extracting data...'
-      )
-    ),
-
-    h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('div', { className: 'grid grid-cols-2 gap-3' },
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-          h(Input, { type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
-        ),
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Time'),
-          h(Input, { type: 'time', value: workoutTime, onChange: (e) => setWorkoutTime(e.target.value) })
-        )
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Training Type'),
-        h(Select, { value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
-          availableWorkoutTypes.map(type =>
-            h('option', { key: type, value: type }, type === plannedToday ? `${type} (Planned)` : type)
-          )
-        )
-      )
-    ),
-
-    (!todaySleepPercent || todaySleepPercent <= 0) && h('div', {
-      className: 'flex items-center gap-2 p-3 bg-slate-700 border border-yellow-600 rounded-lg text-yellow-300 text-sm mb-3'
-    }, '🌙 No sleep data logged for today — recovery estimates will use baseline averages. Log sleep for personalized accuracy.'),
-
-    trainingType !== 'REST' && h(CollapsibleSection, {
-      title: 'Training',
-      icon: '💪',
-      isOpen: trainingSectionOpen,
-      onToggle: () => setTrainingSectionOpen(!trainingSectionOpen)
-    },
-      workoutStartTime && h('div', { className: 'mb-4 p-3 bg-slate-900 rounded-lg' },
-        h('div', { className: 'flex items-center justify-between' },
-          h('div', {},
-            h('p', { className: 'text-xs text-slate-400' }, '⏱️ Workout Timer'),
-            h('p', { className: 'text-2xl font-bold text-blue-400' }, formatElapsedTime(elapsedTime))
-          ),
+  // --- Cardio section (unchanged fields; restyled by the theme) ---
+  const renderCardio = () => h(CollapsibleSection, {
+    title: cardio.length > 0 ? `Cardio (${cardio.length})` : 'Cardio',
+    icon: '🏃',
+    isOpen: cardioSectionOpen,
+    onToggle: () => setCardioSectionOpen(!cardioSectionOpen)
+  },
+    h('datalist', { id: 'cardio-machines' }, cardioMachines.map(machine => h('option', { key: machine, value: machine }))),
+    h('div', { className: 'mb-3' },
+      h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Quick add:'),
+      h('div', { className: 'flex flex-wrap gap-2' },
+        cardioMachines.map(machine =>
           h('button', {
+            key: machine,
             type: 'button',
-            onClick: () => setDuration(Math.round(elapsedTime / 60)),
-            className: 'px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm transition-colors'
-          }, '↓ Use as duration')
-        )
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Duration (minutes)'),
-        h(Input, { type: 'number', step: 5, value: duration, onChange: (e) => setDuration(Number(e.target.value)) })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories Burned (optional)'),
-        h(Input, {
-          type: 'number',
-          step: 10,
-          value: caloriesBurned,
-          onChange: (e) => setCaloriesBurned(e.target.value),
-          placeholder: 'e.g., 350'
-        })
-      ),
-      h('h4', { className: 'font-semibold' }, 'Exercises'),
-      recentExercises.length > 0 && h('div', { className: 'mb-3' },
-        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Recent exercises:'),
-        h('div', { className: 'flex flex-wrap gap-2' },
-          recentExercises.map(exName =>
-            h('button', {
-              key: exName,
-              type: 'button',
-              onClick: () => {
-                // Find the last time this exercise was performed
-                const lastEntry = [...allEntries].reverse().find(e =>
-                  e.exercises && e.exercises.some(ex => ex.name === exName)
-                );
-                const lastExercise = lastEntry?.exercises.find(ex => ex.name === exName);
-
-                // Pre-fill with last performance
-                const newExercise = {
-                  name: exName,
-                  sets: lastExercise?.sets || 3,
-                  weights: lastExercise?.weights ? [...lastExercise.weights] : ['', '', ''],
-                  reps: lastExercise?.reps ? [...lastExercise.reps] : ['', '', ''],
-                  rpe: lastExercise?.rpe || 8
-                };
-                setExercises([...exercises, newExercise]);
-              },
-              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center'
-            }, exName)
-          )
-        )
-      ),
-      h('div', { className: 'space-y-4' },
-        exercises.map((ex, i) => quickLogMode
-          ? // QUICK LOG MODE: Compact single-row layout
-            h('div', { key: i, className: 'p-2 bg-slate-700 rounded-lg' },
-              h('div', { className: 'grid grid-cols-12 gap-2 items-center' },
-                h('div', { className: 'col-span-4' },
-                  h(Input, {
-                    type: 'text',
-                    list: 'exercise-names',
-                    placeholder: 'Exercise',
-                    value: ex.name,
-                    onChange: (e) => updateExercise(i, 'name', e.target.value),
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    min: 1,
-                    placeholder: 'Sets',
-                    value: ex.sets,
-                    onChange: (e) => updateExercise(i, 'sets', e.target.value),
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    step: 0.5,
-                    placeholder: 'Wt',
-                    value: (ex.weights && ex.weights[0]) || '',
-                    onChange: (e) => {
-                      const val = e.target.value;
-                      const newWeights = Array(Number(ex.sets) || 3).fill(val);
-                      const newExercises = [...exercises];
-                      newExercises[i] = { ...newExercises[i], weights: newWeights };
-                      setExercises(newExercises);
-                    },
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    placeholder: 'Reps',
-                    value: ex.reps[0] || '',
-                    onChange: (e) => {
-                      const val = e.target.value;
-                      const newReps = Array(Number(ex.sets) || 3).fill(val);
-                      const newExercises = [...exercises];
-                      newExercises[i] = { ...newExercises[i], reps: newReps };
-                      setExercises(newExercises);
-                    },
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h('button', { type: 'button', className: 'text-red-400 text-xs', onClick: () => removeExercise(i) }, '✕')
-                )
-              ),
-              h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
-            )
-          : // FULL MODE: Detailed layout
-            h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
-              h('div', { className: 'flex justify-between items-center' },
-                h('span', { className: 'font-semibold' }, `Exercise ${i + 1}`),
-                h('button', { type: 'button', className: 'text-red-400', onClick: () => removeExercise(i) }, 'Remove')
-              ),
-
-              h(CoachSuggestionBox, {
-                exerciseName: ex.name,
-                allEntries,
-                todaySleepPercent: todaySleepPercent,
-                trainingType: trainingType,
-                allExerciseNames: allExerciseNames
-              }),
-
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Exercise Name'),
-                h(Input, { type: 'text', list: 'exercise-names', value: ex.name, onChange: (e) => updateExercise(i, 'name', e.target.value) }),
-                h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Load Previous Data'),
-                h(Select, { onChange: (e) => prefillExercise(i, e.target.value), value: '' },
-                  h('option', { value: '' }, 'Select to pre-fill...'),
-                  allExerciseNames.map(name => h('option', { key: name, value: name }, name))
-                )
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Number of Sets'),
-                h(Input, { type: 'number', min: 1, value: ex.sets, onChange: (e) => updateExercise(i, 'sets', e.target.value) })
-              ),
-          h('div', { className: 'flex items-center gap-2' },
-            h('input', { type: 'checkbox', id: `eachHand-${i}`, checked: ex.eachHand, onChange: (e) => updateExercise(i, 'eachHand', e.target.checked), className: 'h-4 w-4' }),
-            h('label', { htmlFor: `eachHand-${i}`, className: 'block text-sm' }, 'Weight is "each hand"')
-          ),
-          h('div', {},
-            h('div', { className: 'flex justify-between items-center mb-1' },
-              h('label', { className: 'block text-xs' }, `Weight & Reps per Set (${ex.sets} sets)`),
-              (ex.weights && ex.weights[0]) && h('button', {
-                type: 'button',
-                className: 'text-xs text-blue-400 hover:text-blue-300',
-                onClick: () => copyWeightToAllSets(i)
-              }, '📋 Copy weight to all sets')
-            ),
-            h('div', { className: 'space-y-2' },
-              ex.reps.map((rep, setIndex) =>
-                h('div', { key: setIndex, className: 'grid grid-cols-3 gap-2 items-center' },
-                  h('div', { className: 'text-xs text-slate-400' }, `Set ${setIndex + 1}:`),
-                  h(Input, {
-                    type: 'number',
-                    step: 0.5,
-                    placeholder: 'Weight',
-                    value: (ex.weights && ex.weights[setIndex]) || '',
-                    onChange: (e) => updateExerciseWeight(i, setIndex, e.target.value)
-                  }),
-                  h(Input, {
-                    type: 'number',
-                    placeholder: 'Reps',
-                    value: rep,
-                    onChange: (e) => updateExerciseRep(i, setIndex, e.target.value)
-                  })
-                )
-              )
-            )
-          ),
-
-          h(RpeSlider, { value: ex.rpe, onChange: (e) => updateExercise(i, 'rpe', e.target.value) })
-        )),
-        h(Button, { type: 'button', variant: 'secondary', onClick: () => addExercise() }, '+ Add Exercise')
-      ),
-      h('div', { className: 'grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg' },
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Total Working Sets'),
-          h('div', { className: 'text-2xl font-bold text-cyan-400' }, exercises.reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0))
-        ),
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Session Volume'),
-          h('div', { className: 'text-2xl font-bold text-green-400' },
-            (() => {
-              const totalVolume = exercises.reduce((sum, ex) => {
-                const weights = (ex.weights || []).map(w => Number(w) || 0);
-                const reps = ex.reps.map(r => Number(r) || 0);
-                return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
-              }, 0);
-              return `${totalVolume.toLocaleString()} lbs`;
-            })()
-          )
+            onClick: () => addCardioFromHistory(machine),
+            className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-full text-sm transition-colors min-h-[44px] flex items-center gap-1'
+          }, getCardioData(machine)?.icon || '', machine)
         )
       )
     ),
-
-    // 🏃 Cardio Section - time + steps instead of weight + reps
-    trainingType !== 'REST' && h(CollapsibleSection, {
-      title: cardio.length > 0 ? `Cardio (${cardio.length})` : 'Cardio',
-      icon: '🏃',
-      isOpen: cardioSectionOpen,
-      onToggle: () => setCardioSectionOpen(!cardioSectionOpen)
-    },
-      h('datalist', { id: 'cardio-machines' }, cardioMachines.map(machine => h('option', { key: machine, value: machine }))),
-      h('div', { className: 'mb-3' },
-        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Quick add:'),
-        h('div', { className: 'flex flex-wrap gap-2' },
-          cardioMachines.map(machine =>
-            h('button', {
-              key: machine,
-              type: 'button',
-              onClick: () => addCardioFromHistory(machine),
-              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center gap-1'
-            }, getCardioData(machine)?.icon || '', machine)
-          )
-        )
-      ),
-      h('div', { className: 'space-y-4' },
-        cardio.map((c, i) => {
-          // [] for a free-text or unrecognised machine, which is exactly what keeps
-          // free-text machines working: they get the universal fields and nothing else.
-          const machineFields = getCardioFields(c.name);
-          return h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
-            h('div', { className: 'flex justify-between items-center' },
-              h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
-              h('button', { type: 'button', className: 'text-red-400', onClick: () => removeCardio(i) }, 'Remove')
+    h('div', { className: 'space-y-4' },
+      cardio.map((c, i) => {
+        // [] for a free-text or unrecognised machine, which is exactly what keeps
+        // free-text machines working: they get the universal fields and nothing else.
+        const machineFields = getCardioFields(c.name);
+        return h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
+          h('div', { className: 'flex justify-between items-center' },
+            h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
+            h('button', { type: 'button', className: 'text-red-400 min-h-[44px] px-2', onClick: () => removeCardio(i) }, 'Remove')
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs mb-1' }, 'Machine'),
+            h(Input, { type: 'text', list: 'cardio-machines', placeholder: 'e.g., Stairmaster', value: c.name, onChange: (e) => updateCardio(i, 'name', e.target.value) })
+          ),
+          h('div', { className: 'grid grid-cols-2 gap-2' },
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'Time (minutes)'),
+              h(Input, { type: 'number', min: 0, step: 1, placeholder: 'e.g., 20', value: c.minutes, onChange: (e) => updateCardio(i, 'minutes', e.target.value) })
             ),
             h('div', {},
-              h('label', { className: 'block text-xs mb-1' }, 'Machine'),
-              h(Input, {
-                type: 'text',
-                list: 'cardio-machines',
-                placeholder: 'e.g., Stairmaster',
-                value: c.name,
-                onChange: (e) => updateCardio(i, 'name', e.target.value)
-              })
+              h('label', { className: 'block text-xs mb-1' }, getCardioData(c.name)?.stepLabel || 'Steps'),
+              h(Input, { type: 'number', min: 0, step: 1, placeholder: 'e.g., 1500', value: c.steps, onChange: (e) => updateCardio(i, 'steps', e.target.value) })
+            )
+          ),
+          // Universal fields, on every row whatever the machine. Both optional:
+          // blank means not tracked and saves as null rather than a logged zero.
+          h('div', { className: 'grid grid-cols-2 gap-2' },
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'Effort (RPE 1-10)'),
+              h(Input, { type: 'number', min: 1, max: 10, step: 1, placeholder: 'optional', value: asFormValue(c.effort), onChange: (e) => updateCardio(i, 'effort', e.target.value) })
             ),
-            h('div', { className: 'grid grid-cols-2 gap-2' },
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Time (minutes)'),
-                h(Input, {
-                  type: 'number',
-                  min: 0,
-                  step: 1,
-                  placeholder: 'e.g., 20',
-                  value: c.minutes,
-                  onChange: (e) => updateCardio(i, 'minutes', e.target.value)
-                })
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, getCardioData(c.name)?.stepLabel || 'Steps'),
-                h(Input, {
-                  type: 'number',
-                  min: 0,
-                  step: 1,
-                  placeholder: 'e.g., 1500',
-                  value: c.steps,
-                  onChange: (e) => updateCardio(i, 'steps', e.target.value)
-                })
-              )
-            ),
-            // Universal fields, on every row whatever the machine. Both optional:
-            // blank means not tracked and saves as null rather than a logged zero.
-            h('div', { className: 'grid grid-cols-2 gap-2' },
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Effort (RPE 1-10)'),
-                h(Input, {
-                  type: 'number',
-                  min: 1,
-                  max: 10,
-                  step: 1,
-                  placeholder: 'optional',
-                  value: asFormValue(c.effort),
-                  onChange: (e) => updateCardio(i, 'effort', e.target.value)
-                })
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'When'),
-                h(Select, {
-                  value: c.timing || '',
-                  onChange: (e) => updateCardio(i, 'timing', e.target.value)
-                },
-                  h('option', { value: '' }, 'Not tracked'),
-                  h('option', { value: 'before' }, 'Before lifting'),
-                  h('option', { value: 'after' }, 'After lifting')
-                )
-              )
-            ),
-            // Machine-specific fields, rendered from the library table so the keys
-            // written here are the same keys the save mapper whitelists.
-            machineFields.length > 0 && h('div', { className: 'grid grid-cols-2 gap-2' },
-              machineFields.map(f =>
-                h('div', { key: f.key },
-                  h('label', { className: 'block text-xs mb-1' }, f.label),
-                  h(Input, {
-                    type: f.type,
-                    min: 0,
-                    step: 'any',
-                    placeholder: 'optional',
-                    value: asFormValue(c[f.key]),
-                    onChange: (e) => updateCardio(i, f.key, e.target.value)
-                  })
-                )
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'When'),
+              h(Select, { value: c.timing || '', onChange: (e) => updateCardio(i, 'timing', e.target.value) },
+                h('option', { value: '' }, 'Not tracked'),
+                h('option', { value: 'before' }, 'Before lifting'),
+                h('option', { value: 'after' }, 'After lifting')
               )
             )
-          );
-        }),
-        h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
-      ),
-      cardio.length > 0 && h('div', { className: 'p-4 bg-slate-900 rounded-lg space-y-2' },
-        h('div', { className: 'grid grid-cols-2 gap-4' },
-          h('div', {},
-            h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
-            h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
           ),
-          h('div', {},
-            h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
-            h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+          // Machine-specific fields, rendered from the library table so the keys
+          // written here are the same keys the save mapper whitelists.
+          machineFields.length > 0 && h('div', { className: 'grid grid-cols-2 gap-2' },
+            machineFields.map(f =>
+              h('div', { key: f.key },
+                h('label', { className: 'block text-xs mb-1' }, f.label),
+                h(Input, { type: f.type, min: 0, step: 'any', placeholder: 'optional', value: asFormValue(c[f.key]), onChange: (e) => updateCardio(i, f.key, e.target.value) })
+              )
+            )
           )
-        ),
-        // Only worth breaking the total apart when more than one machine was used.
-        Object.keys(cardioTotals.stepsByMachine).length > 1 && h('div', { className: 'text-xs text-slate-400' },
-          Object.entries(cardioTotals.stepsByMachine)
-            .map(([machine, steps]) => `${machine}: ${steps.toLocaleString()}`)
-            .join(' · ')
-        )
-      )
+        );
+      }),
+      h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
     ),
-
-    // Floating Save Button
-    h('div', { className: 'fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 flex gap-4 z-50' },
-      h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? '💾 Update Entry' : '💾 Save Entry'),
-      h(Button, { type: 'button', variant: 'secondary', onClick: onCancel }, 'Cancel')
+    cardio.length > 0 && h('div', { className: 'p-4 bg-slate-900 rounded-lg space-y-2' },
+      h('div', { className: 'grid grid-cols-2 gap-4' },
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
+        ),
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+        )
+      ),
+      Object.keys(cardioTotals.stepsByMachine).length > 1 && h('div', { className: 'text-xs text-slate-400' },
+        Object.entries(cardioTotals.stepsByMachine).map(([machine, steps]) => `${machine}: ${steps.toLocaleString()}`).join(' · ')
+      )
     )
+  );
+
+  // --- Details sheet: date, time, type, photo fill, discard ---
+  const renderDetails = () => h(Sheet, { label: 'Workout details', onClose: () => setSheet(null) },
+    h('div', { className: 'flex items-center gap-3 mb-3' },
+      h('div', { className: 'flex-1 text-xl font-extrabold' }, 'Workout details'),
+      h('button', { type: 'button', onClick: () => setSheet(null), 'aria-label': 'Close', className: 'w-11 h-11 rounded-full border border-ink-line bg-ink flex items-center justify-center' }, '✕')
+    ),
+    h('div', { className: 'flex flex-col gap-3' },
+      h('div', { className: 'grid grid-cols-2 gap-3' },
+        h('div', {},
+          h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-date' }, 'Date'),
+          h(Input, { id: 'wk-date', type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-time' }, 'Time'),
+          h(Input, { id: 'wk-time', type: 'time', value: workoutTime, onChange: (e) => setWorkoutTime(e.target.value) })
+        )
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-type' }, 'Workout'),
+        h(Select, { id: 'wk-type', value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
+          availableWorkoutTypes.map(type => h('option', { key: type, value: type }, type === plannedToday ? `${type} (planned)` : type))
+        )
+      ),
+      trainingType !== 'REST' && h('div', { className: 'p-3.5 rounded-2xl bg-ink border border-ink-line' },
+        h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'file-upload' }, '📷 Fill from a photo or text log'),
+        h('p', { className: 'text-xs text-ink-muted mb-2' }, 'AI reads the exercises; this replaces the ones on screen.'),
+        h(Input, { type: 'file', id: 'file-upload', onChange: handleFileUpload, accept: 'image/*,.txt' }),
+        isUploading && h('div', { className: 'flex items-center gap-2 text-blue-400 mt-2' },
+          h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
+          'Reading…'
+        )
+      ),
+      !isEdit && h('button', {
+        type: 'button', onClick: discardWorkout,
+        className: 'h-12 w-full rounded-full border font-extrabold text-[15px]',
+        style: { borderColor: UI_COLORS.bad, color: UI_COLORS.bad }
+      }, 'Discard workout')
+    )
+  );
+
+  // --- Summary phase ---
+  if (phase === 'summary') {
+    const cleaned = cleanFormExercises(exercises);
+    const entry = buildEntry();
+    const skipped = exercises.reduce((n, ex) => n + ex.reps.filter((r, i) => isBlankVal(r) && isBlankVal(ex.weights[i])).length, 0);
+    const sleep = sleepEntries.find(s => s.date === date);
+    const grade = trainingType === 'REST' ? null : getGrade(sleep, entry.totalSets);
+    const records = Object.keys(sessionPRs).length;
+    const note = trainingType === 'REST'
+      ? 'Rest day. Nothing to grade.'
+      : [
+          `${entry.totalSets} working set${entry.totalSets === 1 ? '' : 's'}${records ? ` with ${records} new record${records === 1 ? '' : 's'}` : ''}.`,
+          sleep
+            ? `Sleep that night: ${Number(sleep.sleepHours).toFixed(1)} h, ${Number(sleep.deepSleepPercent || 0).toFixed(0)}% deep${isToday && suggestedSets ? `, enough for about ${suggestedSets} sets` : ''}.`
+            : 'Log that night’s sleep to get a grade.'
+        ].join(' ');
+    const rows = cleaned.map(ex => {
+      let topI = 0;
+      ex.weights.forEach((w, k) => {
+        const wn = Number(w) || 0, tn = Number(ex.weights[topI]) || 0;
+        if (wn > tn || (wn === tn && (Number(ex.reps[k]) || 0) > (Number(ex.reps[topI]) || 0))) topI = k;
+      });
+      return {
+        name: ex.name, sets: ex.sets, pr: !!sessionPRs[ex.name],
+        top: `${(Number(ex.weights[topI]) || 0).toLocaleString()} × ${Number(ex.reps[topI]) || 0}`
+      };
+    });
+    const timeRange = !isEdit && workoutStartTime
+      ? `${new Date(workoutStartTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – now`
+      : null;
+    return h('div', { className: 'flex flex-col gap-3.5' },
+      h('div', { className: 'text-center' },
+        h('div', { className: 'text-xl font-extrabold' }, isEdit ? 'Review changes' : 'Workout done'),
+        h('div', { className: 'text-[13px] text-ink-muted' }, `${dateLabel} · ${typeLabel}`)
+      ),
+      h(FinishSummary, {
+        grade: grade && grade !== 'N/A' ? grade : null,
+        gradeNote: note,
+        stats: [
+          { label: '⏱ Duration', value: `${Number(duration) || 0} min`, sub: timeRange },
+          { label: '🔢 Working sets', value: String(entry.totalSets), sub: isToday && suggestedSets ? `sleep allowed about ${suggestedSets}` : null },
+          { label: '🏋️ Volume', value: `${Math.round(entry.totalVolume).toLocaleString()} lb`, sub: 'weight × reps' },
+          { label: '🏆 Records', value: records ? `${records} new` : 'None', sub: records ? Object.keys(sessionPRs).slice(0, 2).join(', ') : null }
+        ],
+        rows,
+        skippedSets: skipped,
+        duration,
+        onDuration: (v) => { durationTouched.current = true; setDuration(v); },
+        calories: caloriesBurned,
+        onCalories: setCaloriesBurned,
+        isEdit,
+        onSave: handleSave,
+        onBack: () => setPhase('log')
+      })
+    );
+  }
+
+  // --- Log phase ---
+  return h('div', { className: 'flex flex-col gap-3', style: { paddingBottom: rest ? 120 : 0 } },
+    h(SessionBar, {
+      typeLabel, dateLabel,
+      elapsed: !isEdit && workoutStartTime ? elapsedTime : null,
+      doneSets, totalSets: totalSetRows,
+      suggestedSets: isToday ? suggestedSets : null,
+      onDetails: () => setSheet('details'),
+      onClose: isEdit ? onCancel : closeWorkout,
+      onFinish: goToSummary
+    }),
+
+    trainingType === 'REST'
+      ? h('div', { className: 'bg-ink-card border border-ink-line rounded-3xl p-5 flex flex-col items-center text-center gap-3' },
+          h('span', { className: 'text-4xl', 'aria-hidden': 'true' }, '😴'),
+          h('div', { className: 'text-lg font-extrabold' }, 'Rest day'),
+          h('p', { className: 'text-sm text-ink-muted max-w-xs' }, 'Logging it keeps your cycle and recovery on track. Tap the workout name above to switch to a training day.'),
+          h('button', { type: 'button', onClick: handleSave, className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg' }, isEdit ? 'Save changes' : 'Log rest day')
+        )
+      : h(Fragment, null,
+          exercises.length === 0 && h('div', { className: 'bg-ink-card border border-ink-line rounded-3xl p-5 text-center' },
+            h('div', { className: 'text-lg font-extrabold' }, 'Add your first exercise'),
+            h('p', { className: 'text-sm text-ink-muted mt-1' }, 'Each exercise gets its own card. Tap a weight or reps box to type it, or the check to log the set.')
+          ),
+          exercises.map((ex, i) => h(ExerciseCard, {
+            key: i,
+            index: i,
+            ex,
+            active: i === activeIndex,
+            last: (lastTimeFor(ex.name) || { sets: [] }).sets,
+            best: bestFor(ex.name),
+            currentSet: currentSetOf(ex),
+            prSets: sessionPRs[ex.name] || [],
+            restRunning: !!rest,
+            onActivate: () => setActiveIndex(i),
+            onCell: (s, field) => openKeypad(i, s, field),
+            onToggleDone: (s) => toggleDone(i, s),
+            onAddSet: () => addSet(i),
+            onCopyWeight: () => copyWeightToAllSets(i),
+            onRpe: (v) => patchExercise(i, x => ({ ...x, rpe: v })),
+            onStartRest: startRest,
+            onOptions: () => { setActiveIndex(i); setSheet('options'); },
+            coach: i === activeIndex && ex.name ? h(CoachSuggestionBox, {
+              exerciseName: ex.name,
+              allEntries,
+              todaySleepPercent,
+              trainingType,
+              allExerciseNames
+            }) : null
+          })),
+          h('button', {
+            type: 'button', onClick: () => { setRenameIndex(null); setSheet('add'); },
+            className: 'h-[52px] rounded-full border border-dashed border-ink-line text-ink-muted font-extrabold text-[15px]'
+          }, '＋ Add exercise'),
+          renderCardio(),
+          exercises.length > 0 && h('button', {
+            type: 'button', onClick: goToSummary,
+            className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg mt-1'
+          }, '✓ Finish workout')
+        ),
+
+    sheet === 'details' && renderDetails(),
+    sheet === 'add' && h(AddExerciseSheet, {
+      names: allExerciseNames,
+      recent: recentExercises,
+      onClose: () => setSheet(null),
+      onPick: (name) => {
+        if (renameIndex !== null) renameExercise(renameIndex, name);
+        else addExerciseNamed(name);
+        setRenameIndex(null);
+        setSheet(null);
+      }
+    }),
+    sheet === 'options' && active && h(ExerciseOptionsSheet, {
+      ex: active,
+      canMoveUp: activeIndex > 0,
+      canMoveDown: activeIndex < exercises.length - 1,
+      onRename: () => { setRenameIndex(activeIndex); setSheet('add'); },
+      onEachHand: () => { patchExercise(activeIndex, x => ({ ...x, eachHand: !x.eachHand })); setSheet(null); },
+      onRemoveSet: () => { removeLastSet(activeIndex); setSheet(null); },
+      onMove: (d) => { moveExercise(activeIndex, d); setSheet(null); },
+      onRemove: () => removeExercise(activeIndex),
+      onClose: () => setSheet(null)
+    }),
+    keypad && (() => {
+      const ex = exercises[keypad.ex];
+      const last = lastTimeFor(ex.name);
+      const lastSet = last && last.sets[keypad.set];
+      const best = sessionBestFor(ex.name);
+      const w = Number(keypad.weight) || 0;
+      return h(KeypadSheet, {
+        title: `${ex.name || 'Exercise'} · Set ${keypad.set + 1}`,
+        sub: [lastSet ? `Last time ${lastSet.weight} × ${lastSet.reps}` : null, best > 0 ? `Best ${best} lb` : null].filter(Boolean).join(' · ') || 'First time logging this',
+        weight: keypad.weight,
+        reps: keypad.reps,
+        field: keypad.field,
+        eachHand: ex.eachHand,
+        prText: bestFor(ex.name) > 0 && w > best ? `${w} lb beats your best of ${best} lb` : null,
+        onField: (f) => setKeypad(kp => ({ ...kp, field: f })),
+        onKey: keypadKey,
+        onChip: keypadChip,
+        onSave: keypadSave,
+        onClose: () => setKeypad(null)
+      });
+    })(),
+    rest && h(RestTimerBar, {
+      endsAt: rest.endsAt,
+      total: rest.total,
+      nextLabel: restNext,
+      onAdjust: adjustRest,
+      onSkip: () => setRest(null),
+      onDone: finishRest
+    }),
+    celebration && h(PRCelebration, { ...celebration, onClose: () => setCelebration(null) })
   );
 };
 
@@ -5065,6 +5088,7 @@ const App = () => {
     return {
       done: false,
       isRest,
+      resume: !!readWorkoutDraft(),
       kicker: `TODAY · ${kickerDay}`,
       title: formatWorkoutName(nextWorkout),
       note
@@ -5304,7 +5328,8 @@ const App = () => {
           trainingCycle: trainingCycle,
           plannedToday: nextWorkout,
           cycleDay: cycleDay,
-          sleepEntries: sleepEntries
+          sleepEntries: sleepEntries,
+          suggestedSets: todayRecommendation.suggestedSets
         });
       case 'sleepForm':
         return h(LogSleepForm, {
