@@ -41,6 +41,7 @@ import { C as UI_COLORS, fatigueColor, formatWorkoutName } from './ui.js';
 import { AppHeader, MenuDrawer, scrollToTop } from './shell.js';
 import { HomeScreen } from './home.js';
 import { RecoveryScreen } from './recovery-screen.js';
+import { CalendarScreen } from './calendar-screen.js';
 import { SessionBar, ExerciseCard, KeypadSheet, RestTimerBar, PRCelebration, AddExerciseSheet, ExerciseOptionsSheet, FinishSummary, Sheet } from './workout-ui.js';
 
 // Alias React.createElement to 'h' for brevity
@@ -2506,11 +2507,11 @@ const PhotoButton = ({ busy, onFile }) =>
     })
   );
 
-const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeals = [], setSavedMeals = () => {} }) => {
+const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeals = [], setSavedMeals = () => {}, initialDate = null }) => {
   const { showToast } = useToast();
   const isEdit = !!entryToEdit;
   const [tab, setTab] = useState(isEdit || savedMeals.length === 0 ? 'type' : 'saved');
-  const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
+  const [date, setDate] = useState(() => entryToEdit?.date || initialDate || formatDate(new Date()));
   const [addedCount, setAddedCount] = useState(0);
   const [photoBusy, setPhotoBusy] = useState(false);
 
@@ -2840,11 +2841,11 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeal
 };
 
 // 🌙 NEW: LOG SLEEP FORM
-const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
+const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries, initialDate = null }) => {
   const { showToast } = useToast();
 
   // Form state
-  const [date, setDate] = useState(formatDate(new Date()));
+  const [date, setDate] = useState(initialDate || formatDate(new Date()));
   const [sleepHours, setSleepHours] = useState(8);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [deepSleepHours, setDeepSleepHours] = useState(1);
@@ -3062,19 +3063,24 @@ const cleanFormExercises = (list) => list
   })
   .filter(ex => ex.sets > 0);
 
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries, suggestedSets }) => {
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries, suggestedSets, initialDate = null, initialType = null }) => {
   const { showToast } = useToast();
   const isEdit = !!(entryToEdit && entryToEdit.id);
   const entryId = isEdit ? entryToEdit.id : null;
 
-  // A new workout picks up where a draft left off.
-  const draftRef = useRef(isEdit ? null : readWorkoutDraft());
+  // A new workout for today picks up where a draft left off. A past day opened from
+  // the Calendar is a quick back-fill: no draft is read or written for it, so it can
+  // never clobber a live workout's draft.
+  const startedForPastDay = !isEdit && !!initialDate && initialDate !== formatDate(new Date());
+  const usesDraft = !isEdit && !startedForPastDay;
+  const draftRef = useRef(usesDraft ? readWorkoutDraft() : null);
   const draft = draftRef.current;
 
   // Form state
-  const [date, setDate] = useState(draft?.date || formatDate(new Date()));
-  const [workoutTime, setWorkoutTime] = useState(draft?.workoutTime || nowHHMM());
-  const [trainingType, setTrainingType] = useState(draft?.trainingType || plannedToday);
+  const [date, setDate] = useState(draft?.date || initialDate || formatDate(new Date()));
+  // Back-filled workouts default to noon rather than "now" on some other day.
+  const [workoutTime, setWorkoutTime] = useState(draft?.workoutTime || (startedForPastDay ? '12:00' : nowHHMM()));
+  const [trainingType, setTrainingType] = useState(draft?.trainingType || initialType || plannedToday);
   const [exercises, setExercises] = useState(() => (draft?.exercises || []).map(exerciseToForm).map((ex, i) => ({ ...ex, done: draft.exercises[i].done || ex.done })));
   const [cardio, setCardio] = useState(draft?.cardio || []);
   const [duration, setDuration] = useState(60);
@@ -3097,7 +3103,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   const [workoutStartTime, setWorkoutStartTime] = useState(draft?.startTime || null);
   const [elapsedTime, setElapsedTime] = useState(0);
   useEffect(() => {
-    if (!isEdit && (exercises.length > 0 || cardio.length > 0) && !workoutStartTime) setWorkoutStartTime(Date.now());
+    if (usesDraft && (exercises.length > 0 || cardio.length > 0) && !workoutStartTime) setWorkoutStartTime(Date.now());
   }, [exercises.length, cardio.length]);
   useEffect(() => {
     if (!workoutStartTime) return undefined;
@@ -3146,7 +3152,7 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
 
   // Keep the draft current while a new workout is being logged.
   useEffect(() => {
-    if (isEdit) return;
+    if (!usesDraft) return;
     if (exercises.length === 0 && cardio.length === 0) return;
     try {
       localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({
@@ -3440,17 +3446,17 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     setAllExerciseNames(Array.from(newNames));
     const records = Object.keys(sessionPRs).length;
     onSave(entry);
-    clearWorkoutDraft();
+    if (usesDraft) clearWorkoutDraft(); // a back-filled past day never touches today's draft
     showToast(records ? `Workout saved · ${records} new record${records === 1 ? '' : 's'} 🏆` : 'Workout saved!', 'success');
   };
 
   const closeWorkout = () => {
-    if (!isEdit && (exercises.length || cardio.length)) showToast('Saved as a draft. Tap Resume on Home to carry on');
+    if (usesDraft && (exercises.length || cardio.length)) showToast('Saved as a draft. Tap Resume on Home to carry on');
     onCancel();
   };
   const discardWorkout = () => {
     if (!window.confirm('Discard this workout? Nothing from it will be saved.')) return;
-    clearWorkoutDraft();
+    if (usesDraft) clearWorkoutDraft();
     onCancel();
   };
 
@@ -3750,7 +3756,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
       doneSets, totalSets: totalSetRows,
       suggestedSets: isToday ? suggestedSets : null,
       onDetails: () => setSheet('details'),
-      onClose: isEdit ? onCancel : closeWorkout,
+      onClose: usesDraft ? closeWorkout : onCancel,
       onFinish: goToSummary
     }),
 
@@ -5145,6 +5151,12 @@ const App = () => {
 
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
+  // Where the workout/sleep forms return to, and the day they open on when started
+  // from the Calendar (null = today).
+  const [returnView, setReturnView] = useState('dashboard');
+  const [formStart, setFormStart] = useState(null); // { date, type } | null
+  const [calendarDate, setCalendarDate] = useState(() => formatDate(new Date()));
+  const [mealDate, setMealDate] = useState(null);
   const [nutritionEntryToEdit, setNutritionEntryToEdit] = useState(null);
   const [sleepEntryToEdit, setSleepEntryToEdit] = useState(null);
 
@@ -5467,7 +5479,7 @@ const App = () => {
   };
 
   const VIEW_TITLES = {
-    calendar: 'Calendar', log: 'Daily log', recovery: 'Recovery', charts: 'Charts',
+    calendar: 'Calendar', log: 'Calendar', recovery: 'Recovery', charts: 'Charts',
     records: 'Personal records', settings: 'Settings', sleepForm: 'Sleep'
   };
   const headerTitle = view === 'dashboard'
@@ -5476,6 +5488,19 @@ const App = () => {
       ? (entryToEdit && entryToEdit.id ? 'Edit workout' : 'Log workout')
       : (VIEW_TITLES[view] || 'Hypertrophy');
   const headerSubtitle = view === 'recovery' && readiness.pct !== null ? readiness.label : null;
+
+  // Planned type for any day, from the same calendar-anchored cycle the coach uses.
+  const plannedForDate = (ds) => trainingCycle[getCycleDayForDate(parseLocalDate(ds), trainingCycle.length)] || 'REST';
+  // For "log a workout" on a planned rest day: the next lifting day in the cycle.
+  const firstLiftingTypeFrom = (ds) => {
+    const len = trainingCycle.length;
+    const start = getCycleDayForDate(parseLocalDate(ds), len);
+    for (let k = 0; k < len; k++) {
+      const t = trainingCycle[(start + k) % len];
+      if (t && t !== 'REST') return t;
+    }
+    return 'Push/Biceps';
+  };
 
   // --- HANDLERS ---
   const handleSaveEntry = (entry) => {
@@ -5492,9 +5517,11 @@ const App = () => {
       if (ex.name && !newNames.has(ex.name)) newNames.add(ex.name);
     });
     setAllExerciseNames(Array.from(newNames));
-    
-    setView('dashboard');
+
+    if (returnView === 'calendar') setCalendarDate(entry.date);
+    setView(returnView);
     setEntryToEdit(null);
+    setFormStart(null);
   };
   
   const handleSaveNutrition = (entry) => {
@@ -5533,12 +5560,18 @@ const App = () => {
       }
     });
 
-    setView('dashboard');
+    if (returnView === 'calendar') setCalendarDate(entry.date);
+    setView(returnView);
     setSleepEntryToEdit(null);
+    setFormStart(null);
   };
 
-  const handleShowForm = (entry = null) => {
+  // opts.date opens a NEW workout on that day (from the Calendar); opts.type
+  // overrides the planned type ('lift' = the cycle's next lifting day).
+  const handleShowForm = (entry = null, opts = {}) => {
     setEntryToEdit(entry);
+    setFormStart(!entry && opts.date ? { date: opts.date, type: opts.type || null } : null);
+    setReturnView(view === 'form' || view === 'sleepForm' ? returnView : view);
     setView('form');
   };
 
@@ -5576,9 +5609,17 @@ const App = () => {
     setShowDeleteModal({ type: 'nutrition', id });
   };
 
-  const handleShowSleepForm = (entry = null) => {
+  const handleShowSleepForm = (entry = null, date = null) => {
     setSleepEntryToEdit(entry);
+    setFormStart(!entry && date ? { date } : null);
+    setReturnView(view === 'form' || view === 'sleepForm' ? returnView : view);
     setView('sleepForm');
+  };
+
+  const openMealFor = (date = null) => {
+    setMealDate(date);
+    setNutritionEntryToEdit(null);
+    setShowNutritionModal(true);
   };
 
   const handleDeleteSleep = (id) => {
@@ -5595,46 +5636,55 @@ const App = () => {
       case 'form':
         return h(LogEntryForm, {
           onSave: handleSaveEntry,
-          onCancel: () => setView('dashboard'),
+          onCancel: () => { setView(returnView); setFormStart(null); },
           entryToEdit: entryToEdit,
+          initialDate: formStart ? formStart.date : null,
+          initialType: formStart && formStart.date
+            ? (formStart.type === 'lift' ? firstLiftingTypeFrom(formStart.date) : plannedForDate(formStart.date))
+            : null,
           allEntries: sortedEntries,
           nutrition: nutrition,
           allExerciseNames: allExerciseNames,
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
-          plannedToday: nextWorkout,
-          cycleDay: cycleDay,
+          // A past day started from the Calendar records that day's plan, not today's.
+          plannedToday: formStart && formStart.date ? plannedForDate(formStart.date) : nextWorkout,
+          cycleDay: formStart && formStart.date ? getCycleDayForDate(parseLocalDate(formStart.date), trainingCycle.length) : cycleDay,
           sleepEntries: sleepEntries,
           suggestedSets: todayRecommendation.suggestedSets
         });
       case 'sleepForm':
         return h(LogSleepForm, {
           onSave: handleSaveSleep,
-          onCancel: () => setView('dashboard'),
+          onCancel: () => { setView(returnView); setFormStart(null); },
+          initialDate: formStart ? formStart.date : null,
           entryToEdit: sleepEntryToEdit,
           sleepEntries: sleepEntries
         });
       case 'calendar':
-        return h('div', { className: 'space-y-4' },
-          h(TrainingCalendar, {
-            entries: sortedEntries,
-            trainingCycle,
-            dynamicToday: nextWorkout,
-            currentCycleDay: cycleDay,
-            onEditCycle: () => setShowCycleEditor(true),
-            onSetCycleDay: (date, dayNumber) => {
-              // Handle manual cycle day setting
-              const entry = {
-                id: generateId(),
-                date: date,
-                manualCycleDay: dayNumber,
-                note: `Manually set to Day ${dayNumber} of cycle`
-              };
-              // You can store this in a separate state or as a marker
-              console.log('Set cycle day:', date, dayNumber);
-            }
-          })
-        );
+      case 'log':
+        return h(CalendarScreen, {
+          entries: sortedEntries,
+          nutrition,
+          sleepEntries,
+          selected: calendarDate,
+          onSelect: setCalendarDate,
+          plannedFor: plannedForDate,
+          cycleDayFor: (ds) => getCycleDayForDate(parseLocalDate(ds), trainingCycle.length),
+          cycleLength: trainingCycle.length,
+          gradeFor: (sleep, sets) => (sleep ? getGrade(sleep, sets) : 'N/A'),
+          proteinTarget: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget,
+          calorieTargetFor: (type) => getTodaysCalorieTarget(type, dietGoals),
+          onEditWorkout: (w) => handleShowForm(w),
+          onAddWorkout: (date, type) => handleShowForm(null, { date, type }),
+          onDeleteWorkout: openDeleteModal,
+          onAddMeal: openMealFor,
+          onEditMeal: handleEditMeal,
+          onDeleteMeal: handleDeleteNutrition,
+          onEditSleep: (entry) => handleShowSleepForm(entry),
+          onAddSleep: (date) => handleShowSleepForm(null, date),
+          onDeleteSleep: handleDeleteSleep
+        });
       case 'charts':
         return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames, sleepEntries });
       case 'settings':
@@ -5662,30 +5712,6 @@ const App = () => {
             onLogSleep: () => handleShowSleepForm(todaysSleep)
           });
 
-      case 'log':
-        // The old home screen's daily log, moved here until the Calendar rebuild
-        // takes it over. Same cards, same edit and delete buttons.
-        return h('div', { className: 'space-y-4' },
-          h('div', { className: 'space-y-4' },
-            (() => {
-              const dailyData = groupDataByDate(sortedEntries, nutrition, sleepEntries);
-              return dailyData.length > 0
-                ? dailyData.map(dayData => h(DailyCard, {
-                    key: dayData.date,
-                    dailyData: dayData,
-                    allEntries: sortedEntries,
-                    onEditWorkout: handleShowForm,
-                    onDeleteWorkout: openDeleteModal,
-                    onEditSleep: handleShowSleepForm,
-                    onDeleteSleep: handleDeleteSleep,
-                    onEditMeal: handleEditMeal,
-                    onDeleteMeal: handleDeleteNutrition
-                  }))
-                : h('p', { className: 'text-slate-400' }, 'No entries yet. Start logging!')
-            })()
-          )
-        );
-
       case 'records':
         return h(PRDashboard, { prs: allPRs });
 
@@ -5706,9 +5732,9 @@ const App = () => {
           sleepButtonLabel: todaysSleep ? '🌙 Edit sleep' : '🌙 Log sleep',
           onStart: () => handleShowForm(null),
           onEditToday: () => handleShowForm(todaysActualEntry),
-          onAddMeal: () => setShowNutritionModal(true),
+          onAddMeal: () => openMealFor(null),
           onSleep: () => handleShowSleepForm(todaysSleep),
-          onOpenLog: () => setView('log'),
+          onOpenLog: () => { setCalendarDate(formatDate(new Date())); setView('calendar'); },
           onOpenCharts: () => setView('charts'),
           onOpenRecovery: () => setView('recovery'),
           onOpenRecords: () => setView('records'),
@@ -5771,7 +5797,9 @@ const App = () => {
         onClose: () => {
           setShowNutritionModal(false);
           setNutritionEntryToEdit(null);
+          setMealDate(null);
         },
+        initialDate: mealDate,
         onSave: handleSaveNutrition,
         entryToEdit: nutritionEntryToEdit,
         savedMeals,

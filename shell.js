@@ -63,7 +63,6 @@ const syncLine = (s) => {
 export const MENU_ITEMS = [
   { view: 'dashboard', emoji: '🏠', label: 'Home' },
   { view: 'calendar', emoji: '📅', label: 'Calendar' },
-  { view: 'log', emoji: '📋', label: 'Daily log' },
   { view: 'recovery', emoji: '💪', label: 'Recovery' },
   { view: 'charts', emoji: '📈', label: 'Charts' },
   { view: 'records', emoji: '🏆', label: 'Personal records' },
