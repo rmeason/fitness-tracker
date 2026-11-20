@@ -3,8 +3,6 @@
 // --- ES Module Imports ---
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Line } from 'react-chartjs-2';
-import 'chart.js/auto';
 
 // --- Import our coach brain ---
 import * as Coach from './coach.js';
@@ -35,6 +33,15 @@ import * as Sync from './sync.js';
 
 // Google Health (Takeout) import: sleep, steps, calories burned.
 import { readHealthExport, mergeHealthImport, mergeWorkoutImport, keepActivityFields, renameLegacyActivityFields } from './health-import.js';
+
+// Redesign (Nov 2026): shared UI kit, the header + menu shell, and the new home screen.
+import { C as UI_COLORS, fatigueColor, formatWorkoutName, SettingsGroup, Switch, getUiPrefs, saveUiPrefs, applyUiPrefs } from './ui.js';
+import { AppHeader, MenuDrawer, scrollToTop } from './shell.js';
+import { HomeScreen } from './home.js';
+import { RecoveryScreen } from './recovery-screen.js';
+import { CalendarScreen } from './calendar-screen.js';
+import { ChartsScreen } from './charts-screen.js';
+import { SessionBar, ExerciseCard, KeypadSheet, RestTimerBar, PRCelebration, AddExerciseSheet, ExerciseOptionsSheet, FinishSummary, Sheet } from './workout-ui.js';
 
 // Alias React.createElement to 'h' for brevity
 const h = React.createElement;
@@ -151,6 +158,7 @@ const SLEEP_KEY = 'hypertrophyApp.sleep.v1'; // Separate sleep DB (sleep + weigh
 const DIET_GOALS_KEY = 'hypertrophyApp.dietGoals.v1'; // Diet goals
 const MIGRATION_FLAG_KEY = 'hypertrophyApp.migrationV2.done'; // Migration tracker
 const PROFILE_KEY = 'hypertrophyApp.profile.v1'; // User profile (height + age)
+const SAVED_MEALS_KEY = 'hypertrophyApp.savedMeals.v1'; // Saved meals: per-serving nutrition you log in one tap (synced)
 const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tracker for sleep split
 
 // The shape App starts from and deleteAllData resets to. Spread, never mutated.
@@ -1633,182 +1641,6 @@ const CycleEditor = ({ currentCycle, onSave, onClose, entries }) => {
   );
 };
 
-// --- 📈 CHART COMPONENT (FIXED FOR MOBILE) ---
-const ExerciseProgressChart = ({ entries, allExerciseNames, sleepEntries }) => {
-  const [selectedExercise, setSelectedExercise] = useState('');
-  const [chartType, setChartType] = useState('weight');
-
-  // Auto-select first exercise when allExerciseNames updates
-  useEffect(() => {
-    if (!selectedExercise && allExerciseNames.length > 0) {
-      setSelectedExercise(allExerciseNames[0]);
-    }
-  }, [allExerciseNames, selectedExercise]);
-
-  // No data state
-  if (!entries || entries.length === 0) {
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('p', { className: 'text-slate-400' }, 'No workout data yet. Log a workout to see charts!')
-    );
-  }
-
-  // No exercises logged state
-  if (allExerciseNames.length === 0) {
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('p', { className: 'text-slate-400' }, 'No exercises logged yet. Add exercises to your workouts!')
-    );
-  }
-
-  // Session volume chart
-  if (chartType === 'sessionVolume') {
-    const sessionData = entries
-      .filter(e => e.trainingType !== 'REST' && e.totalVolume > 0)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (sessionData.length === 0) {
-      return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-        h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-        h('div', { className: 'mb-4' },
-          h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-            h('option', { value: 'weight' }, 'Show Peak Weight'),
-            h('option', { value: 'volume' }, 'Show Volume Load'),
-            h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-          )
-        ),
-        h('p', { className: 'text-slate-400' }, 'No session volume data yet.')
-      );
-    }
-
-    const chartData = {
-      labels: sessionData.map(d => d.date.slice(5)), // Shorter labels for mobile (MM-DD)
-      datasets: [
-        {
-          label: 'Session Volume (lbs)',
-          data: sessionData.map(d => d.totalVolume),
-          borderColor: '#a78bfa',
-          backgroundColor: 'rgba(167, 139, 250, 0.1)',
-          tension: 0.1,
-          fill: true,
-        },
-      ],
-    };
-
-    const chartOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
-        title: { display: true, text: 'Session Volume Progress', color: '#f1f5f9', font: { size: 14 } },
-      },
-      scales: {
-        x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
-        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
-      }
-    };
-
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('div', { className: 'mb-4' },
-        h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-          h('option', { value: 'weight' }, 'Show Peak Weight'),
-          h('option', { value: 'volume' }, 'Show Volume Load'),
-          h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-        )
-      ),
-      h('div', { className: 'relative w-full', style: { height: '300px' } },
-        h(Line, { data: chartData, options: chartOptions })
-      )
-    );
-  }
-
-  // Exercise-specific charts (weight and volume)
-  const exerciseData = entries
-    .map(entry => {
-      if (!entry.exercises) return null;
-      const ex = entry.exercises.find(e => e.name === selectedExercise);
-      if (!ex) return null;
-
-      const maxWeight = Array.isArray(ex.weights)
-        ? getMaxWeight(ex.weights)
-        : (ex.weight || 0);
-
-      let volumeLoad = ex.volumeLoad;
-      if (!volumeLoad && ex.reps) {
-        const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
-        volumeLoad = calculateVolumeLoad(weights, ex.reps, ex.name, sleepEntries, ex.eachHand);
-      }
-
-      return {
-        date: entry.date,
-        weight: maxWeight,
-        volumeLoad: volumeLoad || 0
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  const chartData = {
-    labels: exerciseData.map(d => d.date.slice(5)), // Shorter labels (MM-DD)
-    datasets: [
-      {
-        label: chartType === 'weight' ? `Weight (lbs)` : `Volume (lbs)`,
-        data: exerciseData.map(d => chartType === 'weight' ? d.weight : d.volumeLoad),
-        borderColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
-        backgroundColor: chartType === 'weight' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(52, 211, 153, 0.1)',
-        tension: 0.1,
-        fill: true,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
-      title: { 
-        display: true, 
-        text: selectedExercise ? `${selectedExercise}` : 'Select an Exercise', 
-        color: '#f1f5f9',
-        font: { size: 14 }
-      },
-    },
-    scales: {
-      x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
-      y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
-    }
-  };
-
-  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-    h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-    h('div', { className: 'grid grid-cols-1 gap-3 mb-4' },
-      h(Select, { value: selectedExercise, onChange: (e) => setSelectedExercise(e.target.value) },
-        h('option', { value: '' }, 'Select Exercise...'),
-        allExerciseNames.map(name => h('option', { key: name, value: name }, name))
-      ),
-      h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-        h('option', { value: 'weight' }, 'Show Peak Weight'),
-        h('option', { value: 'volume' }, 'Show Volume Load'),
-        h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-      )
-    ),
-    h('div', { className: 'relative w-full', style: { height: '300px' } },
-      exerciseData.length > 0 && selectedExercise
-        ? h(Line, { data: chartData, options: chartOptions })
-        : h('div', { className: 'flex items-center justify-center h-full' },
-            h('p', { className: 'text-slate-400 text-center' }, 
-              selectedExercise 
-                ? `No data for ${selectedExercise} yet.`
-                : 'Select an exercise to view progress.'
-            )
-          )
-    )
-  );
-};
-
-// --- 📅 CALENDAR COMPONENT (UPGRADED) ---
 const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDay, onEditCycle, onSetCycleDay }) => {
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
   const [weekStartDay, setWeekStartDay] = useState(0); // 0 = Sunday, 1 = Monday
@@ -2068,235 +1900,6 @@ const StatsSummary = ({ entries, nutrition, liveProtein, liveCalories }) => {
         h('div', { className: 'text-2xl font-bold' }, `${liveCalories}`),
         h('div', { className: 'text-sm text-slate-400' }, "Today's Cals")
       )
-    )
-  );
-};
-
-// --- 💪 RECOVERY DASHBOARD COMPONENT ---
-const RecoveryDashboard = ({ entries, sleepEntries, nutrition, onShowSleepForm, recoveryStatus: precomputedStatus }) => {
-  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('all');
-  const [sortBy, setSortBy] = useState('fatigue'); // 'fatigue', 'name', 'lastTrained'
-  const [showDetails, setShowDetails] = useState(null);
-
-  // Calculate current recovery status
-  const recoveryStatus = precomputedStatus || processWorkoutHistory(entries, sleepEntries);
-  
-  // Get today's sleep for recommendations
-  const todayStr = formatDate(new Date());
-  const todaySleep = sleepEntries.find(s => s.date === todayStr) || 
-                     sleepEntries[sleepEntries.length - 1] || 
-                     { sleepHours: 8, deepSleepPercent: 15 };
-
-  // Muscle group categories
-  const muscleGroups = {
-    all: 'All Muscles',
-    chest: ['pectoralsUpper', 'pectoralsLower'],
-    shoulders: ['deltsFront', 'deltsMid', 'deltsRear', 'infraspinatus', 'supraspinatus'],
-    back: ['latsUpper', 'latsLower', 'trapsUpper', 'trapsMid', 'trapsLower', 'rhomboids', 'erectorSpinae'],
-    arms: ['bicepsLong', 'bicepsShort', 'brachialis', 'brachioradialis', 'tricepsLong', 'tricepsLateral', 'forearms'],
-    legs: ['vastusLateralis', 'vastusMedialis', 'rectusFemoris', 'bicepsFemoris', 'semitendinosus',
-           'glutesUpper', 'glutesLower', 'gluteMed', 'glutesMin', 'TFL', 'piriformis',
-           'adductorMagnus', 'adductorLongus', 'adductorBrevis', 'gracilis', 'pectineus'],
-    calves: ['gastrocnemius', 'soleus'],
-    core: ['rectusAbdominis', 'obliqueExternal', 'obliqueInternal', 'serratusAnterior']
-  };
-
-  // Filter muscles by selected group
-  const visibleMuscles = selectedMuscleGroup === 'all'
-    ? Object.entries(recoveryStatus)
-    : Object.entries(recoveryStatus).filter(([key, _]) => 
-        muscleGroups[selectedMuscleGroup]?.includes(key)
-      );
-
-  // Sort muscles
-  const sortedMuscles = [...visibleMuscles].sort((a, b) => {
-    const [aKey, aData] = a;
-    const [bKey, bData] = b;
-    
-    if (sortBy === 'fatigue') {
-      return bData.currentFatiguePercent - aData.currentFatiguePercent;
-    } else if (sortBy === 'name') {
-      return aData.name.localeCompare(bData.name);
-    } else if (sortBy === 'lastTrained') {
-      if (!aData.lastTrained && !bData.lastTrained) return 0;
-      if (!aData.lastTrained) return 1;
-      if (!bData.lastTrained) return -1;
-      return new Date(bData.lastTrained) - new Date(aData.lastTrained);
-    }
-    return 0;
-  });
-
-  // Calculate summary stats
-  const avgFatigue = visibleMuscles.reduce((sum, [_, data]) => 
-    sum + data.currentFatiguePercent, 0) / visibleMuscles.length;
-  
-  const freshCount = visibleMuscles.filter(([_, data]) => 
-    data.currentFatiguePercent < 30).length;
-  
-  const fatiguedCount = visibleMuscles.filter(([_, data]) => 
-    data.currentFatiguePercent >= 70).length;
-
-  // Check for sleep data within last 48 hours
-  const now = new Date();
-  const cutoff48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
-  const hasRecentSleep = sleepEntries.some(s => new Date(s.date) >= cutoff48h);
-
-  return h('div', { className: 'space-y-6' },
-    // Sleep prompt banner if no recent sleep data
-    !hasRecentSleep && h('div', {
-      className: 'flex items-center gap-3 p-4 bg-slate-800 border border-blue-500 rounded-lg text-blue-300 text-sm mb-4'
-    },
-      '💤 No recent sleep data — recovery forecasts are using baseline estimates. Log tonight\'s sleep for accurate muscle readiness predictions.',
-      onShowSleepForm && h('button', {
-        type: 'button',
-        onClick: onShowSleepForm,
-        className: 'ml-auto px-3 py-1 bg-slate-700 hover:bg-slate-600 text-blue-200 rounded text-xs border border-blue-500 transition-colors whitespace-nowrap'
-      }, 'Log Sleep')
-    ),
-
-    // Header with summary
-    h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
-      h('h2', { className: 'text-2xl font-bold mb-4' }, '💪 Muscle Recovery Status'),
-      h('div', { className: 'grid grid-cols-3 gap-4' },
-        h('div', { className: 'text-center' },
-          h('div', { className: 'text-3xl font-bold text-cyan-400' }, avgFatigue.toFixed(0) + '%'),
-          h('div', { className: 'text-sm text-slate-400' }, 'Avg Fatigue')
-        ),
-        h('div', { className: 'text-center' },
-          h('div', { className: 'text-3xl font-bold text-green-400' }, freshCount),
-          h('div', { className: 'text-sm text-slate-400' }, 'Fresh Muscles')
-        ),
-        h('div', { className: 'text-center' },
-          h('div', { className: 'text-3xl font-bold text-red-400' }, fatiguedCount),
-          h('div', { className: 'text-sm text-slate-400' }, 'Fatigued Muscles')
-        )
-      )
-    ),
-
-    // Filters
-    h('div', { className: 'bg-slate-800 p-4 rounded-lg space-y-3' },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-2' }, 'Filter by Muscle Group'),
-        h('div', { className: 'grid grid-cols-4 gap-2' },
-          Object.entries(muscleGroups).map(([key, value]) =>
-            h('button', {
-              key,
-              onClick: () => setSelectedMuscleGroup(key),
-              className: `px-3 py-2 rounded text-sm transition-colors ${
-                selectedMuscleGroup === key 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`
-            }, typeof value === 'string' ? value : key.charAt(0).toUpperCase() + key.slice(1))
-          )
-        )
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-2' }, 'Sort By'),
-        h('div', { className: 'flex gap-2' },
-          ['fatigue', 'name', 'lastTrained'].map(sort =>
-            h('button', {
-              key: sort,
-              onClick: () => setSortBy(sort),
-              className: `px-3 py-2 rounded text-sm transition-colors ${
-                sortBy === sort 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`
-            }, sort === 'fatigue' ? 'Fatigue Level' : 
-               sort === 'name' ? 'Muscle Name' : 'Last Trained')
-          )
-        )
-      )
-    ),
-
-    // Muscle list
-    h('div', { className: 'space-y-2' },
-      sortedMuscles.map(([muscleKey, muscleData]) => {
-        const muscleInfo = MUSCLES[muscleKey];
-        const isExpanded = showDetails === muscleKey;
-        
-        return h('div', { 
-          key: muscleKey,
-          className: 'bg-slate-800 rounded-lg overflow-hidden border-2',
-          style: { 
-            borderColor: muscleData.color === 'red' ? '#ef4444' : 
-                        muscleData.color === 'yellow' ? '#f59e0b' : '#10b981'
-          }
-        },
-          // Muscle header (clickable)
-          h('div', {
-            className: 'p-4 flex items-center justify-between cursor-pointer hover:bg-slate-700',
-            onClick: () => setShowDetails(isExpanded ? null : muscleKey)
-          },
-            h('div', { className: 'flex items-center gap-3 flex-1' },
-              h('span', { className: 'text-2xl' }, muscleData.recoveryStatus.emoji),
-              h('div', { className: 'flex-1' },
-                h('div', { className: 'font-bold text-lg' }, muscleData.name),
-                h('div', { className: 'text-xs text-slate-400' },
-                  muscleData.lastTrained 
-                    ? `Last trained: ${muscleData.lastTrained}`
-                    : 'Not trained recently'
-                )
-              )
-            ),
-            h('div', { className: 'text-right mr-4' },
-              h('div', { className: 'text-2xl font-bold', style: { 
-                color: muscleData.color === 'red' ? '#ef4444' : 
-                       muscleData.color === 'yellow' ? '#f59e0b' : '#10b981'
-              }}, muscleData.currentFatiguePercent.toFixed(0) + '%'),
-              h('div', { className: 'text-xs text-slate-400' }, muscleData.recoveryStatus.status)
-            ),
-            h('span', { className: 'text-2xl' }, isExpanded ? '▼' : '▶')
-          ),
-          
-          // Expanded details
-          isExpanded && muscleData.fatigueHistory.length > 0 && h('div', { 
-            className: 'p-4 pt-0 border-t border-slate-700' 
-          },
-            h('div', { className: 'mb-3' },
-              h('div', { className: 'text-sm font-semibold mb-1' }, 'Recovery Info'),
-              h('div', { className: 'text-xs text-slate-300' }, muscleData.recoveryStatus.description),
-              h('div', { className: 'text-xs text-slate-400 mt-1' },
-                `Recovery time: ${muscleInfo.hours}hrs | Decay rate: ${muscleInfo.decayRate}% per hour`
-              )
-            ),
-            h('div', { className: 'mb-2' },
-              h('div', { className: 'text-sm font-semibold mb-2' }, 'Recent Training'),
-              h('div', { className: 'space-y-1' },
-                muscleData.fatigueHistory.slice(-5).reverse().map((history, idx) =>
-                  h('div', { 
-                    key: idx,
-                    className: 'text-xs bg-slate-900 p-2 rounded flex justify-between'
-                  },
-                    h('div', {},
-                      h('span', { className: 'font-medium' }, history.exercise),
-                      h('span', { className: 'text-slate-400 ml-2' }, `(${history.hoursAgo}h ago)`)
-                    ),
-                    h('div', {},
-                      h('span', { className: 'text-slate-400' }, 
-                        `${history.currentFatigue.toFixed(0)} pts`
-                      )
-                    )
-                  )
-                )
-              )
-            ),
-            // Find exercises that target this muscle
-            h('div', {},
-              h('div', { className: 'text-sm font-semibold mb-2' }, 'Best Exercises'),
-              h('div', { className: 'flex flex-wrap gap-2' },
-                getExercisesForMuscle(muscleKey, 60).slice(0, 5).map(ex =>
-                  h('div', {
-                    key: ex.name,
-                    className: 'text-xs bg-blue-900 px-2 py-1 rounded'
-                  }, `${ex.name} (${ex.activation}%)`)
-                )
-              )
-            )
-          )
-        );
-      })
     )
   );
 };
@@ -2601,34 +2204,224 @@ const MacroCalorieHint = ({ protein, carbs, fat, fiber, calories, onUseDerived }
   );
 };
 
-// 💡 NEW: NUTRITION QUICK-ADD MODAL (also the edit form for an existing meal)
-const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
-  // macroValue rather than `entryToEdit.x || ''`, which would read a logged 0 as
-  // "not tracked" and quietly blank it out on the next save.
-  const seed = (field) => {
-    const v = macroValue(entryToEdit, field);
-    return v === null ? '' : v;
+// --- 🍽️ ADD MEAL SHEET (redesign, Nov 2026) ---
+// Two tabs. "Saved" holds meals whose nutrition you've already worked out: one tap
+// logs a serving, or open one to pick servings, edit or delete it. "Type it" is the
+// old quick-add (describe + parse, or type the numbers, or read a label photo), with
+// a switch to keep the meal for next time. Editing a logged meal opens "Type it".
+//
+// A saved meal is { id, name, protein, calories, carbs?, fat?, fiber?, note?,
+// createdAt, lastUsedAt, useCount } -- per ONE serving. Logging one writes an ordinary
+// nutrition entry, so nothing downstream knows or cares that it came from a template.
+
+const MEAL_OPTIONAL_MACROS = ['carbs', 'fat', 'fiber'];
+const roundTenth = (n) => Math.round(n * 10) / 10;
+
+// Typed text -> number, '' stays ''. "3k" still means 3000 like the old fields.
+const macroText = (v) => (v === '' || v === null || v === undefined ? '' : String(v));
+const macroFromText = (text) => (String(text).trim() === '' ? '' : Number(parseNumberWithSuffix(text)) || 0);
+
+// Saved meal x servings -> nutrition entry. Grams to 0.1, calories to whole kcal (as
+// the meal parser rounds). A macro the saved meal never tracked stays off the entry.
+const nutritionFromSavedMeal = (saved, servings, date) => {
+  const entry = {
+    id: generateId(),
+    date,
+    protein: roundTenth((Number(saved.protein) || 0) * servings),
+    calories: Math.round((Number(saved.calories) || 0) * servings)
   };
-  // Lazy initialisers are enough: the modal is mounted conditionally, so it remounts
-  // on every open and never has to catch up to a prop change while alive.
-  const [protein, setProtein] = useState(() => seed('protein'));
-  const [calories, setCalories] = useState(() => seed('calories'));
-  // '' means "not tracked". A cleared field goes back to '' rather than 0 so an
-  // untouched macro is never saved as a logged zero.
-  const [carbs, setCarbs] = useState(() => seed('carbs'));
-  const [fat, setFat] = useState(() => seed('fat'));
-  const [fiber, setFiber] = useState(() => seed('fiber'));
+  for (const k of MEAL_OPTIONAL_MACROS) {
+    const v = macroValue(saved, k);
+    if (v !== null) entry[k] = roundTenth(v * servings);
+  }
+  entry.description = servings === 1 ? saved.name : `${saved.name} × ${servings}`;
+  return entry;
+};
+
+const savedMealLine = (m) => {
+  const parts = [`${formatMacro(macroValue(m, 'protein'))} protein`, `${Math.round(Number(m.calories) || 0).toLocaleString()} kcal`];
+  if (macroValue(m, 'carbs') !== null) parts.push(`${formatMacro(macroValue(m, 'carbs'))} carbs`);
+  if (macroValue(m, 'fat') !== null) parts.push(`${formatMacro(macroValue(m, 'fat'))} fat`);
+  return parts.join(' · ');
+};
+
+// `text` fields (names, notes) get the normal keyboard; number fields get the
+// decimal pad on phones.
+const MacroField = ({ id, label, value, onChange, placeholder, text = false }) =>
+  h('div', null,
+    h('label', { htmlFor: id, className: 'block text-[13px] font-bold text-ink-muted mb-1' }, label),
+    h('input', {
+      id, type: 'text', inputMode: text ? 'text' : 'decimal', autoComplete: 'off', autoCapitalize: text ? 'words' : 'off', value, placeholder,
+      onChange: (e) => onChange(e.target.value),
+      className: 'w-full h-12 rounded-2xl bg-ink border border-ink-line px-3.5 text-base font-bold'
+    })
+  );
+
+// Five macro boxes + the calorie cross-check. `f` is { protein, calories, carbs, fat,
+// fiber } as text; `set(key, text)` updates one.
+const MacroFields = ({ prefix, f, set }) =>
+  h('div', { className: 'flex flex-col gap-2.5' },
+    h('div', { className: 'grid grid-cols-2 gap-2.5' },
+      h(MacroField, { id: `${prefix}-protein`, label: 'Protein (g)', value: f.protein, onChange: v => set('protein', v), placeholder: 'e.g. 42' }),
+      h(MacroField, { id: `${prefix}-calories`, label: 'Calories (kcal)', value: f.calories, onChange: v => set('calories', v), placeholder: 'e.g. 230' })
+    ),
+    h('div', { className: 'grid grid-cols-3 gap-2.5' },
+      h(MacroField, { id: `${prefix}-carbs`, label: 'Carbs (g)', value: f.carbs, onChange: v => set('carbs', v), placeholder: 'optional' }),
+      h(MacroField, { id: `${prefix}-fat`, label: 'Fat (g)', value: f.fat, onChange: v => set('fat', v), placeholder: 'optional' }),
+      h(MacroField, { id: `${prefix}-fiber`, label: 'Fiber (g)', value: f.fiber, onChange: v => set('fiber', v), placeholder: 'optional' })
+    ),
+    h(MacroCalorieHint, {
+      protein: macroFromText(f.protein) === '' ? null : macroFromText(f.protein),
+      carbs: macroFromText(f.carbs) === '' ? null : macroFromText(f.carbs),
+      fat: macroFromText(f.fat) === '' ? null : macroFromText(f.fat),
+      fiber: macroFromText(f.fiber) === '' ? null : macroFromText(f.fiber),
+      calories: macroFromText(f.calories) === '' ? null : macroFromText(f.calories),
+      onUseDerived: (kcal) => set('calories', String(kcal))
+    })
+  );
+
+// Ask the vision function to read a nutrition label or a meal photo. Returns text
+// values for the macro boxes; the person reviews them before anything is saved.
+const readNutritionPhoto = async (file) => {
+  if (!file || !file.type.startsWith('image/')) throw new Error('Pick a photo.');
+  const base64Data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+  });
+  const prompt = `This is a nutrition facts label or a photo of a meal.
+Reply with ONLY a JSON object (null for anything you cannot read or estimate):
+{"name": string, "protein": number, "carbs": number, "fat": number, "fiber": number, "calories": number}
+For a label, use the values for ONE serving as printed. For a meal photo, estimate the whole plate.
+"carbs" is Total Carbohydrate; "fiber" is Dietary Fiber.`;
+  const res = await fetch('/.netlify/functions/get-vision-extraction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: [
+      { type: 'image', source: { type: 'base64', media_type: file.type, data: base64Data } },
+      { type: 'text', text: prompt }
+    ] })
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).error || msg; } catch (e) { /* keep statusText */ }
+    throw new Error(`Couldn't read the photo: ${msg}`);
+  }
+  const data = await res.json();
+  const r = parseAiJson(data.text);
+  const t = (v) => (optionalNumber(v) === null ? '' : String(optionalNumber(v)));
+  return {
+    name: typeof r.name === 'string' ? r.name.trim() : '',
+    fields: { protein: t(r.protein), calories: t(r.calories), carbs: t(r.carbs), fat: t(r.fat), fiber: t(r.fiber) }
+  };
+};
+
+const PhotoButton = ({ busy, onFile }) =>
+  h('label', {
+    className: `h-11 px-4 rounded-full border border-ink-line flex items-center justify-center gap-2 text-sm font-bold cursor-pointer ${busy ? 'opacity-60' : ''}`
+  },
+    busy
+      ? h(Fragment, null, h('span', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-accent' }), 'Reading…')
+      : '📷 Read a label or photo',
+    h('input', {
+      type: 'file', accept: 'image/*', className: 'sr-only', disabled: busy,
+      onChange: (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) onFile(file); }
+    })
+  );
+
+const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeals = [], setSavedMeals = () => {}, initialDate = null }) => {
+  const { showToast } = useToast();
+  const isEdit = !!entryToEdit;
+  const [tab, setTab] = useState(isEdit || savedMeals.length === 0 ? 'type' : 'saved');
+  const [date, setDate] = useState(() => entryToEdit?.date || initialDate || formatDate(new Date()));
+  const [addedCount, setAddedCount] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // --- "Type it" state. '' means "not tracked": an untouched macro never saves as 0.
+  const seed = (field) => macroText(macroValue(entryToEdit, field));
+  const [fields, setFields] = useState(() => ({
+    protein: seed('protein'), calories: seed('calories'), carbs: seed('carbs'), fat: seed('fat'), fiber: seed('fiber')
+  }));
+  const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
   // The person's own words, kept verbatim. Trustworthy in a way the resolved numbers are not.
   const [description, setDescription] = useState(() => entryToEdit?.description || '');
-  // null when idle, otherwise the stage being shown: the lookup stage makes one network
-  // call per item and visibly takes longer than the parse.
   const [parseStage, setParseStage] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
-  // 💡💡💡 THIS IS THE FIX 💡💡💡
-  // Add date state, defaulting to today
-  const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
-  const { showToast } = useToast();
+  const [keepMeal, setKeepMeal] = useState(false);
+  const [keepName, setKeepName] = useState('');
 
+  // --- "Saved" state
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState(null);
+  const [servings, setServings] = useState(1);
+  const [editor, setEditor] = useState(null); // null | { id|null, name, note, fields }
+
+  const sortedMeals = [...savedMeals].sort((a, b) =>
+    (b.lastUsedAt || '').localeCompare(a.lastUsedAt || '') || String(a.name).localeCompare(String(b.name)));
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shownMeals = words.length
+    ? sortedMeals.filter(m => { const low = `${m.name} ${m.note || ''}`.toLowerCase(); return words.every(w => low.includes(w)); })
+    : sortedMeals;
+
+  const dateLabel = date === formatDate(new Date())
+    ? 'Today'
+    : parseLocalDate(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // --- Saved: log a serving count of one meal
+  const addSaved = (meal, count) => {
+    onSave(nutritionFromSavedMeal(meal, count, date));
+    const now = new Date().toISOString();
+    setSavedMeals(list => list.map(m => (m.id === meal.id ? { ...m, lastUsedAt: now, useCount: (m.useCount || 0) + 1 } : m)));
+    setAddedCount(n => n + 1);
+    setOpenId(null);
+    setServings(1);
+    showToast(`Added ${count === 1 ? '' : `${count} × `}${meal.name} to ${dateLabel.toLowerCase() === 'today' ? 'today' : dateLabel}`, 'success');
+  };
+
+  const deleteSaved = (meal) => {
+    if (!window.confirm(`Delete the saved meal "${meal.name}"? Meals you already logged stay.`)) return;
+    setSavedMeals(list => list.filter(m => m.id !== meal.id));
+    setOpenId(null);
+  };
+
+  // Build a saved meal from name + text fields. null (with a toast) if not usable.
+  const buildSavedMeal = (base, name, f, note) => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) { showToast('Give the meal a name', 'error'); return null; }
+    const protein = macroFromText(f.protein);
+    const calories = macroFromText(f.calories);
+    if ((protein === '' || protein === 0) && (calories === '' || calories === 0)) {
+      showToast('Enter at least protein or calories', 'error');
+      return null;
+    }
+    const meal = {
+      ...(base || {}),
+      id: base?.id || generateId(),
+      name: trimmed,
+      protein: protein === '' ? 0 : protein,
+      calories: calories === '' ? 0 : Math.round(calories),
+      createdAt: base?.createdAt || new Date().toISOString()
+    };
+    for (const k of MEAL_OPTIONAL_MACROS) {
+      const v = macroFromText(f[k]);
+      if (v !== '') meal[k] = v; else delete meal[k];
+    }
+    if (note && note.trim()) meal.note = note.trim(); else delete meal.note;
+    return meal;
+  };
+
+  const saveEditor = (alsoLog) => {
+    const base = editor.id ? savedMeals.find(m => m.id === editor.id) : null;
+    const meal = buildSavedMeal(base, editor.name, editor.fields, editor.note);
+    if (!meal) return;
+    setSavedMeals(list => (base ? list.map(m => (m.id === meal.id ? meal : m)) : [...list, meal]));
+    setEditor(null);
+    if (alsoLog) addSaved(meal, 1);
+    else showToast(base ? `Updated ${meal.name}` : `Saved ${meal.name}. Tap it any time to log it`, 'success');
+  };
+
+  // --- Type it: parse a description (AI + USDA), unchanged from the old quick-add
   const handleParse = async () => {
     const text = description.trim();
     if (!text) return;
@@ -2637,22 +2430,16 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
       setParseStage('Reading description…');
       const items = await parseMealDescription(text);
       if (items.length === 0) throw new Error('No foods were recognised in that description.');
-
       setParseStage('Looking up foods…');
       const rows = await resolveMealItems(items);
       setParsedRows(rows);
-
-      // Overwriting is intended: the modal is the review surface and nothing is stored
-      // until Save. A macro no row could supply stays blank rather than showing a
-      // partial sum as though it were a total.
+      // Overwriting is intended: nothing is stored until Save. A macro no row could
+      // supply stays blank rather than showing a partial sum as though it were a total.
       const totals = sumMealItems(rows);
-      const toField = (v) => (v === null ? '' : String(v));
-      setProtein(toField(totals.protein));
-      setCarbs(toField(totals.carbs));
-      setFat(toField(totals.fat));
-      setFiber(toField(totals.fiber));
-      setCalories(toField(totals.calories));
-
+      setFields({
+        protein: macroText(totals.protein), calories: macroText(totals.calories),
+        carbs: macroText(totals.carbs), fat: macroText(totals.fat), fiber: macroText(totals.fiber)
+      });
       const matched = rows.filter(r => r.source === 'usda').length;
       showToast(`Parsed ${rows.length} item${rows.length === 1 ? '' : 's'}, ${matched} matched in USDA.`, 'success');
     } catch (err) {
@@ -2664,153 +2451,224 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
     }
   };
 
-  const handleAdd = () => {
-    // CRITICAL FIX: Ensure parseNumberWithSuffix result is converted to Number
-    const prot = Number(parseNumberWithSuffix(protein)) || 0;
-    const cals = Number(parseNumberWithSuffix(calories)) || 0;
+  const handlePhoto = async (file, target) => {
+    setPhotoBusy(true);
+    try {
+      const { name, fields: read } = await readNutritionPhoto(file);
+      if (target === 'editor') {
+        setEditor(ed => ({ ...ed, name: ed.name || name, fields: read }));
+      } else {
+        setFields(read);
+        if (name && !description.trim()) setDescription(name);
+      }
+      showToast('Read the photo. Check the numbers before saving', 'success');
+    } catch (err) {
+      console.error('Photo read failed:', err);
+      showToast(err.message, 'error');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
-    // Note: Allow negative values for corrections (e.g., if user logged wrong meal)
-    // But warn if nothing at all was entered
-    if (prot === 0 && cals === 0 && carbs === '' && fat === '' && fiber === '') {
+  const handleAdd = () => {
+    const prot = Number(parseNumberWithSuffix(fields.protein)) || 0;
+    const cals = Number(parseNumberWithSuffix(fields.calories)) || 0;
+    // Negative values are allowed for corrections, but not an entirely empty meal.
+    if (prot === 0 && cals === 0 && fields.carbs === '' && fields.fat === '' && fields.fiber === '') {
       showToast('Please enter protein, calories, carbs, fat, or fiber', 'error');
       return;
     }
-
-    // Editing spreads the original rather than rebuilding it. A nutrition row imported
-    // from a pre-V3 backup still carries sleepHours/deepSleepPercent/weight/
-    // recoveryRating, and rebuilding would silently drop them. Keeping the original id
-    // is also what makes the save land on the update branch instead of appending a copy.
+    // Editing spreads the original rather than rebuilding it: a row imported from a
+    // pre-V3 backup still carries sleep/weight fields, and keeping the id is what makes
+    // the save update the entry instead of appending a copy.
     const meal = entryToEdit
       ? { ...entryToEdit, date, protein: prot, calories: cals }
       : { id: generateId(), date, protein: prot, calories: cals };
-
-    // Set when entered, delete when cleared. Without the delete, the spread above
-    // would resurrect a macro the user just blanked out.
-    if (carbs !== '') meal.carbs = Number(parseNumberWithSuffix(carbs)) || 0;
-    else delete meal.carbs;
-    if (fat !== '') meal.fat = Number(parseNumberWithSuffix(fat)) || 0;
-    else delete meal.fat;
-    if (fiber !== '') meal.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
-    else delete meal.fiber;
-    // Same set-when-present/delete-when-cleared rule as the macros, so the spread-based
-    // edit path keeps working. The resolved rows and their source markers are NOT stored.
+    // Set when entered, delete when cleared, so the spread can't resurrect a blanked macro.
+    for (const k of MEAL_OPTIONAL_MACROS) {
+      if (String(fields[k]).trim() !== '') meal[k] = Number(parseNumberWithSuffix(fields[k])) || 0;
+      else delete meal[k];
+    }
     if (description.trim() !== '') meal.description = description.trim();
     else delete meal.description;
-    onSave(meal);
 
+    if (keepMeal) {
+      const saved = buildSavedMeal(null, keepName || description, fields, '');
+      if (!saved) return;
+      saved.lastUsedAt = new Date().toISOString();
+      saved.useCount = 1;
+      setSavedMeals(list => [...list, saved]);
+      // Logged under the saved name when nothing was described, so the day's log reads well.
+      if (!meal.description) meal.description = saved.name;
+    }
+    onSave(meal);
     showToast(entryToEdit
       ? `Updated to ${prot}g protein and ${cals} kcal for ${date}.`
-      : `Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
+      : `Added ${prot}g protein and ${cals} kcal${keepMeal ? ' and saved the meal' : ''}.`, 'success');
     onClose();
   };
 
-  return h(Modal, { show: true, onClose, title: entryToEdit ? "🍽️ Edit Meal" : "🍽️ Quick Add Meal" },
-    h('div', { className: 'space-y-4' },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Describe the meal'),
-        h('textarea', {
-          className: 'w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400',
-          rows: 2,
-          value: description,
-          onChange: e => setDescription(e.target.value),
-          placeholder: 'e.g., two Core Power shakes and a handful of shredded cheddar'
+  const tabBtn = (id, label) => h('button', {
+    type: 'button', role: 'tab', 'aria-selected': tab === id ? 'true' : 'false', onClick: () => { setTab(id); setEditor(null); },
+    className: `flex-1 h-10 rounded-full text-sm ${tab === id ? 'bg-accent text-accent-on font-extrabold' : 'font-bold'}`
+  }, label);
+
+  const header = h('div', { className: 'flex items-center gap-3 mb-3' },
+    h('div', { className: 'flex-1 min-w-0' },
+      h('div', { className: 'text-xl font-extrabold' }, isEdit ? 'Edit meal' : 'Add meal'),
+      h('label', { className: 'flex items-center gap-2 text-[13px] text-ink-muted mt-0.5' },
+        'For',
+        h('input', {
+          type: 'date', value: date, onChange: (e) => setDate(e.target.value), 'aria-label': 'Meal date',
+          className: 'bg-transparent text-ink-text font-bold'
         }),
-        h('div', { className: 'flex items-center gap-2 mt-2' },
-          h(Button, {
-            variant: 'secondary',
-            size: 'sm',
-            onClick: handleParse,
-            className: (parseStage || description.trim() === '') ? 'opacity-50' : ''
-          }, 'Parse'),
-          parseStage && h('div', { className: 'flex items-center gap-2 text-xs text-slate-400' },
-            h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
-            h('span', {}, parseStage)
-          )
+        addedCount > 0 && h('span', { className: 'font-bold', style: { color: UI_COLORS.good } }, `· ${addedCount} added`)
+      )
+    ),
+    h('button', {
+      type: 'button', onClick: onClose, 'aria-label': addedCount ? 'Done' : 'Close',
+      className: addedCount
+        ? 'h-11 px-4 rounded-full bg-accent text-accent-on font-extrabold text-sm flex-none'
+        : 'w-11 h-11 flex-none rounded-full border border-ink-line bg-ink flex items-center justify-center'
+    }, addedCount ? 'Done' : '✕')
+  );
+
+  // --- Saved tab ---
+  const renderEditor = () => h('div', { className: 'flex flex-col gap-3' },
+    h('div', { className: 'text-base font-extrabold' }, editor.id ? 'Edit saved meal' : 'Save a meal from its nutrition facts'),
+    h('p', { className: 'text-[13px] text-ink-muted -mt-1.5' }, 'Numbers for one serving. You pick how many servings when you log it.'),
+    h(MacroField, { id: 'sm-name', text: true, label: 'Name', value: editor.name, onChange: v => setEditor(ed => ({ ...ed, name: v })), placeholder: 'e.g. Core Power Elite' }),
+    h(MacroFields, { prefix: 'sm', f: editor.fields, set: (k, v) => setEditor(ed => ({ ...ed, fields: { ...ed.fields, [k]: v } })) }),
+    h(MacroField, { id: 'sm-note', text: true, label: 'Note (optional)', value: editor.note, onChange: v => setEditor(ed => ({ ...ed, note: v })), placeholder: 'e.g. 1 bottle, 14 oz' }),
+    h(PhotoButton, { busy: photoBusy, onFile: (file) => handlePhoto(file, 'editor') }),
+    h('div', { className: 'flex gap-2.5' },
+      h('button', { type: 'button', onClick: () => saveEditor(false), className: 'flex-1 h-12 rounded-full border border-accent text-accent font-extrabold text-[15px]' }, 'Save'),
+      h('button', { type: 'button', onClick: () => saveEditor(true), className: 'flex-1 h-12 rounded-full bg-accent text-accent-on font-extrabold text-[15px]' }, 'Save + log 1')
+    ),
+    h('button', { type: 'button', onClick: () => setEditor(null), className: 'h-11 text-sm font-bold text-ink-muted' }, 'Cancel')
+  );
+
+  const renderMealRow = (m, i) => {
+    const open = openId === m.id;
+    const preview = open ? nutritionFromSavedMeal(m, servings, date) : null;
+    return h('div', { key: m.id, className: i ? 'border-t border-ink-line' : '' },
+      h('div', { className: 'flex items-center gap-3 py-3' },
+        h('button', {
+          type: 'button', onClick: () => { setOpenId(open ? null : m.id); setServings(1); }, 'aria-expanded': open ? 'true' : 'false',
+          className: 'flex-1 min-w-0 text-left'
+        },
+          h('span', { className: 'block text-[15px] font-extrabold truncate' }, m.name),
+          h('span', { className: 'block text-[13px] text-ink-muted truncate' }, savedMealLine(m)),
+          m.note && h('span', { className: 'block text-xs text-ink-muted truncate' }, m.note)
         ),
-        // The review surface. Its whole job is making "looked up" and "guessed" obvious
-        // at a glance, so the source marker is per row and never abbreviated away.
-        parsedRows.length > 0 && h('div', { className: 'mt-3 space-y-2' },
-          parsedRows.map((row, i) =>
-            h('div', { key: i, className: 'bg-slate-900 p-2 rounded text-xs space-y-1' },
-              h('div', { className: 'flex justify-between gap-2' },
-                h('span', { className: 'font-medium text-slate-200 min-w-0 truncate' }, row.name),
-                h('span', { className: 'text-slate-400 shrink-0' }, row.grams === null ? '—' : `${row.grams} g`)
-              ),
-              h('div', { className: 'text-slate-300' },
-                `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${row.calories === null ? '—' : row.calories} kcal`
-              ),
-              // Three states, not two. A generic match is real database data but for a
-              // stand-in food, so it must not read as an exact hit or as a guess.
-              row.source === 'usda'
-                ? h('div', { className: 'text-green-400 truncate' }, `USDA: ${row.matchedName}`)
-                : row.source === 'usda-generic'
-                  ? h('div', { className: 'text-cyan-400 truncate' }, `USDA, similar food: ${row.matchedName}`)
-                  : h('div', { className: 'text-yellow-500' }, 'estimated — no database match')
-            )
-          )
+        h('button', {
+          type: 'button', onClick: () => addSaved(m, 1), 'aria-label': `Log one serving of ${m.name}`,
+          className: 'w-11 h-11 flex-none rounded-full bg-accent text-accent-on text-2xl font-extrabold flex items-center justify-center'
+        }, '+')
+      ),
+      open && h('div', { className: 'pb-3.5 flex flex-col gap-3 anim-fade-in' },
+        h('div', { className: 'flex items-center gap-3' },
+          h('span', { className: 'text-sm font-bold flex-1' }, 'Servings'),
+          h('button', { type: 'button', 'aria-label': 'Fewer servings', disabled: servings <= 0.5, onClick: () => setServings(s => Math.max(0.5, roundTenth(s - 0.5))), className: 'w-11 h-11 rounded-full border border-ink-line text-xl font-extrabold disabled:opacity-40' }, '−'),
+          h('span', { className: 'w-12 text-center text-lg font-extrabold', 'aria-live': 'polite' }, servings),
+          h('button', { type: 'button', 'aria-label': 'More servings', disabled: servings >= 10, onClick: () => setServings(s => Math.min(10, roundTenth(s + 0.5))), className: 'w-11 h-11 rounded-full border border-ink-line text-xl font-extrabold disabled:opacity-40' }, '+')
+        ),
+        h('div', { className: 'text-[13px] text-ink-muted' }, `That's ${savedMealLine(preview)}`),
+        h('button', { type: 'button', onClick: () => addSaved(m, servings), className: 'h-12 rounded-full bg-accent text-accent-on font-extrabold text-[15px]' },
+          `Log ${servings} serving${servings === 1 ? '' : 's'}`),
+        h('div', { className: 'flex gap-2.5' },
+          h('button', {
+            type: 'button', className: 'flex-1 h-11 rounded-full border border-ink-line font-bold text-sm',
+            onClick: () => setEditor({ id: m.id, name: m.name, note: m.note || '', fields: { protein: macroText(m.protein), calories: macroText(m.calories), carbs: macroText(m.carbs), fat: macroText(m.fat), fiber: macroText(m.fiber) } })
+          }, '✏️ Edit'),
+          h('button', { type: 'button', onClick: () => deleteSaved(m), className: 'flex-1 h-11 rounded-full border font-bold text-sm', style: { borderColor: UI_COLORS.bad, color: UI_COLORS.bad } }, '🗑️ Delete')
         )
+      )
+    );
+  };
+
+  const renderSaved = () => editor ? renderEditor() : h('div', { className: 'flex flex-col gap-3' },
+    savedMeals.length > 0 && h(Fragment, null,
+      h('label', { className: 'sr-only', htmlFor: 'saved-meal-search' }, 'Search saved meals'),
+      h('input', {
+        id: 'saved-meal-search', type: 'search', value: query, autoComplete: 'off', onChange: (e) => setQuery(e.target.value),
+        placeholder: 'Search your saved meals', className: 'w-full h-12 rounded-full bg-ink border border-ink-line px-4 text-base'
+      })
+    ),
+    savedMeals.length === 0
+      ? h('div', { className: 'text-center py-4' },
+          h('div', { className: 'text-base font-extrabold' }, 'No saved meals yet'),
+          h('p', { className: 'text-sm text-ink-muted mt-1' }, 'Save the meals you eat often, with their nutrition facts, and log them in one tap.'))
+      : h('div', { className: 'bg-ink border border-ink-line rounded-3xl px-4' },
+          shownMeals.length ? shownMeals.map(renderMealRow) : h('div', { className: 'py-4 text-sm text-ink-muted' }, 'No saved meal matches.')),
+    h('button', {
+      type: 'button',
+      onClick: () => setEditor({ id: null, name: query.trim(), note: '', fields: { protein: '', calories: '', carbs: '', fat: '', fiber: '' } }),
+      className: 'h-12 rounded-full border border-dashed border-ink-line text-ink-muted font-extrabold text-[15px]'
+    }, '＋ Save a new meal from nutrition facts')
+  );
+
+  // --- Type it tab ---
+  const renderType = () => h('div', { className: 'flex flex-col gap-3' },
+    h('div', null,
+      h('label', { htmlFor: 'meal-desc', className: 'block text-[13px] font-bold text-ink-muted mb-1' }, 'Describe the meal'),
+      h('textarea', {
+        id: 'meal-desc', rows: 2, value: description, onChange: e => setDescription(e.target.value),
+        placeholder: 'e.g. two Core Power shakes and a handful of shredded cheddar',
+        className: 'w-full p-3 rounded-2xl bg-ink border border-ink-line text-base'
+      }),
+      h('div', { className: 'flex flex-wrap items-center gap-2 mt-2' },
+        h('button', {
+          type: 'button', onClick: handleParse, disabled: !!parseStage || description.trim() === '',
+          className: 'h-11 px-4 rounded-full border border-accent text-accent font-extrabold text-sm disabled:opacity-40'
+        }, '✨ Work out the numbers'),
+        h(PhotoButton, { busy: photoBusy, onFile: (file) => handlePhoto(file, 'type') }),
+        parseStage && h('span', { className: 'flex items-center gap-2 text-xs text-ink-muted' },
+          h('span', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-accent' }), parseStage)
       ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-        h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
-        h(Input, {
-          type: 'text',
-          value: protein,
-          onChange: e => setProtein(parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 30 or 3k'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Carbs (g)'),
-        h(Input, {
-          type: 'text',
-          value: carbs,
-          onChange: e => setCarbs(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 50 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fat (g)'),
-        h(Input, {
-          type: 'text',
-          value: fat,
-          onChange: e => setFat(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 20 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fiber (g)'),
-        h(Input, {
-          type: 'text',
-          value: fiber,
-          onChange: e => setFiber(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 8 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
-        h(Input, {
-          type: 'text',
-          value: calories,
-          onChange: e => setCalories(parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 500 or 3k'
-        })
-      ),
-      h(MacroCalorieHint, { protein, carbs, fat, fiber, calories, onUseDerived: setCalories }),
-      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, entryToEdit ? 'Save Changes' : 'Add Entry')
-    )
+      // Review surface: "looked up" vs "guessed" stays obvious per row.
+      parsedRows.length > 0 && h('div', { className: 'mt-3 space-y-2' },
+        parsedRows.map((row, i) => h('div', { key: i, className: 'bg-ink border border-ink-line p-2.5 rounded-2xl text-xs space-y-1' },
+          h('div', { className: 'flex justify-between gap-2' },
+            h('span', { className: 'font-bold min-w-0 truncate' }, row.name),
+            h('span', { className: 'text-ink-muted shrink-0' }, row.grams === null ? '—' : `${row.grams} g`)),
+          h('div', { className: 'text-ink-muted' },
+            `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${formatMacro(macroValue(row, 'calories'), ' kcal')}`),
+          row.source === 'usda'
+            ? h('div', { className: 'truncate', style: { color: UI_COLORS.good } }, `USDA: ${row.matchedName}`)
+            : row.source === 'usda-generic'
+              ? h('div', { className: 'truncate text-accent' }, `USDA, similar food: ${row.matchedName}`)
+              : h('div', { style: { color: UI_COLORS.warn } }, 'estimated — no database match')
+        ))
+      )
+    ),
+    h(MacroFields, { prefix: 'meal', f: fields, set: setField }),
+    h('label', { className: 'flex items-center gap-3 p-3.5 rounded-2xl bg-ink border border-ink-line cursor-pointer' },
+      h('input', { type: 'checkbox', checked: keepMeal, onChange: (e) => setKeepMeal(e.target.checked), className: 'w-5 h-5 accent-[#4C9BFF]' }),
+      h('span', { className: 'flex-1' },
+        h('span', { className: 'block text-[15px] font-bold' }, '⭐ Save as a meal for next time'),
+        h('span', { className: 'block text-xs text-ink-muted' }, 'Adds it to your Saved tab with these numbers as one serving'))
+    ),
+    keepMeal && h(MacroField, { id: 'keep-name', text: true, label: 'Saved meal name', value: keepName, onChange: setKeepName, placeholder: description.trim() || 'e.g. Chicken rice bowl' }),
+    h('button', { type: 'button', onClick: handleAdd, className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg' },
+      isEdit ? 'Save changes' : 'Add meal')
+  );
+
+  return h(Sheet, { label: isEdit ? 'Edit meal' : 'Add meal', onClose },
+    header,
+    !isEdit && h('div', { className: 'flex gap-1 p-1 rounded-full bg-ink border border-ink-line mb-3', role: 'tablist' },
+      tabBtn('saved', `⭐ Saved${savedMeals.length ? ` (${savedMeals.length})` : ''}`),
+      tabBtn('type', '✍️ Type it')),
+    tab === 'saved' && !isEdit ? renderSaved() : renderType()
   );
 };
 
 // 🌙 NEW: LOG SLEEP FORM
-const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries }) => {
+const LogSleepForm = ({ onSave, onCancel, entryToEdit, sleepEntries, initialDate = null }) => {
   const { showToast } = useToast();
 
   // Form state
-  const [date, setDate] = useState(formatDate(new Date()));
+  const [date, setDate] = useState(initialDate || formatDate(new Date()));
   const [sleepHours, setSleepHours] = useState(8);
   const [sleepMinutes, setSleepMinutes] = useState(0);
   const [deepSleepHours, setDeepSleepHours] = useState(1);
@@ -2973,34 +2831,118 @@ const CollapsibleSection = ({ title, isOpen, onToggle, children, icon = '📋' }
   );
 };
 
-// --- 📜 WORKOUT LOG FORM (UPDATED) ---
-const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries }) => {
+// --- 📜 WORKOUT LOGGING (redesign, Nov 2026) ---
+// One card per exercise, a number keypad, a rest timer you start yourself and a
+// record celebration. Saves exactly the same entry shape as the old form.
+// In-progress workouts survive a reload, a swipe-away or a trip to another
+// screen: the form keeps a local draft until the workout is saved or discarded.
+// Local only (not one of the synced keys), and ignored once it is 18 hours old.
+const WORKOUT_DRAFT_KEY = 'hypertrophy-workout-draft';
+const REST_SECONDS_KEY = 'hypertrophy-rest-seconds';
+const readWorkoutDraft = () => {
+  try {
+    const d = JSON.parse(localStorage.getItem(WORKOUT_DRAFT_KEY) || 'null');
+    return d && Array.isArray(d.exercises) && Date.now() - (d.savedAt || 0) < 18 * 3600 * 1000 ? d : null;
+  } catch (e) { return null; }
+};
+const clearWorkoutDraft = () => { try { localStorage.removeItem(WORKOUT_DRAFT_KEY); } catch (e) { /* ignore */ } };
+
+const isBlankVal = (v) => v === '' || v === null || v === undefined;
+const nowHHMM = () => {
+  const now = new Date();
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
+// Saved exercise -> form exercise. reps[] decides the set count (it is what volume
+// is computed from); weights[] is padded to match; old single-weight logs expand.
+// done[] is form-only: sets that already hold numbers count as done.
+const exerciseToForm = (ex) => {
+  const sets = Array.isArray(ex.reps) && ex.reps.length ? ex.reps.length : Math.max(1, Number(ex.sets) || 3);
+  const reps = Array.isArray(ex.reps) ? [...ex.reps] : Array(sets).fill(isBlankVal(ex.reps) ? '' : ex.reps);
+  const weights = Array.isArray(ex.weights) ? [...ex.weights] : Array(sets).fill(isBlankVal(ex.weight) ? '' : ex.weight);
+  while (reps.length < sets) reps.push('');
+  while (weights.length < sets) weights.push('');
+  reps.length = sets;
+  weights.length = sets;
+  return {
+    ...ex,
+    sets,
+    reps,
+    weights,
+    rpe: ex.rpe || 8,
+    done: reps.map((r, i) => !isBlankVal(r) || !isBlankVal(weights[i]))
+  };
+};
+
+// Sets with neither weight nor reps typed are dropped at save, so an untouched row
+// never becomes a logged 0 x 0 set. Exercises with no name or no sets are dropped.
+const cleanFormExercises = (list) => list
+  .filter(ex => String(ex.name || '').trim())
+  .map(ex => {
+    const keep = ex.reps.map((r, i) => !(isBlankVal(r) && isBlankVal(ex.weights[i])));
+    const reps = ex.reps.filter((_, i) => keep[i]);
+    const weights = ex.weights.filter((_, i) => keep[i]);
+    return { ...ex, name: String(ex.name).trim(), reps, weights, sets: reps.length };
+  })
+  .filter(ex => ex.sets > 0);
+
+const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, allExerciseNames, setAllExerciseNames, trainingCycle, plannedToday, cycleDay, sleepEntries, suggestedSets, initialDate = null, initialType = null }) => {
   const { showToast } = useToast();
+  const isEdit = !!(entryToEdit && entryToEdit.id);
+  const entryId = isEdit ? entryToEdit.id : null;
+
+  // A new workout for today picks up where a draft left off. A past day opened from
+  // the Calendar is a quick back-fill: no draft is read or written for it, so it can
+  // never clobber a live workout's draft.
+  const startedForPastDay = !isEdit && !!initialDate && initialDate !== formatDate(new Date());
+  const usesDraft = !isEdit && !startedForPastDay;
+  const draftRef = useRef(usesDraft ? readWorkoutDraft() : null);
+  const draft = draftRef.current;
+
   // Form state
-  const [date, setDate] = useState(formatDate(new Date()));
-  const [workoutTime, setWorkoutTime] = useState(() => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  });
-  const [trainingType, setTrainingType] = useState(plannedToday);
-  const [exercises, setExercises] = useState([]);
-  const [cardio, setCardio] = useState([]);
+  const [date, setDate] = useState(draft?.date || initialDate || formatDate(new Date()));
+  // Back-filled workouts default to noon rather than "now" on some other day.
+  const [workoutTime, setWorkoutTime] = useState(draft?.workoutTime || (startedForPastDay ? '12:00' : nowHHMM()));
+  const [trainingType, setTrainingType] = useState(draft?.trainingType || initialType || plannedToday);
+  const [exercises, setExercises] = useState(() => (draft?.exercises || []).map(exerciseToForm).map((ex, i) => ({ ...ex, done: draft.exercises[i].done || ex.done })));
+  const [cardio, setCardio] = useState(draft?.cardio || []);
   const [duration, setDuration] = useState(60);
-  const [caloriesBurned, setCaloriesBurned] = useState(''); // NEW: Optional calories burned field
-
-  // Sleep lives in sleepEntries (post-V3), not in the nutrition array. Reading it
-  // from nutrition pinned todaySleepPercent at 0, which silently degraded every
-  // Smart Coach suggestion and kept the 'no sleep logged' banner permanently on.
-  const todaysSleepEntry = (sleepEntries || []).find(s => s.date === formatDate(new Date()));
-  const todaySleepPercent = Number(todaysSleepEntry?.deepSleepPercent) > 0
-    ? Number(todaysSleepEntry.deepSleepPercent)
-    : 0;
+  const [caloriesBurned, setCaloriesBurned] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [cardioSectionOpen, setCardioSectionOpen] = useState((draft?.cardio || []).length > 0);
 
-  // UI state for collapsible sections and quick log
-  const [quickLogMode, setQuickLogMode] = useState(false);
-  const [trainingSectionOpen, setTrainingSectionOpen] = useState(true);
-  const [cardioSectionOpen, setCardioSectionOpen] = useState(false);
+  // Flow state
+  const [activeIndex, setActiveIndex] = useState(draft?.activeIndex ?? 0);
+  const [keypad, setKeypad] = useState(null);   // { ex, set, field, weight, reps, fresh }
+  const [sheet, setSheet] = useState(null);     // 'add' | 'options' | 'details'
+  const [renameIndex, setRenameIndex] = useState(null);
+  const [rest, setRest] = useState(null);       // { endsAt, total }
+  const [celebration, setCelebration] = useState(null);
+  const [sessionPRs, setSessionPRs] = useState(draft?.sessionPRs || {}); // name -> [weights]
+  const [phase, setPhase] = useState('log');    // 'log' | 'summary'
+  const durationTouched = useRef(false);
+
+  // Workout timer: new workouts only, from the first exercise added.
+  const [workoutStartTime, setWorkoutStartTime] = useState(draft?.startTime || null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  useEffect(() => {
+    if (usesDraft && (exercises.length > 0 || cardio.length > 0) && !workoutStartTime) setWorkoutStartTime(Date.now());
+  }, [exercises.length, cardio.length]);
+  useEffect(() => {
+    if (!workoutStartTime) return undefined;
+    const tick = () => setElapsedTime(Math.floor((Date.now() - workoutStartTime) / 1000));
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [workoutStartTime]);
+
+  useEffect(() => {
+    if (draft && draft.exercises.length) showToast('Picked up your workout where you left off');
+  }, []);
+
+  // Sleep lives in sleepEntries (post-V3), not in the nutrition array.
+  const todaysSleepEntry = (sleepEntries || []).find(s => s.date === formatDate(new Date()));
+  const todaySleepPercent = Number(todaysSleepEntry?.deepSleepPercent) > 0 ? Number(todaysSleepEntry.deepSleepPercent) : 0;
 
   const cardioMachines = getAllCardioNames();
   const cardioTotals = getCardioTotals({ cardio });
@@ -3008,93 +2950,67 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
   // An imported Fitbit placeholder is typed 'Workout' until you pick the real split.
   const availableWorkoutTypes = [...new Set([plannedToday, 'REST', ...trainingCycle, ...WORKOUT_TYPES, ...(entryToEdit?.trainingType ? [entryToEdit.trainingType] : [])])];
 
-  // Get recent exercises (last 10 unique)
+  // Most recent first, unique, last 10.
   const recentExercises = [...new Set(
-    allEntries
-      .flatMap(e => (e.exercises || []).map(ex => ex.name))
-      .filter(Boolean)
-      .reverse()
+    allEntries.flatMap(e => (e.exercises || []).map(ex => ex.name)).filter(Boolean).reverse()
   )].slice(0, 10);
 
-  // Workout timer
-  const [workoutStartTime, setWorkoutStartTime] = useState(null);
-  const [elapsedTime, setElapsedTime] = useState(0);
-
+  // Populate from the entry being edited (once).
   useEffect(() => {
-    if ((exercises.length > 0 || cardio.length > 0) && !workoutStartTime) {
-      setWorkoutStartTime(Date.now());
+    if (!entryToEdit) return;
+    setDate(entryToEdit.date);
+    if (entryToEdit.loggedAt) {
+      const t = new Date(entryToEdit.loggedAt);
+      setWorkoutTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
     }
-  }, [exercises.length, cardio.length]);
+    setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
+    setExercises((entryToEdit.exercises || []).map(exerciseToForm));
+    const normalizedCardio = normalizeCardioForForm(entryToEdit.cardio);
+    setCardio(normalizedCardio);
+    if (normalizedCardio.length > 0) setCardioSectionOpen(true);
+    setDuration(entryToEdit.duration || 60);
+    setCaloriesBurned(entryToEdit.caloriesBurned || '');
+    setActiveIndex(0);
+  }, [entryToEdit]);
 
+  // Keep the draft current while a new workout is being logged.
   useEffect(() => {
-    if (!workoutStartTime) return;
-    const interval = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - workoutStartTime) / 1000));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [workoutStartTime]);
+    if (!usesDraft) return;
+    if (exercises.length === 0 && cardio.length === 0) return;
+    try {
+      localStorage.setItem(WORKOUT_DRAFT_KEY, JSON.stringify({
+        savedAt: Date.now(), date, workoutTime, trainingType, exercises, cardio,
+        startTime: workoutStartTime, activeIndex, sessionPRs
+      }));
+    } catch (e) { /* storage full: the workout is still on screen */ }
+  }, [exercises, cardio, date, workoutTime, trainingType, activeIndex, sessionPRs]);
 
-  const formatElapsedTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  // --- History lookups (this entry excluded) ---
+  const lastTimeFor = (name) => {
+    if (!name) return null;
+    for (let i = allEntries.length - 1; i >= 0; i--) {
+      const entry = allEntries[i];
+      if (entry.id === entryId) continue;
+      const ex = (entry.exercises || []).find(x => x.name === name);
+      if (ex) {
+        const f = exerciseToForm(ex);
+        return { date: entry.date, rpe: ex.rpe, eachHand: ex.eachHand, sets: f.reps.map((r, k) => ({ weight: f.weights[k], reps: r })) };
+      }
+    }
+    return null;
+  };
+  const bestFor = (name) => (name ? getPreviousPR(name, allEntries, entryId) : 0);
+  const bestDateFor = (name, weight) => {
+    for (const entry of allEntries) {
+      if (entry.id === entryId) continue;
+      const ex = (entry.exercises || []).find(x => x.name === name);
+      if (ex && getMaxWeight(Array.isArray(ex.weights) ? ex.weights : [ex.weight]) === weight) {
+        return parseLocalDate(entry.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+    }
+    return null;
   };
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        const form = document.querySelector('form');
-        if (form) form.requestSubmit();
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel]);
-
-  // Populate form
-  useEffect(() => {
-    if (entryToEdit) {
-      setDate(entryToEdit.date);
-      // Pre-populate time from loggedAt if available
-      if (entryToEdit.loggedAt) {
-        const t = new Date(entryToEdit.loggedAt);
-        setWorkoutTime(`${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`);
-      }
-      setTrainingType(entryToEdit.trainingType || 'Push/Biceps');
-      // Convert old format exercises to new format with weights array
-      const normalizedExercises = (entryToEdit.exercises || []).map(ex => {
-        const weights = Array.isArray(ex.weights)
-          ? [...ex.weights]
-          : (ex.weight ? Array(ex.sets || 3).fill(ex.weight) : ['', '', '']);
-        return {
-          ...ex,
-          weights: weights,
-          rpe: ex.rpe || 8
-        };
-      });
-      setExercises(normalizedExercises);
-      // Entries saved before cardio existed have no `cardio` key -> empty list
-      const normalizedCardio = normalizeCardioForForm(entryToEdit.cardio);
-      setCardio(normalizedCardio);
-      if (normalizedCardio.length > 0) setCardioSectionOpen(true);
-      setDuration(entryToEdit.duration || 60);
-      setCaloriesBurned(entryToEdit.caloriesBurned || '');
-    } else {
-      setTrainingType(plannedToday);
-      setCardio([]);
-    }
-  }, [entryToEdit, allEntries, plannedToday]);
-
-  // --- Exercise Handlers ---
-  const addExercise = (data = null) => {
-    setExercises([...exercises, data || { name: '', weights: ['', '', ''], eachHand: false, sets: 3, reps: ['', '', ''], rpe: 8 }]);
-  };
   // Default for "Weight is each hand". Your own last log of this exact exercise wins:
   // it already encodes what a name rule cannot see -- a dumbbell skull-crusher is one
   // dumbbell held in both hands, so it is NOT each hand. The dumbbell name rule only
@@ -3103,103 +3019,182 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     const trimmed = String(name || '').trim();
     if (!trimmed) return false;
     for (let i = allEntries.length - 1; i >= 0; i--) {
-      const match = (allEntries[i].exercises || [])
-        .find(ex => ex.name === trimmed && typeof ex.eachHand === 'boolean');
+      const match = (allEntries[i].exercises || []).find(ex => ex.name === trimmed && typeof ex.eachHand === 'boolean');
       if (match) return match.eachHand;
     }
     return isDumbbellExercise(trimmed);
   };
 
-  const updateExercise = (index, field, value) => {
-    const newExercises = [...exercises];
-    newExercises[index] = { ...newExercises[index], [field]: value };
-    if (field === 'name') {
-      // Follow the name, but only when its default actually changes. That way a box
-      // you ticked or unticked by hand survives typo fixes, while switching to a
-      // different kind of exercise still updates it.
-      const before = defaultEachHandFor(exercises[index].name);
-      const after = defaultEachHandFor(value);
-      if (before !== after) newExercises[index].eachHand = after;
-    }
-    if (field === 'sets') {
-      const newSets = Number(value) || 0;
-      // Resize reps array
-      const newReps = new Array(newSets).fill('');
-      for (let i = 0; i < Math.min(newReps.length, newExercises[index].reps.length); i++) {
-        newReps[i] = newExercises[index].reps[i];
-      }
-      newExercises[index].reps = newReps;
+  // --- Exercise edits ---
+  const patchExercise = (i, fn) => setExercises(list => list.map((ex, k) => (k === i ? fn(ex) : ex)));
+  const setAt = (arr, idx, val) => { const next = [...arr]; next[idx] = val; return next; };
 
-      // Resize weights array
-      const newWeights = new Array(newSets).fill('');
-      const oldWeights = newExercises[index].weights || [];
-      for (let i = 0; i < Math.min(newWeights.length, oldWeights.length); i++) {
-        newWeights[i] = oldWeights[i];
-      }
-      newExercises[index].weights = newWeights;
-    }
-    setExercises(newExercises);
+  const addExerciseNamed = (name) => {
+    const last = lastTimeFor(name);
+    const count = last ? last.sets.length : 3;
+    const ex = {
+      name,
+      sets: count,
+      weights: Array(count).fill(''),
+      reps: Array(count).fill(''),
+      done: Array(count).fill(false),
+      rpe: (last && last.rpe) || 8,
+      eachHand: defaultEachHandFor(name)
+    };
+    setExercises(list => [...list, ex]);
+    setActiveIndex(exercises.length);
   };
-  const updateExerciseRep = (exIndex, repIndex, value) => {
-    const newExercises = [...exercises];
-    const newReps = [...newExercises[exIndex].reps];
-    newReps[repIndex] = value;
-    newExercises[exIndex] = { ...newExercises[exIndex], reps: newReps };
-    setExercises(newExercises);
-  };
-  const updateExerciseWeight = (exIndex, weightIndex, value) => {
-    const newExercises = [...exercises];
-    const newWeights = [...(newExercises[exIndex].weights || [])];
-    newWeights[weightIndex] = value;
-    // Auto-propagate Set 1 weight to all empty downstream sets
-    if (weightIndex === 0 && value) {
-      for (let i = 1; i < newWeights.length; i++) {
-        if (!newWeights[i]) newWeights[i] = value;
-      }
-    }
-    newExercises[exIndex] = { ...newExercises[exIndex], weights: newWeights };
-    setExercises(newExercises);
-  };
-  const copyWeightToAllSets = (exIndex) => {
-    const newExercises = [...exercises];
-    const firstWeight = newExercises[exIndex].weights?.[0] || '';
-    if (firstWeight) {
-      const numSets = newExercises[exIndex].sets || 0;
-      newExercises[exIndex].weights = new Array(numSets).fill(firstWeight);
-      setExercises(newExercises);
-      showToast('Weight copied to all sets!');
-    }
-  };
-  const removeExercise = (index) => {
-    setExercises(exercises.filter((_, i) => i !== index));
-  };
-  const prefillExercise = (index, exName) => {
-    const lastEntry = [...allEntries].reverse().find(entry =>
-      entry.exercises && entry.exercises.some(ex => ex.name === exName)
-    );
-    if (lastEntry) {
-      const lastEx = lastEntry.exercises.find(ex => ex.name === exName);
-      if (lastEx) {
-        const newExercises = [...exercises];
-        // Convert old format to new format if needed
-        const weights = Array.isArray(lastEx.weights)
-          ? [...lastEx.weights]
-          : (lastEx.weight ? Array(lastEx.sets || 3).fill(lastEx.weight) : ['', '', '']);
 
-        newExercises[index] = {
-          ...lastEx,
-          weights: weights,
-          rpe: lastEx.rpe || 8,
-          // Older logs can lack the key; the resolver walks back to the last log
-          // that has one, then falls back to the dumbbell rule.
-          eachHand: defaultEachHandFor(exName)
-        };
-        setExercises(newExercises);
-        showToast('Exercise pre-filled!');
-      }
-    } else {
-      updateExercise(index, 'name', exName);
+  const renameExercise = (i, name) => {
+    // Follow the name only when its each-hand default actually changes, so a box set
+    // by hand survives typo fixes but a different kind of exercise still updates it.
+    const before = defaultEachHandFor(exercises[i].name);
+    const after = defaultEachHandFor(name);
+    patchExercise(i, ex => ({ ...ex, name, ...(before !== after ? { eachHand: after } : {}) }));
+  };
+
+  const addSet = (i) => patchExercise(i, ex => ({
+    ...ex, sets: ex.reps.length + 1, weights: [...ex.weights, ''], reps: [...ex.reps, ''], done: [...(ex.done || []), false]
+  }));
+  const removeLastSet = (i) => patchExercise(i, ex => (ex.reps.length <= 1 ? ex : {
+    ...ex, sets: ex.reps.length - 1, weights: ex.weights.slice(0, -1), reps: ex.reps.slice(0, -1), done: (ex.done || []).slice(0, ex.reps.length - 1)
+  }));
+  const copyWeightToAllSets = (i) => {
+    const ex = exercises[i];
+    const first = ex.weights.find(w => !isBlankVal(w));
+    if (isBlankVal(first)) { showToast('Enter a weight on one set first'); return; }
+    patchExercise(i, x => ({ ...x, weights: x.weights.map((w, k) => ((x.done || [])[k] ? w : first)) }));
+    showToast('Same weight on every set left to do');
+  };
+  const moveExercise = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= exercises.length) return;
+    setExercises(list => { const next = [...list]; [next[i], next[j]] = [next[j], next[i]]; return next; });
+    setActiveIndex(j);
+  };
+  const removeExercise = (i) => {
+    const ex = exercises[i];
+    if ((ex.done || []).some(Boolean) && !window.confirm(`Remove ${ex.name || 'this exercise'} and its logged sets?`)) return;
+    setExercises(list => list.filter((_, k) => k !== i));
+    setActiveIndex(a => Math.max(0, Math.min(a > i ? a - 1 : a, exercises.length - 2)));
+    setSheet(null);
+  };
+
+  // What to put in a set you haven't typed: weight follows your previous set today
+  // (or this set last time); reps follow this set last time (or your previous set).
+  const suggestFor = (i, s) => {
+    const ex = exercises[i];
+    const last = lastTimeFor(ex.name);
+    const lastSet = last && (last.sets[s] || last.sets[last.sets.length - 1]);
+    let prevToday = null;
+    for (let k = s - 1; k >= 0; k--) if ((ex.done || [])[k]) { prevToday = { weight: ex.weights[k], reps: ex.reps[k] }; break; }
+    return {
+      weight: prevToday && !isBlankVal(prevToday.weight) ? prevToday.weight : (lastSet ? lastSet.weight : ''),
+      reps: lastSet && !isBlankVal(lastSet.reps) ? lastSet.reps : (prevToday ? prevToday.reps : '')
+    };
+  };
+
+  // --- Records ---
+  const sessionBestFor = (name) => Math.max(bestFor(name), ...(sessionPRs[name] || [0]));
+  const checkRecord = (name, weight, reps) => {
+    const w = Number(weight) || 0;
+    const prev = bestFor(name);
+    if (!name || w <= 0 || prev <= 0) return; // first time on an exercise isn't a record
+    const sessionBest = sessionBestFor(name);
+    if (w <= sessionBest) return;
+    const nextPRs = { ...sessionPRs, [name]: [...(sessionPRs[name] || []), w] };
+    setSessionPRs(nextPRs);
+    if (!getUiPrefs().celebrations) {
+      showToast(`🏆 New record: ${name} ${w} lb`, 'success');
+      return;
     }
+    setCelebration({
+      exercise: name, weight: w, reps: Number(reps) || 0,
+      oldBest: sessionBest, oldDate: sessionBest === prev ? bestDateFor(name, prev) : 'Earlier today',
+      recordCount: Object.keys(nextPRs).length
+    });
+  };
+
+  // --- Rest timer (only when you start it) ---
+  const restSeconds = () => {
+    const saved = Number(localStorage.getItem(REST_SECONDS_KEY));
+    return saved >= 15 && saved <= 900 ? saved : 120;
+  };
+  const startRest = () => {
+    const total = restSeconds();
+    setRest({ endsAt: Date.now() + total * 1000, total });
+  };
+  const adjustRest = (delta) => setRest(r => {
+    if (!r) return r;
+    const total = Math.max(15, r.total + delta);
+    try { localStorage.setItem(REST_SECONDS_KEY, String(total)); } catch (e) { /* ignore */ }
+    return { endsAt: r.endsAt + delta * 1000, total };
+  });
+  const finishRest = () => {
+    setRest(null);
+    if (navigator.vibrate) navigator.vibrate([300, 120, 300]);
+    showToast("Rest's up. Next set 💪");
+  };
+
+  // --- Logging a set ---
+  const commitSet = (i, s, weight, reps, thenRest) => {
+    const name = exercises[i].name;
+    patchExercise(i, ex => ({
+      ...ex,
+      weights: setAt(ex.weights, s, isBlankVal(weight) ? '' : String(weight)),
+      reps: setAt(ex.reps, s, isBlankVal(reps) ? '' : String(reps)),
+      done: setAt(ex.done || [], s, true)
+    }));
+    checkRecord(name, weight, reps);
+    if (thenRest) startRest();
+  };
+
+  const openKeypad = (i, s, field) => {
+    const ex = exercises[i];
+    const sug = suggestFor(i, s);
+    setActiveIndex(i);
+    setKeypad({
+      ex: i, set: s, field,
+      weight: String(isBlankVal(ex.weights[s]) ? (sug.weight ?? '') : ex.weights[s]),
+      reps: String(isBlankVal(ex.reps[s]) ? (sug.reps ?? '') : ex.reps[s]),
+      fresh: { weight: true, reps: true }
+    });
+  };
+
+  const toggleDone = (i, s) => {
+    const ex = exercises[i];
+    if ((ex.done || [])[s]) { patchExercise(i, x => ({ ...x, done: setAt(x.done || [], s, false) })); return; }
+    const sug = suggestFor(i, s);
+    const weight = isBlankVal(ex.weights[s]) ? sug.weight : ex.weights[s];
+    const reps = isBlankVal(ex.reps[s]) ? sug.reps : ex.reps[s];
+    if (isBlankVal(weight) && isBlankVal(reps)) { openKeypad(i, s, 'weight'); return; }
+    commitSet(i, s, weight, reps, false);
+  };
+
+  const keypadKey = (k) => setKeypad(kp => {
+    const f = kp.field;
+    let v = kp.fresh[f] ? '' : kp[f];
+    if (k === '⌫') v = (kp.fresh[f] ? kp[f] : v).slice(0, -1);
+    else if (k === '.') { if (f === 'reps' || v.includes('.')) return kp; v = (v || '0') + '.'; }
+    else if (v.length < 6) v = v === '0' ? k : v + k;
+    return { ...kp, [f]: v, fresh: { ...kp.fresh, [f]: false } };
+  });
+  const keypadChip = (d) => setKeypad(kp => {
+    if (d === 'same') {
+      const last = lastTimeFor(exercises[kp.ex].name);
+      const s = last && (last.sets[kp.set] || last.sets[last.sets.length - 1]);
+      if (!s) { showToast('No earlier log of this exercise'); return kp; }
+      return { ...kp, weight: String(s.weight ?? ''), reps: String(s.reps ?? ''), fresh: { weight: false, reps: false } };
+    }
+    const f = kp.field;
+    const next = Math.max(0, Math.round(((Number(kp[f]) || 0) + d) * 10) / 10);
+    return { ...kp, [f]: String(next), fresh: { ...kp.fresh, [f]: false } };
+  });
+  const keypadSave = (thenRest) => {
+    const kp = keypad;
+    setKeypad(null);
+    if (isBlankVal(kp.weight) && isBlankVal(kp.reps)) return;
+    commitSet(kp.ex, kp.set, kp.weight, kp.reps, thenRest);
   };
 
   // --- Cardio Handlers ---
@@ -3231,88 +3226,81 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     }
   };
 
-  // --- Submit Handler (Upgraded) ---
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    const totalSets = trainingType === 'REST' ? 0 : exercises.reduce((sum, ex) => sum + Number(ex.sets), 0);
-
-    const newNames = new Set(allExerciseNames);
-    exercises.forEach(ex => {
-      if (ex.name && !newNames.has(ex.name)) newNames.add(ex.name);
+  // --- Building the saved entry (same shape as before the redesign) ---
+  const buildEntry = () => {
+    const cleaned = trainingType === 'REST' ? [] : cleanFormExercises(exercises);
+    const savedExercises = cleaned.map(ex => {
+      const weights = (ex.weights || []).map(w => Number(w) || 0);
+      const reps = ex.reps.map(r => Number(r) || 0);
+      return {
+        name: ex.name,
+        weights,
+        eachHand: ex.eachHand,
+        sets: Number(ex.sets),
+        reps,
+        rpe: Number(ex.rpe),
+        volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand)
+      };
     });
-    setAllExerciseNames(Array.from(newNames));
-
-    const entry = {
+    return {
       id: entryToEdit ? entryToEdit.id : generateId(),
       date,
       loggedAt: (() => {
         // Combine date + workoutTime into a precise local ISO timestamp
         const [year, month, day] = date.split('-').map(Number);
         const [hours, minutes] = workoutTime.split(':').map(Number);
-        const d = new Date(year, month - 1, day, hours, minutes, 0);
-        return d.toISOString();
+        return new Date(year, month - 1, day, hours, minutes, 0).toISOString();
       })(),
       trainingType,
       plannedTrainingType: plannedToday,
       cycleDay: cycleDay,
-      exercises: trainingType === 'REST' ? [] : exercises.map(ex => {
-        const weights = (ex.weights || []).map(w => Number(w) || 0);
-        const reps = ex.reps.map(r => Number(r) || 0);
-        return {
-          name: ex.name,
-          weights: weights,
-          eachHand: ex.eachHand,
-          sets: Number(ex.sets),
-          reps: reps,
-          rpe: Number(ex.rpe),
-          volumeLoad: calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand)
-        };
-      }),
-      totalSets,
-      totalVolume: exercises.reduce((sum, ex) => {
-        const weights = (ex.weights || []).map(w => Number(w) || 0);
-        const reps = ex.reps.map(r => Number(r) || 0);
-        return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
-      }, 0),
+      exercises: savedExercises,
+      totalSets: trainingType === 'REST' ? 0 : savedExercises.reduce((sum, ex) => sum + Number(ex.sets), 0),
+      totalVolume: savedExercises.reduce((sum, ex) => sum + ex.volumeLoad, 0),
       duration: Number(duration),
-      caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null, // NEW: Optional calories burned
-      // NEW: Cardio sessions - time + steps instead of weight x reps.
+      caloriesBurned: caloriesBurned ? Number(caloriesBurned) : null,
       // Rows with no machine name are dropped so blank rows never persist.
       cardio: trainingType === 'REST' ? [] : cardio
         .filter(c => c.name && String(c.name).trim())
         .map(toSavedCardioItem),
     };
-
-    const prsFound = [];
-    if (entry.trainingType !== 'REST') {
-      entry.exercises.forEach(ex => {
-        const prevPR = getPreviousPR(ex.name, allEntries, entry.id);
-        const maxWeight = getMaxWeight(ex.weights);
-        if (maxWeight > 0 && maxWeight > prevPR) {
-          const percent = prevPR > 0 ? `+${((maxWeight - prevPR) / prevPR * 100).toFixed(0)}%` : '+100%';
-          prsFound.push(`🏆 New PR! ${ex.name}: ${maxWeight} lbs (${percent})`);
-        }
-      });
-    }
-
-    // Haptic feedback on PR detection
-    if (prsFound.length > 0 && 'vibrate' in navigator) {
-      // Three short bursts for celebration: [200ms vibrate, 100ms pause, 200ms vibrate, 100ms pause, 200ms vibrate]
-      navigator.vibrate([200, 100, 200, 100, 200]);
-    }
-
-    onSave(entry);
-    prsFound.forEach(pr => showToast(pr, 'success'));
-    if (prsFound.length === 0) showToast('Entry saved!', 'success');
   };
-  
-  // --- 💡 FILE UPLOAD (UPGRADED) 💡 ---
+
+  const handleSave = () => {
+    const entry = buildEntry();
+    const newNames = new Set(allExerciseNames);
+    entry.exercises.forEach(ex => { if (ex.name) newNames.add(ex.name); });
+    setAllExerciseNames(Array.from(newNames));
+    const records = Object.keys(sessionPRs).length;
+    onSave(entry);
+    if (usesDraft) clearWorkoutDraft(); // a back-filled past day never touches today's draft
+    showToast(records ? `Workout saved · ${records} new record${records === 1 ? '' : 's'} 🏆` : 'Workout saved!', 'success');
+  };
+
+  const closeWorkout = () => {
+    if (usesDraft && (exercises.length || cardio.length)) showToast('Saved as a draft. Tap Resume on Home to carry on');
+    onCancel();
+  };
+  const discardWorkout = () => {
+    if (!window.confirm('Discard this workout? Nothing from it will be saved.')) return;
+    if (usesDraft) clearWorkoutDraft();
+    onCancel();
+  };
+
+  const goToSummary = () => {
+    if (!durationTouched.current && !isEdit && workoutStartTime) {
+      setDuration(Math.max(1, Math.round(elapsedTime / 60)));
+    }
+    setRest(null);
+    setPhase('summary');
+  };
+
+  // --- 💡 FILE UPLOAD (AI fill from a photo or text log) ---
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setIsUploading(true);
-    
+
     const extractPrompt = `Extract fitness data from this file/image.
 Provide ONLY a JSON object with the following fields (use null if not found):
 {
@@ -3328,8 +3316,8 @@ Provide ONLY a JSON object with the following fields (use null if not found):
 Example from Fitbit screenshot: "8h 15m sleep", "1h 40m deep" -> "sleepHours": 8.25, "deepSleepPercent": 20.4
 Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "weight": 175, "sets": 3, "reps": [5, 5, 5]}]
 `;
-    
-    let apiContent = [ { type: "text", text: extractPrompt } ];
+
+    let apiContent = [{ type: "text", text: extractPrompt }];
 
     try {
       if (file.type.startsWith('image/')) {
@@ -3339,12 +3327,7 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
           reader.onload = () => resolve(reader.result.split(',')[1]);
           reader.onerror = error => reject(error);
         });
-        
-        apiContent.unshift({
-          type: "image",
-          source: { type: "base64", media_type: file.type, data: base64Data }
-        });
-        
+        apiContent.unshift({ type: "image", source: { type: "base64", media_type: file.type, data: base64Data } });
       } else if (file.type === 'text/plain') {
         const textData = await file.text();
         apiContent.unshift({ type: "text", text: `FILE CONTENT:\n${textData}` });
@@ -3352,46 +3335,33 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
         throw new Error("Unsupported file type");
       }
 
-      console.log("Calling REAL AI Vision Gateway...");
-
       const res = await fetch(`/.netlify/functions/get-vision-extraction`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: apiContent })
       });
-
       if (!res.ok) {
         const errData = await res.json();
         throw new Error(`AI Gateway failed: ${errData.error || res.statusText}`);
       }
-
       const data = await res.json();
       const resultJson = parseAiJson(data.text);
 
-      // Auto-populate form (workout data only - nutrition/sleep handled separately)
+      // Workout data only - nutrition/sleep are logged separately.
       if (resultJson.exercises && resultJson.exercises.length > 0) {
-        // Convert extracted exercises to new format with weights array
-        const normalizedExercises = resultJson.exercises.map(ex => {
-          const weights = ex.weight
-            ? Array(ex.sets || 3).fill(ex.weight)
-            : (ex.weights || ['', '', '']);
-          return {
-            ...ex,
-            weights: weights,
-            rpe: 8
-          };
-        });
-        setExercises(normalizedExercises);
+        setExercises(resultJson.exercises.map(ex => exerciseToForm({
+          ...ex,
+          weights: ex.weight ? Array(ex.sets || 3).fill(ex.weight) : (ex.weights || ['', '', '']),
+          rpe: 8
+        })));
+        setActiveIndex(0);
+        setSheet(null);
       }
-      
       if (resultJson.protein || resultJson.calories) {
-        const prot = resultJson.protein || 0;
-        const cals = resultJson.calories || 0;
-        showToast(`Extracted ${prot}g P / ${cals} kCal. Please add to nutrition log.`, 'success');
+        showToast(`Extracted ${resultJson.protein || 0}g P / ${resultJson.calories || 0} kCal. Please add to nutrition log.`, 'success');
       } else {
         showToast('Data extracted!', 'success');
       }
-
     } catch (err) {
       console.error("Upload error:", err);
       showToast(err.message, 'error');
@@ -3400,406 +3370,327 @@ Example from text: "Bench 175 3x5" -> "exercises": [{"name": "Bench Press", "wei
     }
   };
 
-  // --- Render Form ---
-  return h('form', { onSubmit: handleSubmit, className: 'space-y-6 p-4 pb-24' },
-    h('div', { className: 'flex justify-between items-center mb-4' },
-      h('h2', { className: 'text-2xl font-bold' }, entryToEdit ? 'Edit Log Entry' : 'New Log Entry'),
-      h('button', {
-        type: 'button',
-        onClick: () => setQuickLogMode(!quickLogMode),
-        className: 'px-3 py-1 text-sm rounded bg-blue-600 hover:bg-blue-700'
-      }, quickLogMode ? '📝 Full Mode' : '⚡ Quick Log')
-    ),
+  // --- Derived numbers for the screen ---
+  const totalSetRows = exercises.reduce((sum, ex) => sum + ex.reps.length, 0);
+  const doneSets = exercises.reduce((sum, ex) => sum + (ex.done || []).filter(Boolean).length, 0);
+  const isToday = date === formatDate(new Date());
+  const dateLabel = isToday ? 'Today' : parseLocalDate(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const typeLabel = trainingType === 'REST' ? 'Rest day' : String(trainingType).split('/').join(' / ');
+  const active = exercises[activeIndex];
+  const currentSetOf = (ex) => (ex ? (ex.done || []).findIndex(d => !d) : -1);
+  const restNext = (() => {
+    if (!active) return null;
+    const s = currentSetOf(active);
+    if (s >= 0) return `${active.name || 'exercise'}, set ${s + 1}`;
+    const nextEx = exercises.find((ex, k) => k > activeIndex && currentSetOf(ex) >= 0);
+    return nextEx ? nextEx.name : null;
+  })();
 
-    !quickLogMode && h('div', { className: 'p-4 bg-slate-800 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-2' }, '⚡ Auto-Populate (REAL AI)'),
-      h('label', { className: 'block text-sm font-medium mb-1', htmlFor: 'file-upload' }, 'Upload Fitbit Image or .txt Log'),
-      h(Input, { type: 'file', id: 'file-upload', onChange: handleFileUpload, accept: 'image/*,.txt' }),
-      isUploading && h('div', { className: 'flex items-center gap-2 text-blue-400 mt-2' }, 
-        h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
-        'Extracting data...'
-      )
-    ),
-
-    h('div', { className: 'p-4 bg-slate-800 rounded-lg space-y-4' },
-      h('div', { className: 'grid grid-cols-2 gap-3' },
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-          h(Input, { type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
-        ),
-        h('div', {},
-          h('label', { className: 'block text-sm font-medium mb-1' }, 'Time'),
-          h(Input, { type: 'time', value: workoutTime, onChange: (e) => setWorkoutTime(e.target.value) })
-        )
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Training Type'),
-        h(Select, { value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
-          availableWorkoutTypes.map(type =>
-            h('option', { key: type, value: type }, type === plannedToday ? `${type} (Planned)` : type)
-          )
-        )
-      )
-    ),
-
-    (!todaySleepPercent || todaySleepPercent <= 0) && h('div', {
-      className: 'flex items-center gap-2 p-3 bg-slate-700 border border-yellow-600 rounded-lg text-yellow-300 text-sm mb-3'
-    }, '🌙 No sleep data logged for today — recovery estimates will use baseline averages. Log sleep for personalized accuracy.'),
-
-    trainingType !== 'REST' && h(CollapsibleSection, {
-      title: 'Training',
-      icon: '💪',
-      isOpen: trainingSectionOpen,
-      onToggle: () => setTrainingSectionOpen(!trainingSectionOpen)
-    },
-      workoutStartTime && h('div', { className: 'mb-4 p-3 bg-slate-900 rounded-lg' },
-        h('div', { className: 'flex items-center justify-between' },
-          h('div', {},
-            h('p', { className: 'text-xs text-slate-400' }, '⏱️ Workout Timer'),
-            h('p', { className: 'text-2xl font-bold text-blue-400' }, formatElapsedTime(elapsedTime))
-          ),
+  // --- Cardio section (unchanged fields; restyled by the theme) ---
+  const renderCardio = () => h(CollapsibleSection, {
+    title: cardio.length > 0 ? `Cardio (${cardio.length})` : 'Cardio',
+    icon: '🏃',
+    isOpen: cardioSectionOpen,
+    onToggle: () => setCardioSectionOpen(!cardioSectionOpen)
+  },
+    h('datalist', { id: 'cardio-machines' }, cardioMachines.map(machine => h('option', { key: machine, value: machine }))),
+    h('div', { className: 'mb-3' },
+      h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Quick add:'),
+      h('div', { className: 'flex flex-wrap gap-2' },
+        cardioMachines.map(machine =>
           h('button', {
+            key: machine,
             type: 'button',
-            onClick: () => setDuration(Math.round(elapsedTime / 60)),
-            className: 'px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-sm transition-colors'
-          }, '↓ Use as duration')
-        )
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Duration (minutes)'),
-        h(Input, { type: 'number', step: 5, value: duration, onChange: (e) => setDuration(Number(e.target.value)) })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories Burned (optional)'),
-        h(Input, {
-          type: 'number',
-          step: 10,
-          value: caloriesBurned,
-          onChange: (e) => setCaloriesBurned(e.target.value),
-          placeholder: 'e.g., 350'
-        })
-      ),
-      h('h4', { className: 'font-semibold' }, 'Exercises'),
-      recentExercises.length > 0 && h('div', { className: 'mb-3' },
-        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Recent exercises:'),
-        h('div', { className: 'flex flex-wrap gap-2' },
-          recentExercises.map(exName =>
-            h('button', {
-              key: exName,
-              type: 'button',
-              onClick: () => {
-                // Find the last time this exercise was performed
-                const lastEntry = [...allEntries].reverse().find(e =>
-                  e.exercises && e.exercises.some(ex => ex.name === exName)
-                );
-                const lastExercise = lastEntry?.exercises.find(ex => ex.name === exName);
-
-                // Pre-fill with last performance
-                const newExercise = {
-                  name: exName,
-                  sets: lastExercise?.sets || 3,
-                  weights: lastExercise?.weights ? [...lastExercise.weights] : ['', '', ''],
-                  reps: lastExercise?.reps ? [...lastExercise.reps] : ['', '', ''],
-                  rpe: lastExercise?.rpe || 8
-                };
-                setExercises([...exercises, newExercise]);
-              },
-              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center'
-            }, exName)
-          )
-        )
-      ),
-      h('div', { className: 'space-y-4' },
-        exercises.map((ex, i) => quickLogMode
-          ? // QUICK LOG MODE: Compact single-row layout
-            h('div', { key: i, className: 'p-2 bg-slate-700 rounded-lg' },
-              h('div', { className: 'grid grid-cols-12 gap-2 items-center' },
-                h('div', { className: 'col-span-4' },
-                  h(Input, {
-                    type: 'text',
-                    list: 'exercise-names',
-                    placeholder: 'Exercise',
-                    value: ex.name,
-                    onChange: (e) => updateExercise(i, 'name', e.target.value),
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    min: 1,
-                    placeholder: 'Sets',
-                    value: ex.sets,
-                    onChange: (e) => updateExercise(i, 'sets', e.target.value),
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    step: 0.5,
-                    placeholder: 'Wt',
-                    value: (ex.weights && ex.weights[0]) || '',
-                    onChange: (e) => {
-                      const val = e.target.value;
-                      const newWeights = Array(Number(ex.sets) || 3).fill(val);
-                      const newExercises = [...exercises];
-                      newExercises[i] = { ...newExercises[i], weights: newWeights };
-                      setExercises(newExercises);
-                    },
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h(Input, {
-                    type: 'number',
-                    placeholder: 'Reps',
-                    value: ex.reps[0] || '',
-                    onChange: (e) => {
-                      const val = e.target.value;
-                      const newReps = Array(Number(ex.sets) || 3).fill(val);
-                      const newExercises = [...exercises];
-                      newExercises[i] = { ...newExercises[i], reps: newReps };
-                      setExercises(newExercises);
-                    },
-                    className: 'text-sm'
-                  })
-                ),
-                h('div', { className: 'col-span-2' },
-                  h('button', { type: 'button', className: 'text-red-400 text-xs', onClick: () => removeExercise(i) }, '✕')
-                )
-              ),
-              h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
-            )
-          : // FULL MODE: Detailed layout
-            h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
-              h('div', { className: 'flex justify-between items-center' },
-                h('span', { className: 'font-semibold' }, `Exercise ${i + 1}`),
-                h('button', { type: 'button', className: 'text-red-400', onClick: () => removeExercise(i) }, 'Remove')
-              ),
-
-              h(CoachSuggestionBox, {
-                exerciseName: ex.name,
-                allEntries,
-                todaySleepPercent: todaySleepPercent,
-                trainingType: trainingType,
-                allExerciseNames: allExerciseNames
-              }),
-
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Exercise Name'),
-                h(Input, { type: 'text', list: 'exercise-names', value: ex.name, onChange: (e) => updateExercise(i, 'name', e.target.value) }),
-                h('datalist', { id: 'exercise-names' }, allExerciseNames.map(name => h('option', { key: name, value: name })))
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Load Previous Data'),
-                h(Select, { onChange: (e) => prefillExercise(i, e.target.value), value: '' },
-                  h('option', { value: '' }, 'Select to pre-fill...'),
-                  allExerciseNames.map(name => h('option', { key: name, value: name }, name))
-                )
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Number of Sets'),
-                h(Input, { type: 'number', min: 1, value: ex.sets, onChange: (e) => updateExercise(i, 'sets', e.target.value) })
-              ),
-          h('div', { className: 'flex items-center gap-2' },
-            h('input', { type: 'checkbox', id: `eachHand-${i}`, checked: ex.eachHand, onChange: (e) => updateExercise(i, 'eachHand', e.target.checked), className: 'h-4 w-4' }),
-            h('label', { htmlFor: `eachHand-${i}`, className: 'block text-sm' }, 'Weight is "each hand"')
-          ),
-          h('div', {},
-            h('div', { className: 'flex justify-between items-center mb-1' },
-              h('label', { className: 'block text-xs' }, `Weight & Reps per Set (${ex.sets} sets)`),
-              (ex.weights && ex.weights[0]) && h('button', {
-                type: 'button',
-                className: 'text-xs text-blue-400 hover:text-blue-300',
-                onClick: () => copyWeightToAllSets(i)
-              }, '📋 Copy weight to all sets')
-            ),
-            h('div', { className: 'space-y-2' },
-              ex.reps.map((rep, setIndex) =>
-                h('div', { key: setIndex, className: 'grid grid-cols-3 gap-2 items-center' },
-                  h('div', { className: 'text-xs text-slate-400' }, `Set ${setIndex + 1}:`),
-                  h(Input, {
-                    type: 'number',
-                    step: 0.5,
-                    placeholder: 'Weight',
-                    value: (ex.weights && ex.weights[setIndex]) || '',
-                    onChange: (e) => updateExerciseWeight(i, setIndex, e.target.value)
-                  }),
-                  h(Input, {
-                    type: 'number',
-                    placeholder: 'Reps',
-                    value: rep,
-                    onChange: (e) => updateExerciseRep(i, setIndex, e.target.value)
-                  })
-                )
-              )
-            )
-          ),
-
-          h(RpeSlider, { value: ex.rpe, onChange: (e) => updateExercise(i, 'rpe', e.target.value) })
-        )),
-        h(Button, { type: 'button', variant: 'secondary', onClick: () => addExercise() }, '+ Add Exercise')
-      ),
-      h('div', { className: 'grid grid-cols-2 gap-4 p-4 bg-slate-900 rounded-lg' },
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Total Working Sets'),
-          h('div', { className: 'text-2xl font-bold text-cyan-400' }, exercises.reduce((sum, ex) => sum + (Number(ex.sets) || 0), 0))
-        ),
-        h('div', {},
-          h('div', { className: 'text-sm text-slate-400' }, 'Session Volume'),
-          h('div', { className: 'text-2xl font-bold text-green-400' },
-            (() => {
-              const totalVolume = exercises.reduce((sum, ex) => {
-                const weights = (ex.weights || []).map(w => Number(w) || 0);
-                const reps = ex.reps.map(r => Number(r) || 0);
-                return sum + calculateVolumeLoad(weights, reps, ex.name, sleepEntries, ex.eachHand);
-              }, 0);
-              return `${totalVolume.toLocaleString()} lbs`;
-            })()
-          )
+            onClick: () => addCardioFromHistory(machine),
+            className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-full text-sm transition-colors min-h-[44px] flex items-center gap-1'
+          }, getCardioData(machine)?.icon || '', machine)
         )
       )
     ),
-
-    // 🏃 Cardio Section - time + steps instead of weight + reps
-    trainingType !== 'REST' && h(CollapsibleSection, {
-      title: cardio.length > 0 ? `Cardio (${cardio.length})` : 'Cardio',
-      icon: '🏃',
-      isOpen: cardioSectionOpen,
-      onToggle: () => setCardioSectionOpen(!cardioSectionOpen)
-    },
-      h('datalist', { id: 'cardio-machines' }, cardioMachines.map(machine => h('option', { key: machine, value: machine }))),
-      h('div', { className: 'mb-3' },
-        h('p', { className: 'text-xs text-slate-400 mb-2' }, 'Quick add:'),
-        h('div', { className: 'flex flex-wrap gap-2' },
-          cardioMachines.map(machine =>
-            h('button', {
-              key: machine,
-              type: 'button',
-              onClick: () => addCardioFromHistory(machine),
-              className: 'px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition-colors min-h-[44px] flex items-center gap-1'
-            }, getCardioData(machine)?.icon || '', machine)
-          )
-        )
-      ),
-      h('div', { className: 'space-y-4' },
-        cardio.map((c, i) => {
-          // [] for a free-text or unrecognised machine, which is exactly what keeps
-          // free-text machines working: they get the universal fields and nothing else.
-          const machineFields = getCardioFields(c.name);
-          return h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
-            h('div', { className: 'flex justify-between items-center' },
-              h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
-              h('button', { type: 'button', className: 'text-red-400', onClick: () => removeCardio(i) }, 'Remove')
+    h('div', { className: 'space-y-4' },
+      cardio.map((c, i) => {
+        // [] for a free-text or unrecognised machine, which is exactly what keeps
+        // free-text machines working: they get the universal fields and nothing else.
+        const machineFields = getCardioFields(c.name);
+        return h('div', { key: i, className: 'p-3 bg-slate-700 rounded-lg space-y-3' },
+          h('div', { className: 'flex justify-between items-center' },
+            h('span', { className: 'font-semibold' }, `Cardio ${i + 1}`),
+            h('button', { type: 'button', className: 'text-red-400 min-h-[44px] px-2', onClick: () => removeCardio(i) }, 'Remove')
+          ),
+          h('div', {},
+            h('label', { className: 'block text-xs mb-1' }, 'Machine'),
+            h(Input, { type: 'text', list: 'cardio-machines', placeholder: 'e.g., Stairmaster', value: c.name, onChange: (e) => updateCardio(i, 'name', e.target.value) })
+          ),
+          h('div', { className: 'grid grid-cols-2 gap-2' },
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'Time (minutes)'),
+              h(Input, { type: 'number', min: 0, step: 1, placeholder: 'e.g., 20', value: c.minutes, onChange: (e) => updateCardio(i, 'minutes', e.target.value) })
             ),
             h('div', {},
-              h('label', { className: 'block text-xs mb-1' }, 'Machine'),
-              h(Input, {
-                type: 'text',
-                list: 'cardio-machines',
-                placeholder: 'e.g., Stairmaster',
-                value: c.name,
-                onChange: (e) => updateCardio(i, 'name', e.target.value)
-              })
+              h('label', { className: 'block text-xs mb-1' }, getCardioData(c.name)?.stepLabel || 'Steps'),
+              h(Input, { type: 'number', min: 0, step: 1, placeholder: 'e.g., 1500', value: c.steps, onChange: (e) => updateCardio(i, 'steps', e.target.value) })
+            )
+          ),
+          // Universal fields, on every row whatever the machine. Both optional:
+          // blank means not tracked and saves as null rather than a logged zero.
+          h('div', { className: 'grid grid-cols-2 gap-2' },
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'Effort (RPE 1-10)'),
+              h(Input, { type: 'number', min: 1, max: 10, step: 1, placeholder: 'optional', value: asFormValue(c.effort), onChange: (e) => updateCardio(i, 'effort', e.target.value) })
             ),
-            h('div', { className: 'grid grid-cols-2 gap-2' },
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Time (minutes)'),
-                h(Input, {
-                  type: 'number',
-                  min: 0,
-                  step: 1,
-                  placeholder: 'e.g., 20',
-                  value: c.minutes,
-                  onChange: (e) => updateCardio(i, 'minutes', e.target.value)
-                })
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, getCardioData(c.name)?.stepLabel || 'Steps'),
-                h(Input, {
-                  type: 'number',
-                  min: 0,
-                  step: 1,
-                  placeholder: 'e.g., 1500',
-                  value: c.steps,
-                  onChange: (e) => updateCardio(i, 'steps', e.target.value)
-                })
-              )
-            ),
-            // Universal fields, on every row whatever the machine. Both optional:
-            // blank means not tracked and saves as null rather than a logged zero.
-            h('div', { className: 'grid grid-cols-2 gap-2' },
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'Effort (RPE 1-10)'),
-                h(Input, {
-                  type: 'number',
-                  min: 1,
-                  max: 10,
-                  step: 1,
-                  placeholder: 'optional',
-                  value: asFormValue(c.effort),
-                  onChange: (e) => updateCardio(i, 'effort', e.target.value)
-                })
-              ),
-              h('div', {},
-                h('label', { className: 'block text-xs mb-1' }, 'When'),
-                h(Select, {
-                  value: c.timing || '',
-                  onChange: (e) => updateCardio(i, 'timing', e.target.value)
-                },
-                  h('option', { value: '' }, 'Not tracked'),
-                  h('option', { value: 'before' }, 'Before lifting'),
-                  h('option', { value: 'after' }, 'After lifting')
-                )
-              )
-            ),
-            // Machine-specific fields, rendered from the library table so the keys
-            // written here are the same keys the save mapper whitelists.
-            machineFields.length > 0 && h('div', { className: 'grid grid-cols-2 gap-2' },
-              machineFields.map(f =>
-                h('div', { key: f.key },
-                  h('label', { className: 'block text-xs mb-1' }, f.label),
-                  h(Input, {
-                    type: f.type,
-                    min: 0,
-                    step: 'any',
-                    placeholder: 'optional',
-                    value: asFormValue(c[f.key]),
-                    onChange: (e) => updateCardio(i, f.key, e.target.value)
-                  })
-                )
+            h('div', {},
+              h('label', { className: 'block text-xs mb-1' }, 'When'),
+              h(Select, { value: c.timing || '', onChange: (e) => updateCardio(i, 'timing', e.target.value) },
+                h('option', { value: '' }, 'Not tracked'),
+                h('option', { value: 'before' }, 'Before lifting'),
+                h('option', { value: 'after' }, 'After lifting')
               )
             )
-          );
-        }),
-        h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
-      ),
-      cardio.length > 0 && h('div', { className: 'p-4 bg-slate-900 rounded-lg space-y-2' },
-        h('div', { className: 'grid grid-cols-2 gap-4' },
-          h('div', {},
-            h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
-            h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
           ),
-          h('div', {},
-            h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
-            h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+          // Machine-specific fields, rendered from the library table so the keys
+          // written here are the same keys the save mapper whitelists.
+          machineFields.length > 0 && h('div', { className: 'grid grid-cols-2 gap-2' },
+            machineFields.map(f =>
+              h('div', { key: f.key },
+                h('label', { className: 'block text-xs mb-1' }, f.label),
+                h(Input, { type: f.type, min: 0, step: 'any', placeholder: 'optional', value: asFormValue(c[f.key]), onChange: (e) => updateCardio(i, f.key, e.target.value) })
+              )
+            )
           )
-        ),
-        // Only worth breaking the total apart when more than one machine was used.
-        Object.keys(cardioTotals.stepsByMachine).length > 1 && h('div', { className: 'text-xs text-slate-400' },
-          Object.entries(cardioTotals.stepsByMachine)
-            .map(([machine, steps]) => `${machine}: ${steps.toLocaleString()}`)
-            .join(' · ')
-        )
-      )
+        );
+      }),
+      h(Button, { type: 'button', variant: 'secondary', onClick: () => addCardio() }, '+ Add Cardio')
     ),
-
-    // Floating Save Button
-    h('div', { className: 'fixed bottom-0 left-0 right-0 p-4 bg-slate-900 border-t border-slate-700 flex gap-4 z-50' },
-      h(Button, { type: 'submit', variant: 'primary', className: 'flex-1' }, entryToEdit ? '💾 Update Entry' : '💾 Save Entry'),
-      h(Button, { type: 'button', variant: 'secondary', onClick: onCancel }, 'Cancel')
+    cardio.length > 0 && h('div', { className: 'p-4 bg-slate-900 rounded-lg space-y-2' },
+      h('div', { className: 'grid grid-cols-2 gap-4' },
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Time'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, `${cardioTotals.minutes} min`)
+        ),
+        h('div', {},
+          h('div', { className: 'text-sm text-slate-400' }, 'Total Steps'),
+          h('div', { className: 'text-2xl font-bold text-orange-400' }, cardioTotals.steps.toLocaleString())
+        )
+      ),
+      Object.keys(cardioTotals.stepsByMachine).length > 1 && h('div', { className: 'text-xs text-slate-400' },
+        Object.entries(cardioTotals.stepsByMachine).map(([machine, steps]) => `${machine}: ${steps.toLocaleString()}`).join(' · ')
+      )
     )
+  );
+
+  // --- Details sheet: date, time, type, photo fill, discard ---
+  const renderDetails = () => h(Sheet, { label: 'Workout details', onClose: () => setSheet(null) },
+    h('div', { className: 'flex items-center gap-3 mb-3' },
+      h('div', { className: 'flex-1 text-xl font-extrabold' }, 'Workout details'),
+      h('button', { type: 'button', onClick: () => setSheet(null), 'aria-label': 'Close', className: 'w-11 h-11 rounded-full border border-ink-line bg-ink flex items-center justify-center' }, '✕')
+    ),
+    h('div', { className: 'flex flex-col gap-3' },
+      h('div', { className: 'grid grid-cols-2 gap-3' },
+        h('div', {},
+          h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-date' }, 'Date'),
+          h(Input, { id: 'wk-date', type: 'date', value: date, onChange: (e) => setDate(e.target.value) })
+        ),
+        h('div', {},
+          h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-time' }, 'Time'),
+          h(Input, { id: 'wk-time', type: 'time', value: workoutTime, onChange: (e) => setWorkoutTime(e.target.value) })
+        )
+      ),
+      h('div', {},
+        h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'wk-type' }, 'Workout'),
+        h(Select, { id: 'wk-type', value: trainingType, onChange: (e) => setTrainingType(e.target.value) },
+          availableWorkoutTypes.map(type => h('option', { key: type, value: type }, type === plannedToday ? `${type} (planned)` : type))
+        )
+      ),
+      trainingType !== 'REST' && h('div', { className: 'p-3.5 rounded-2xl bg-ink border border-ink-line' },
+        h('label', { className: 'block text-sm font-bold mb-1', htmlFor: 'file-upload' }, '📷 Fill from a photo or text log'),
+        h('p', { className: 'text-xs text-ink-muted mb-2' }, 'AI reads the exercises; this replaces the ones on screen.'),
+        h(Input, { type: 'file', id: 'file-upload', onChange: handleFileUpload, accept: 'image/*,.txt' }),
+        isUploading && h('div', { className: 'flex items-center gap-2 text-blue-400 mt-2' },
+          h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
+          'Reading…'
+        )
+      ),
+      !isEdit && h('button', {
+        type: 'button', onClick: discardWorkout,
+        className: 'h-12 w-full rounded-full border font-extrabold text-[15px]',
+        style: { borderColor: UI_COLORS.bad, color: UI_COLORS.bad }
+      }, 'Discard workout')
+    )
+  );
+
+  // --- Summary phase ---
+  if (phase === 'summary') {
+    const cleaned = cleanFormExercises(exercises);
+    const entry = buildEntry();
+    const skipped = exercises.reduce((n, ex) => n + ex.reps.filter((r, i) => isBlankVal(r) && isBlankVal(ex.weights[i])).length, 0);
+    const sleep = sleepEntries.find(s => s.date === date);
+    const grade = trainingType === 'REST' ? null : getGrade(sleep, entry.totalSets);
+    const records = Object.keys(sessionPRs).length;
+    const note = trainingType === 'REST'
+      ? 'Rest day. Nothing to grade.'
+      : [
+          `${entry.totalSets} working set${entry.totalSets === 1 ? '' : 's'}${records ? ` with ${records} new record${records === 1 ? '' : 's'}` : ''}.`,
+          sleep
+            ? `Sleep that night: ${Number(sleep.sleepHours).toFixed(1)} h, ${Number(sleep.deepSleepPercent || 0).toFixed(0)}% deep${isToday && suggestedSets ? `, enough for about ${suggestedSets} sets` : ''}.`
+            : 'Log that night’s sleep to get a grade.'
+        ].join(' ');
+    const rows = cleaned.map(ex => {
+      let topI = 0;
+      ex.weights.forEach((w, k) => {
+        const wn = Number(w) || 0, tn = Number(ex.weights[topI]) || 0;
+        if (wn > tn || (wn === tn && (Number(ex.reps[k]) || 0) > (Number(ex.reps[topI]) || 0))) topI = k;
+      });
+      return {
+        name: ex.name, sets: ex.sets, pr: !!sessionPRs[ex.name],
+        top: `${(Number(ex.weights[topI]) || 0).toLocaleString()} × ${Number(ex.reps[topI]) || 0}`
+      };
+    });
+    const timeRange = !isEdit && workoutStartTime
+      ? `${new Date(workoutStartTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – now`
+      : null;
+    return h('div', { className: 'flex flex-col gap-3.5' },
+      h('div', { className: 'text-center' },
+        h('div', { className: 'text-xl font-extrabold' }, isEdit ? 'Review changes' : 'Workout done'),
+        h('div', { className: 'text-[13px] text-ink-muted' }, `${dateLabel} · ${typeLabel}`)
+      ),
+      h(FinishSummary, {
+        grade: grade && grade !== 'N/A' ? grade : null,
+        gradeNote: note,
+        stats: [
+          { label: '⏱ Duration', value: `${Number(duration) || 0} min`, sub: timeRange },
+          { label: '🔢 Working sets', value: String(entry.totalSets), sub: isToday && suggestedSets ? `sleep allowed about ${suggestedSets}` : null },
+          { label: '🏋️ Volume', value: `${Math.round(entry.totalVolume).toLocaleString()} lb`, sub: 'weight × reps' },
+          { label: '🏆 Records', value: records ? `${records} new` : 'None', sub: records ? Object.keys(sessionPRs).slice(0, 2).join(', ') : null }
+        ],
+        rows,
+        skippedSets: skipped,
+        duration,
+        onDuration: (v) => { durationTouched.current = true; setDuration(v); },
+        calories: caloriesBurned,
+        onCalories: setCaloriesBurned,
+        isEdit,
+        onSave: handleSave,
+        onBack: () => setPhase('log')
+      })
+    );
+  }
+
+  // --- Log phase ---
+  return h('div', { className: 'flex flex-col gap-3', style: { paddingBottom: rest ? 120 : 0 } },
+    h(SessionBar, {
+      typeLabel, dateLabel,
+      elapsed: !isEdit && workoutStartTime ? elapsedTime : null,
+      doneSets, totalSets: totalSetRows,
+      suggestedSets: isToday ? suggestedSets : null,
+      onDetails: () => setSheet('details'),
+      onClose: usesDraft ? closeWorkout : onCancel,
+      onFinish: goToSummary
+    }),
+
+    trainingType === 'REST'
+      ? h('div', { className: 'bg-ink-card border border-ink-line rounded-3xl p-5 flex flex-col items-center text-center gap-3' },
+          h('span', { className: 'text-4xl', 'aria-hidden': 'true' }, '😴'),
+          h('div', { className: 'text-lg font-extrabold' }, 'Rest day'),
+          h('p', { className: 'text-sm text-ink-muted max-w-xs' }, 'Logging it keeps your cycle and recovery on track. Tap the workout name above to switch to a training day.'),
+          h('button', { type: 'button', onClick: handleSave, className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg' }, isEdit ? 'Save changes' : 'Log rest day')
+        )
+      : h(Fragment, null,
+          exercises.length === 0 && h('div', { className: 'bg-ink-card border border-ink-line rounded-3xl p-5 text-center' },
+            h('div', { className: 'text-lg font-extrabold' }, 'Add your first exercise'),
+            h('p', { className: 'text-sm text-ink-muted mt-1' }, 'Each exercise gets its own card. Tap a weight or reps box to type it, or the check to log the set.')
+          ),
+          exercises.map((ex, i) => h(ExerciseCard, {
+            key: i,
+            index: i,
+            ex,
+            active: i === activeIndex,
+            last: (lastTimeFor(ex.name) || { sets: [] }).sets,
+            best: bestFor(ex.name),
+            currentSet: currentSetOf(ex),
+            prSets: sessionPRs[ex.name] || [],
+            restRunning: !!rest,
+            onActivate: () => setActiveIndex(i),
+            onCell: (s, field) => openKeypad(i, s, field),
+            onToggleDone: (s) => toggleDone(i, s),
+            onAddSet: () => addSet(i),
+            onCopyWeight: () => copyWeightToAllSets(i),
+            onRpe: (v) => patchExercise(i, x => ({ ...x, rpe: v })),
+            onStartRest: startRest,
+            onOptions: () => { setActiveIndex(i); setSheet('options'); },
+            coach: i === activeIndex && ex.name ? h(CoachSuggestionBox, {
+              exerciseName: ex.name,
+              allEntries,
+              todaySleepPercent,
+              trainingType,
+              allExerciseNames
+            }) : null
+          })),
+          h('button', {
+            type: 'button', onClick: () => { setRenameIndex(null); setSheet('add'); },
+            className: 'h-[52px] rounded-full border border-dashed border-ink-line text-ink-muted font-extrabold text-[15px]'
+          }, '＋ Add exercise'),
+          renderCardio(),
+          exercises.length > 0 && h('button', {
+            type: 'button', onClick: goToSummary,
+            className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg mt-1'
+          }, '✓ Finish workout')
+        ),
+
+    sheet === 'details' && renderDetails(),
+    sheet === 'add' && h(AddExerciseSheet, {
+      // Your own names first, then the exercise library: library names are what
+      // the recovery model knows, so picking one keeps fatigue tracking accurate.
+      names: [...new Set([...allExerciseNames.filter(Boolean), ...getAllLibraryExercises()])],
+      recent: recentExercises,
+      onClose: () => setSheet(null),
+      onPick: (name) => {
+        if (renameIndex !== null) renameExercise(renameIndex, name);
+        else addExerciseNamed(name);
+        setRenameIndex(null);
+        setSheet(null);
+      }
+    }),
+    sheet === 'options' && active && h(ExerciseOptionsSheet, {
+      ex: active,
+      canMoveUp: activeIndex > 0,
+      canMoveDown: activeIndex < exercises.length - 1,
+      onRename: () => { setRenameIndex(activeIndex); setSheet('add'); },
+      onEachHand: () => { patchExercise(activeIndex, x => ({ ...x, eachHand: !x.eachHand })); setSheet(null); },
+      onRemoveSet: () => { removeLastSet(activeIndex); setSheet(null); },
+      onMove: (d) => { moveExercise(activeIndex, d); setSheet(null); },
+      onRemove: () => removeExercise(activeIndex),
+      onClose: () => setSheet(null)
+    }),
+    keypad && (() => {
+      const ex = exercises[keypad.ex];
+      const last = lastTimeFor(ex.name);
+      const lastSet = last && last.sets[keypad.set];
+      const best = sessionBestFor(ex.name);
+      const w = Number(keypad.weight) || 0;
+      return h(KeypadSheet, {
+        title: `${ex.name || 'Exercise'} · Set ${keypad.set + 1}`,
+        sub: [lastSet ? `Last time ${lastSet.weight} × ${lastSet.reps}` : null, best > 0 ? `Best ${best} lb` : null].filter(Boolean).join(' · ') || 'First time logging this',
+        weight: keypad.weight,
+        reps: keypad.reps,
+        field: keypad.field,
+        eachHand: ex.eachHand,
+        prText: bestFor(ex.name) > 0 && w > best ? `${w} lb beats your best of ${best} lb` : null,
+        onField: (f) => setKeypad(kp => ({ ...kp, field: f })),
+        onKey: keypadKey,
+        onChip: keypadChip,
+        onSave: keypadSave,
+        onClose: () => setKeypad(null)
+      });
+    })(),
+    rest && h(RestTimerBar, {
+      endsAt: rest.endsAt,
+      total: rest.total,
+      nextLabel: restNext,
+      onAdjust: adjustRest,
+      onSkip: () => setRest(null),
+      onDone: finishRest
+    }),
+    celebration && h(PRCelebration, { ...celebration, onClose: () => setCelebration(null) })
   );
 };
 
@@ -4285,7 +4176,7 @@ const SyncBanner = () => {
   return null;
 };
 
-const CloudSyncCard = () => {
+const CloudSyncCard = ({ embedded = false }) => {
   const { showToast } = useToast();
   const status = useSyncStatus();
   const [email, setEmail] = useState('');
@@ -4294,7 +4185,7 @@ const CloudSyncCard = () => {
   const [backups, setBackups] = useState(null);
   const [backupId, setBackupId] = useState('');
 
-  const card = (...children) => h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
+  const card = (...children) => embedded ? h('div', { className: 'space-y-3' }, ...children) : h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
     h('h3', { className: 'text-lg font-semibold' }, '☁️ Cloud Sync'),
     ...children
   );
@@ -4389,7 +4280,7 @@ const daysAgoLocal = (n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }) => {
+const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries, embedded = false }) => {
   const { showToast } = useToast();
   const [files, setFiles] = useState([]);
   const [from, setFrom] = useState(() => daysAgoLocal(60));
@@ -4434,8 +4325,8 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   const totalChanges = preview ? stats.created + stats.updated + preview.workouts.changes.length : 0;
   const sample = preview ? preview.result.changes.slice(-5).reverse() : [];
 
-  return h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
-    h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
+  return h('div', { id: 'health-import', className: embedded ? 'space-y-3 scroll-mt-24' : 'space-y-3 bg-slate-800 p-4 rounded-lg scroll-mt-24' },
+    !embedded && h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
     h('p', { className: 'text-sm text-slate-400' },
       'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps, calories burned and Fitbit workout days are read on this phone; nothing is uploaded.'),
     h(Input, {
@@ -4480,7 +4371,20 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   );
 };
 
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate, savedMeals = [], setSavedMeals = () => {}, uiPrefs = getUiPrefs(), onUiPrefs = () => {}, onOpenMeals = () => {}, initialGroup = null }) => {
+  // One group open at a time keeps the page short; the menu's import shortcut opens
+  // straight onto Google Health.
+  const [openGroup, setOpenGroup] = useState(initialGroup);
+  const toggleGroup = (id) => setOpenGroup(g => (g === id ? null : id));
+  useEffect(() => {
+    if (!initialGroup) return;
+    const el = document.getElementById(`settings-${initialGroup}`);
+    if (el && el.scrollIntoView) setTimeout(() => el.scrollIntoView({ block: 'start' }), 60);
+  }, []);
+  const [restLength, setRestLength] = useState(() => {
+    const saved = Number(localStorage.getItem(REST_SECONDS_KEY));
+    return saved >= 15 && saved <= 900 ? saved : 120;
+  });
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -4655,7 +4559,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const exportData = () => {
     const cardioSessions = entries.reduce((sum, e) => sum + getCardioList(e).length, 0);
     console.log(`[Export] Exporting data: ${entries.length} workouts (${cardioSessions} cardio sessions), ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
-    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals, profile: getProfile() }, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals, profile: getProfile(), savedMeals }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -4739,6 +4643,12 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(restoredGoals));
             console.log('[Import] Restored diet goals');
           }
+          // Saved meals only exist in exports from Nov 2026 on; older files leave the list alone.
+          if (Array.isArray(imported.savedMeals)) {
+            setSavedMeals(imported.savedMeals);
+            localStorage.setItem(SAVED_MEALS_KEY, JSON.stringify(imported.savedMeals));
+            console.log(`[Import] Restored ${imported.savedMeals.length} saved meals`);
+          }
           // Also absent from every export written before today, so no warning.
           // saveProfile rather than a direct write: it drops the stale age key once a
           // valid birth date exists, which a legacy age-only profile needs on the way in.
@@ -4768,12 +4678,14 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       setCustomCycles({});
       setNutrition([]);
       setSleepEntries([]);
+      setSavedMeals([]);
       setDietGoals({ ...DEFAULT_DIET_GOALS });
       localStorage.removeItem(DB_KEY);
       localStorage.removeItem(CYCLE_KEY);
       localStorage.removeItem(CUSTOM_CYCLES_KEY);
       localStorage.removeItem(NUTRITION_KEY);
       localStorage.removeItem(SLEEP_KEY);
+      localStorage.removeItem(SAVED_MEALS_KEY);
       localStorage.removeItem(DIET_GOALS_KEY);
       localStorage.removeItem(PROFILE_KEY);
       // Same reason as the import: these inputs are seeded at mount, not reactive.
@@ -4782,10 +4694,8 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     }
   };
 
-  return h('div', { className: 'p-4 space-y-6' },
-    h('h2', { className: 'text-2xl font-bold' }, '⚙️ Settings'),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '🔄 Training Cycle'),
+  return h('div', { className: 'space-y-3' },
+    h(SettingsGroup, { id: 'cycle', emoji: '🔄', title: 'Training cycle', summary: `${trainingCycle.length}-day cycle`, open: openGroup === 'cycle', onToggle: () => toggleGroup('cycle') },
       h('p', { className: 'text-sm text-slate-400 mb-2' }, `Current: ${trainingCycle.length}-day cycle`),
       h(Button, { onClick: () => setShowCycleEditor(!showCycleEditor), variant: 'primary' }, 
         showCycleEditor ? 'Hide Cycle Editor' : 'Edit Training Cycle'
@@ -4800,8 +4710,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         })
       )
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '👤 Profile'),
+    h(SettingsGroup, { id: 'profile', emoji: '👤', title: 'Profile', summary: `${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${effectiveAge > 0 ? effectiveAge : '—'}`, open: openGroup === 'profile', onToggle: () => toggleGroup('profile') },
       h('p', { className: 'text-sm text-slate-300' },
         `Current: ${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${effectiveAge > 0 ? effectiveAge : '—'}`
       ),
@@ -4831,8 +4740,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       h('p', { className: 'text-xs text-slate-400' }, 'Used to calculate your BMR and calorie targets.'),
       h(Button, { onClick: saveProfileSettings, variant: 'primary', className: 'w-full' }, 'Save Profile')
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '🎯 Diet Goals'),
+    h(SettingsGroup, { id: 'diet', emoji: '🎯', title: 'Diet goals', summary: dietGoals.enabled ? `${dietGoals.protein} g protein · ${Number(dietGoals.calories).toLocaleString()} kcal` : 'Not set', open: openGroup === 'diet', onToggle: () => toggleGroup('diet') },
       dietGoals.enabled && h('div', { className: 'text-sm text-slate-300 mb-2' },
         `Current: ${dietGoals.protein}g protein, ${dietGoals.calories} kcal`
       ),
@@ -4949,18 +4857,49 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         h(Button, { onClick: calculateDietGoals, variant: 'primary', className: 'w-full' }, 'Calculate & Save Goals')
       )
     ),
-    h(CloudSyncCard),
-    h(HealthImportCard, { sleepEntries, setSleepEntries, entries, setEntries }),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
+    h(SettingsGroup, { id: 'meals', emoji: '⭐', title: 'Saved meals', summary: savedMeals.length ? `${savedMeals.length} saved` : 'None yet', open: openGroup === 'meals', onToggle: () => toggleGroup('meals') },
+      savedMeals.length === 0
+        ? h('p', { className: 'text-sm text-ink-muted' }, 'Save meals you eat often from Add meal → Saved, then log them in one tap.')
+        : h('div', null, [...savedMeals].sort((a, b) => String(a.name).localeCompare(String(b.name))).map((m, i) =>
+            h('div', { key: m.id, className: `flex items-center gap-3 py-2.5 ${i ? 'border-t border-ink-line' : ''}` },
+              h('div', { className: 'flex-1 min-w-0' },
+                h('div', { className: 'text-[15px] font-bold truncate' }, m.name),
+                h('div', { className: 'text-xs text-ink-muted' }, `${m.protein} g protein · ${Math.round(Number(m.calories) || 0)} kcal${m.useCount ? ` · logged ${m.useCount}×` : ''}`)),
+              h('button', {
+                type: 'button', 'aria-label': `Delete ${m.name}`,
+                onClick: () => { if (window.confirm(`Delete the saved meal "${m.name}"? Meals you already logged stay.`)) setSavedMeals(list => list.filter(x => x.id !== m.id)); },
+                className: 'w-9 h-9 flex-none rounded-full flex items-center justify-center text-ink-muted text-lg'
+              }, '×')))),
+      h(Button, { onClick: onOpenMeals, variant: 'secondary', className: 'w-full' }, 'Open Add meal to add or edit')
+    ),
+    h(SettingsGroup, { id: 'cloud', emoji: '☁️', title: 'Cloud backup', summary: 'Sign-in, sync and the daily 5 am backups', open: openGroup === 'cloud', onToggle: () => toggleGroup('cloud') },
+      h(CloudSyncCard, { embedded: true })
+    ),
+    h(SettingsGroup, { id: 'health', emoji: '⌚', title: 'Google Health', summary: 'Import sleep, steps and workouts from Takeout', open: openGroup === 'health', onToggle: () => toggleGroup('health') },
+      h(HealthImportCard, { sleepEntries, setSleepEntries, entries, setEntries, embedded: true })
+    ),
+    h(SettingsGroup, { id: 'display', emoji: '✨', title: 'Display', summary: 'Animations, record celebrations, rest timer', open: openGroup === 'display', onToggle: () => toggleGroup('display') },
+      h(Switch, { label: 'Animations', sub: 'Rings filling, sheets sliding, the Start button glow', on: uiPrefs.animations, onChange: (v) => onUiPrefs({ ...uiPrefs, animations: v }) }),
+      h(Switch, { label: 'Record celebrations', sub: 'Full-screen trophy and confetti on a new best (off: a short message)', on: uiPrefs.celebrations, onChange: (v) => onUiPrefs({ ...uiPrefs, celebrations: v }) }),
+      h(Switch, { label: 'Tap the header to jump to the top', sub: 'The iPhone status-bar tap works either way', on: uiPrefs.headerTapTop, onChange: (v) => onUiPrefs({ ...uiPrefs, headerTapTop: v }) }),
+      h('div', { className: 'flex items-center gap-3 min-h-[52px]' },
+        h('label', { htmlFor: 'rest-length', className: 'flex-1 text-[15px] font-bold' }, 'Rest timer length',
+          h('span', { className: 'block text-xs text-ink-muted font-normal' }, 'Starting length; ±15s on the timer changes it too')),
+        h('select', {
+          id: 'rest-length', value: String(restLength),
+          onChange: (e) => { setRestLength(Number(e.target.value)); try { localStorage.setItem(REST_SECONDS_KEY, e.target.value); } catch (err) { /* ignore */ } },
+          className: 'h-11 rounded-full bg-ink border border-ink-line px-3 text-sm font-bold'
+        }, [...new Set([60, 90, 120, 150, 180, 240, 300, restLength])].sort((a, b) => a - b).map(sec =>
+          h('option', { key: sec, value: String(sec) }, `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`))))
+    ),
+    h(SettingsGroup, { id: 'backup', emoji: '💾', title: 'Backup file', summary: 'Export or import a JSON file', open: openGroup === 'backup', onToggle: () => toggleGroup('backup') },
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1', htmlFor: 'import-file' }, 'Import Data (JSON)'),
         h(Input, { type: 'file', id: 'import-file', accept: '.json', onChange: importData })
       )
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, 'Danger Zone'),
+    h(SettingsGroup, { id: 'danger', emoji: '🗑️', title: 'Danger zone', summary: 'Delete all data', open: openGroup === 'danger', onToggle: () => toggleGroup('danger'), danger: true },
       h(Button, { onClick: deleteAllData, variant: 'danger' }, 'Delete All Data')
     )
   );
@@ -5045,6 +4984,12 @@ const App = () => {
     const saved = localStorage.getItem(NUTRITION_KEY);
     return saved ? JSON.parse(saved) : [];
   });
+  const [savedMeals, setSavedMeals] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_MEALS_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) { return []; }
+  });
 
   const [sleepEntries, setSleepEntries] = useState(() => {
     const saved = localStorage.getItem(SLEEP_KEY);
@@ -5073,6 +5018,16 @@ const App = () => {
 
   const [view, setView] = useState('dashboard');
   const [entryToEdit, setEntryToEdit] = useState(null);
+  // Where the workout/sleep forms return to, and the day they open on when started
+  // from the Calendar (null = today).
+  const [returnView, setReturnView] = useState('dashboard');
+  const [formStart, setFormStart] = useState(null); // { date, type } | null
+  const [calendarDate, setCalendarDate] = useState(() => formatDate(new Date()));
+  const [mealDate, setMealDate] = useState(null);
+  const [uiPrefs, setUiPrefsState] = useState(() => getUiPrefs());
+  useEffect(() => { applyUiPrefs(uiPrefs); }, []);
+  const updateUiPrefs = (next) => { saveUiPrefs(next); setUiPrefsState(next); };
+  const [settingsGroup, setSettingsGroup] = useState({ id: null, n: 0 });
   const [nutritionEntryToEdit, setNutritionEntryToEdit] = useState(null);
   const [sleepEntryToEdit, setSleepEntryToEdit] = useState(null);
 
@@ -5120,6 +5075,10 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem(NUTRITION_KEY, JSON.stringify(nutrition));
   }, [nutrition]);
+
+  useEffect(() => {
+    localStorage.setItem(SAVED_MEALS_KEY, JSON.stringify(savedMeals));
+  }, [savedMeals]);
 
   useEffect(() => {
     localStorage.setItem(SLEEP_KEY, JSON.stringify(sleepEntries));
@@ -5184,19 +5143,7 @@ const App = () => {
   const cycleDay = coachCycleDay;
 
 
-  const planTitle = hasLoggedToday ? "💡 Tomorrow's Plan" : "💡 Today's Plan";
-
   const todaysNutrition = getTodaysNutrition(nutrition);
-
-  // Calculate weekly calories burned (last 7 days)
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const weeklyCaloriesBurned = sortedEntries
-    .filter(e => new Date(e.date) >= sevenDaysAgo && e.caloriesBurned)
-    .reduce((sum, e) => sum + (e.caloriesBurned || 0), 0);
-
-  // Analyze recovery status from sleep data
-  const recoveryAnalysis = Coach.analyzeRecoveryPattern(sleepEntries);
 
   // Modals
   const [showAIModal, setShowAIModal] = useState(false);
@@ -5205,6 +5152,226 @@ const App = () => {
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [showCycleStartModal, setShowCycleStartModal] = useState(false);
   const [pendingCycle, setPendingCycle] = useState(null);
+
+  // --- 🏠 HOME + SHELL DATA (redesign) ---
+  // Every number the new home screen and header show is worked out here, from the
+  // same App-owned state the rest of the app reads. home.js only renders it.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // A new screen starts at its top, like a new page.
+  useEffect(() => { window.scrollTo(0, 0); }, [view]);
+
+  const cycleLength = trainingCycle.length;
+  const shortDate = (dateStr) => parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const todaysSleep = sleepEntries.find(s => s.date === todayStr) || null;
+  const latestSleep = React.useMemo(
+    () => sleepEntries.filter(s => Number(s.sleepHours) > 0).sort((a, b) => a.date.localeCompare(b.date)).pop() || null,
+    [sleepEntries]
+  );
+
+  // Same call SmartRecoveryCard makes, for today's PLANNED session.
+  const todayRecommendation = React.useMemo(
+    () => getTrainingRecommendation(
+      recoveryStatus,
+      todaysSleep || latestSleep || { sleepHours: 8, deepSleepPercent: 15 },
+      nextWorkout
+    ),
+    [recoveryStatus, todaysSleep, latestSleep, nextWorkout]
+  );
+
+  // Readiness = how recovered the muscles today trains are (100 - their average
+  // fatigue). On a rest day it covers whatever was trained in the last 10 days.
+  const readiness = React.useMemo(() => {
+    const muscles = Object.values(recoveryStatus || {});
+    let avg = null;
+    if (todayRecommendation.involvedMuscleCount > 0) {
+      avg = todayRecommendation.avgFatigue;
+    } else {
+      const recent = muscles.filter(m => m.lastTrained);
+      if (recent.length) avg = recent.reduce((sum, m) => sum + (m.currentFatiguePercent || 0), 0) / recent.length;
+    }
+    const restCount = muscles.filter(m => m.currentFatiguePercent >= 70).length;
+    const recoveringCount = muscles.filter(m => m.currentFatiguePercent >= 40 && m.currentFatiguePercent < 70).length;
+    if (avg === null) return { pct: null, restCount, recoveringCount };
+    const pct = Math.max(0, Math.min(100, 100 - avg));
+    return {
+      pct, restCount, recoveringCount,
+      color: fatigueColor(avg),
+      label: todayRecommendation.involvedMuscleCount > 0
+        ? `Today's muscles are ${Math.round(pct)}% recovered`
+        : `Recently trained muscles are ${Math.round(pct)}% recovered`
+    };
+  }, [recoveryStatus, todayRecommendation]);
+
+  const homeHero = (() => {
+    const kickerDay = `DAY ${cycleDay + 1} OF ${cycleLength}`;
+    const tomorrow = trainingCycle[(cycleDay + 1) % cycleLength];
+    if (todaysActualEntry) {
+      const isRestEntry = todaysActualEntry.trainingType === 'REST';
+      const sets = Number(todaysActualEntry.totalSets) || 0;
+      const grade = todaysSleep ? getGrade(todaysSleep, sets) : 'N/A';
+      let doneDetail;
+      if (isRestEntry) doneDetail = 'Rest day logged';
+      else if (todaysActualEntry.needsDetails) doneDetail = 'Fitbit recorded this one. Add your exercises.';
+      else doneDetail = `${sets} working sets${grade !== 'N/A' ? ` · grade ${grade}` : ''}`;
+      return {
+        done: true,
+        kicker: `DONE TODAY · ${kickerDay}`,
+        title: formatWorkoutName(todaysActualEntry.trainingType),
+        doneDetail,
+        next: `Tomorrow: ${formatWorkoutName(tomorrow)}`
+      };
+    }
+    const isRest = nextWorkout === 'REST';
+    let note;
+    if (isRest) {
+      note = 'Scheduled rest. Your muscles keep recovering today, so keep protein up.';
+    } else {
+      const r = todayRecommendation;
+      const muscle = r.mostFatiguedMuscle;
+      const max = Math.round(r.maxFatigue || 0);
+      const avg = Math.round(r.avgFatigue || 0);
+      let fatigue;
+      if (!r.proceed) fatigue = `${muscle} is still very fatigued (${max}%), so a rest day would help more.`;
+      else if (max >= 60) fatigue = `${muscle} is at ${max}% fatigue, so trim volume by about a third.`;
+      else if (avg >= 50) fatigue = `Fatigue is widespread (about ${avg}%), so trim volume a little.`;
+      else if (max >= 50) fatigue = `${muscle} is still recovering (${max}%), so go a little lighter there.`;
+      else if (avg < 20) fatigue = 'The muscles today trains are fresh.';
+      else fatigue = `A little leftover fatigue (about ${avg}%), but you're good to go.`;
+      const sets = r.proceed
+        ? ` Aim for about ${r.suggestedSets} working sets${todaysSleep ? '' : ' (log last night’s sleep to fine-tune this)'}.`
+        : '';
+      note = fatigue + sets;
+    }
+    return {
+      done: false,
+      isRest,
+      resume: !!readWorkoutDraft(),
+      kicker: `TODAY · ${kickerDay}`,
+      title: formatWorkoutName(nextWorkout),
+      note
+    };
+  })();
+
+  const homeSleep = (() => {
+    if (!todaysSleep || !(Number(todaysSleep.sleepHours) > 0)) return null;
+    const minutes = Number(todaysSleep.sleepHours) * 60;
+    const deepPercent = Number(todaysSleep.deepSleepPercent) || 0;
+    const deepMinutes = Number(todaysSleep.deepSleepMinutes) > 0 ? Number(todaysSleep.deepSleepMinutes) : minutes * deepPercent / 100;
+    const rem = Number(todaysSleep.remMinutes) || 0;
+    const light = Number(todaysSleep.lightMinutes) || 0;
+    // Typed and imported nights only carry total + deep, so the bar splits deep
+    // from the rest; light/REM show up if an entry ever has them.
+    const segments = (rem > 0 || light > 0)
+      ? [
+          { label: 'Light', minutes: light, color: UI_COLORS.light },
+          { label: 'REM', minutes: rem, color: UI_COLORS.rem },
+          { label: 'Deep', minutes: deepMinutes, color: UI_COLORS.deep }
+        ]
+      : [
+          { label: 'Other sleep', minutes: Math.max(0, minutes - deepMinutes), color: UI_COLORS.light },
+          { label: 'Deep', minutes: deepMinutes, color: UI_COLORS.deep }
+        ];
+    const verdict = getSleepVerdict(todaysSleep.sleepHours, todaysSleep.deepSleepPercent, todaysSleep.recoveryRating);
+    const tierLabels = ['PR range', 'Target range', 'Baseline', 'Poor'];
+    const tierColors = [UI_COLORS.good, UI_COLORS.good, UI_COLORS.warn, UI_COLORS.bad];
+    return { minutes, deepMinutes, deepPercent, segments, verdict: { label: tierLabels[verdict.tier], color: tierColors[verdict.tier] } };
+  })();
+
+  const homeWeight = (() => {
+    const weighIns = sleepEntries
+      .filter(e => Number(e.weight) > 0)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    const latest = weighIns[weighIns.length - 1];
+    if (!latest) return { value: null, sub: 'No weigh-ins yet' };
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 6);
+    const recent = weighIns.filter(e => e.date >= formatDate(weekAgo));
+    const parts = [];
+    if (recent.length >= 2) {
+      const avg = recent.reduce((sum, e) => sum + Number(e.weight), 0) / recent.length;
+      parts.push(`7-day avg ${avg.toFixed(1)}`);
+    }
+    parts.push(latest.date === todayStr ? 'weighed today' : `weighed ${shortDate(latest.date)}`);
+    const text = parts.join(' · ');
+    return { value: Number(latest.weight), sub: text.charAt(0).toUpperCase() + text.slice(1) };
+  })();
+
+  const homeRecords = (() => {
+    const weighted = allPRs.filter(p => Number(p.weight) > 0);
+    if (!weighted.length) return { value: '', sub: 'No records yet' };
+    const monthAgo = new Date();
+    monthAgo.setDate(monthAgo.getDate() - 30);
+    const recentCount = weighted.filter(p => p.date >= formatDate(monthAgo)).length;
+    const newest = [...weighted].sort((a, b) => b.date.localeCompare(a.date))[0];
+    return {
+      value: recentCount ? `${recentCount} in 30 days` : '',
+      sub: `Latest: ${newest.name} ${newest.weight} lb · ${shortDate(newest.date)}`
+    };
+  })();
+
+  const recoverySub = (() => {
+    const { restCount, recoveringCount } = readiness;
+    if (restCount) return `${restCount} muscle${restCount === 1 ? ' needs' : 's need'} rest${recoveringCount ? ` · ${recoveringCount} recovering` : ''}`;
+    if (recoveringCount) return `${recoveringCount} recovering, none need rest`;
+    return 'Everything is fresh';
+  })();
+
+  // Sunday..Saturday of this week for the menu's week strip.
+  const menuWeek = (() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      const ds = formatDate(d);
+      return {
+        key: ds,
+        letter: 'SMTWTFS'[i],
+        day: d.getDate(),
+        isToday: ds === todayStr,
+        trained: sortedEntries.some(e => e.date === ds && e.trainingType && e.trainingType !== 'REST'),
+        planned: formatWorkoutName(trainingCycle[getCycleDayForDate(d, cycleLength)])
+      };
+    });
+  })();
+
+  const lastImportDate = (() => {
+    const imported = sleepEntries.filter(e => Array.isArray(e.importedFields) && e.importedFields.length);
+    if (!imported.length) return null;
+    return shortDate(imported.reduce((max, e) => (e.date > max ? e.date : max), imported[0].date));
+  })();
+
+  const navigate = (next) => {
+    setMenuOpen(false);
+    setView(next);
+  };
+
+  const VIEW_TITLES = {
+    calendar: 'Calendar', log: 'Calendar', recovery: 'Recovery', charts: 'Charts',
+    records: 'Personal records', settings: 'Settings', sleepForm: 'Sleep'
+  };
+  const headerTitle = view === 'dashboard'
+    ? new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : view === 'form'
+      ? (entryToEdit && entryToEdit.id ? 'Edit workout' : 'Log workout')
+      : (VIEW_TITLES[view] || 'Hypertrophy');
+  const headerSubtitle = view === 'recovery' && readiness.pct !== null ? readiness.label : null;
+
+  // Planned type for any day, from the same calendar-anchored cycle the coach uses.
+  const plannedForDate = (ds) => trainingCycle[getCycleDayForDate(parseLocalDate(ds), trainingCycle.length)] || 'REST';
+  // For "log a workout" on a planned rest day: the next lifting day in the cycle.
+  const firstLiftingTypeFrom = (ds) => {
+    const len = trainingCycle.length;
+    const start = getCycleDayForDate(parseLocalDate(ds), len);
+    for (let k = 0; k < len; k++) {
+      const t = trainingCycle[(start + k) % len];
+      if (t && t !== 'REST') return t;
+    }
+    return 'Push/Biceps';
+  };
 
   // --- HANDLERS ---
   const handleSaveEntry = (entry) => {
@@ -5221,9 +5388,11 @@ const App = () => {
       if (ex.name && !newNames.has(ex.name)) newNames.add(ex.name);
     });
     setAllExerciseNames(Array.from(newNames));
-    
-    setView('dashboard');
+
+    if (returnView === 'calendar') setCalendarDate(entry.date);
+    setView(returnView);
     setEntryToEdit(null);
+    setFormStart(null);
   };
   
   const handleSaveNutrition = (entry) => {
@@ -5262,12 +5431,18 @@ const App = () => {
       }
     });
 
-    setView('dashboard');
+    if (returnView === 'calendar') setCalendarDate(entry.date);
+    setView(returnView);
     setSleepEntryToEdit(null);
+    setFormStart(null);
   };
 
-  const handleShowForm = (entry = null) => {
+  // opts.date opens a NEW workout on that day (from the Calendar); opts.type
+  // overrides the planned type ('lift' = the cycle's next lifting day).
+  const handleShowForm = (entry = null, opts = {}) => {
     setEntryToEdit(entry);
+    setFormStart(!entry && opts.date ? { date: opts.date, type: opts.type || null } : null);
+    setReturnView(view === 'form' || view === 'sleepForm' ? returnView : view);
     setView('form');
   };
 
@@ -5305,9 +5480,17 @@ const App = () => {
     setShowDeleteModal({ type: 'nutrition', id });
   };
 
-  const handleShowSleepForm = (entry = null) => {
+  const handleShowSleepForm = (entry = null, date = null) => {
     setSleepEntryToEdit(entry);
+    setFormStart(!entry && date ? { date } : null);
+    setReturnView(view === 'form' || view === 'sleepForm' ? returnView : view);
     setView('sleepForm');
+  };
+
+  const openMealFor = (date = null) => {
+    setMealDate(date);
+    setNutritionEntryToEdit(null);
+    setShowNutritionModal(true);
   };
 
   const handleDeleteSleep = (id) => {
@@ -5324,47 +5507,69 @@ const App = () => {
       case 'form':
         return h(LogEntryForm, {
           onSave: handleSaveEntry,
-          onCancel: () => setView('dashboard'),
+          onCancel: () => { setView(returnView); setFormStart(null); },
           entryToEdit: entryToEdit,
+          initialDate: formStart ? formStart.date : null,
+          initialType: formStart && formStart.date
+            ? (formStart.type === 'lift' ? firstLiftingTypeFrom(formStart.date) : plannedForDate(formStart.date))
+            : null,
           allEntries: sortedEntries,
           nutrition: nutrition,
           allExerciseNames: allExerciseNames,
           setAllExerciseNames: setAllExerciseNames,
           trainingCycle: trainingCycle,
-          plannedToday: nextWorkout,
-          cycleDay: cycleDay,
-          sleepEntries: sleepEntries
+          // A past day started from the Calendar records that day's plan, not today's.
+          plannedToday: formStart && formStart.date ? plannedForDate(formStart.date) : nextWorkout,
+          cycleDay: formStart && formStart.date ? getCycleDayForDate(parseLocalDate(formStart.date), trainingCycle.length) : cycleDay,
+          sleepEntries: sleepEntries,
+          suggestedSets: todayRecommendation.suggestedSets
         });
       case 'sleepForm':
         return h(LogSleepForm, {
           onSave: handleSaveSleep,
-          onCancel: () => setView('dashboard'),
+          onCancel: () => { setView(returnView); setFormStart(null); },
+          initialDate: formStart ? formStart.date : null,
           entryToEdit: sleepEntryToEdit,
           sleepEntries: sleepEntries
         });
       case 'calendar':
-        return h('div', { className: 'space-y-4' },
-          h(TrainingCalendar, {
-            entries: sortedEntries,
-            trainingCycle,
-            dynamicToday: nextWorkout,
-            currentCycleDay: cycleDay,
-            onEditCycle: () => setShowCycleEditor(true),
-            onSetCycleDay: (date, dayNumber) => {
-              // Handle manual cycle day setting
-              const entry = {
-                id: generateId(),
-                date: date,
-                manualCycleDay: dayNumber,
-                note: `Manually set to Day ${dayNumber} of cycle`
-              };
-              // You can store this in a separate state or as a marker
-              console.log('Set cycle day:', date, dayNumber);
-            }
-          })
-        );
+      case 'log':
+        return h(CalendarScreen, {
+          entries: sortedEntries,
+          nutrition,
+          sleepEntries,
+          selected: calendarDate,
+          onSelect: setCalendarDate,
+          plannedFor: plannedForDate,
+          cycleDayFor: (ds) => getCycleDayForDate(parseLocalDate(ds), trainingCycle.length),
+          cycleLength: trainingCycle.length,
+          gradeFor: (sleep, sets) => (sleep ? getGrade(sleep, sets) : 'N/A'),
+          proteinTarget: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget,
+          calorieTargetFor: (type) => getTodaysCalorieTarget(type, dietGoals),
+          onEditWorkout: (w) => handleShowForm(w),
+          onAddWorkout: (date, type) => handleShowForm(null, { date, type }),
+          onDeleteWorkout: openDeleteModal,
+          onAddMeal: openMealFor,
+          onEditMeal: handleEditMeal,
+          onDeleteMeal: handleDeleteNutrition,
+          onEditSleep: (entry) => handleShowSleepForm(entry),
+          onAddSleep: (date) => handleShowSleepForm(null, date),
+          onDeleteSleep: handleDeleteSleep
+        });
       case 'charts':
-        return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames, sleepEntries });
+        return h(ChartsScreen, {
+          entries: sortedEntries,
+          nutrition,
+          sleepEntries,
+          exerciseNames: allExerciseNames,
+          proteinTarget: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget,
+          calorieTargetFor: (type) => getTodaysCalorieTarget(type, dietGoals),
+          // Saved volumeLoad when present; older logs are computed the same way the
+          // workout form does it.
+          volumeFor: (ex) => Number(ex.volumeLoad) || calculateVolumeLoad(
+            Array.isArray(ex.weights) ? ex.weights : (ex.weight ? Array((ex.reps || []).length).fill(ex.weight) : []),
+            Array.isArray(ex.reps) ? ex.reps : [], ex.name, sleepEntries, ex.eachHand)
+        });
       case 'settings':
         return h(Settings, {
           entries: sortedEntries,
@@ -5377,139 +5582,80 @@ const App = () => {
           setSleepEntries: setSleepEntries,
           dietGoals: dietGoals,
           setDietGoals: setDietGoals,
-          maintenanceEstimate: maintenanceEstimate
+          maintenanceEstimate: maintenanceEstimate,
+          savedMeals,
+          setSavedMeals,
+          uiPrefs,
+          onUiPrefs: updateUiPrefs,
+          onOpenMeals: () => openMealFor(null),
+          key: `settings-${settingsGroup.n}`,
+          initialGroup: settingsGroup.id
         });
 
         case 'recovery':
-          return h(RecoveryDashboard, {
+          return h(RecoveryScreen, {
+            recoveryStatus,
             entries: sortedEntries,
-            sleepEntries: sleepEntries,
-            nutrition: nutrition,
-            onShowSleepForm: handleShowSleepForm,
-            recoveryStatus: recoveryStatus
+            sleepEntries,
+            onLogSleep: () => handleShowSleepForm(todaysSleep)
           });
+
+      case 'records':
+        return h(PRDashboard, { prs: allPRs });
 
       case 'dashboard':
       default:
-        const cycleLength = trainingCycle.length;  // ADD THIS LINE at the top of the case
-        
-        return h('div', { className: 'space-y-6' },
-          // Enhanced Header with Planned Workout + Today's Stats
-          h('div', { className: 'bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-lg border border-slate-700' },
-            h('div', { className: 'mb-4' },
-              h('h3', { className: 'text-sm font-semibold text-slate-400 mb-1' }, planTitle),
-              h('p', { className: 'text-3xl font-bold text-cyan-400' }, nextWorkout),
-              // ADD THESE 2 LINES:
-              h('p', { className: 'text-sm text-blue-300 mt-1' }, 
-                `Day ${cycleDay + 1} of ${cycleLength} in your ${cycleLength}-day cycle`
-              ),
-              h('p', { className: 'text-sm text-slate-300 mt-2' }, coachNote)
-            ),
-            h('div', { className: 'grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-700' },
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Macros'),
-                h('div', { className: 'flex justify-center gap-2 mt-1' },
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-green-400 leading-tight' }, `${Number(todaysNutrition.totalProtein).toLocaleString()}g`),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'P')
-                  ),
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-amber-400 leading-tight' }, formatMacro(todaysNutrition.carbsTracked ? todaysNutrition.totalCarbs : null)),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'C')
-                  ),
-                  h('div', {},
-                    h('div', { className: 'text-base font-bold text-pink-400 leading-tight' }, formatMacro(todaysNutrition.fatTracked ? todaysNutrition.totalFat : null)),
-                    h('div', { className: 'text-[10px] text-slate-500' }, 'F')
-                  )
-                ),
-                h('div', { className: 'text-xs mt-1' }, getProteinStatus(todaysNutrition.totalProtein, dietGoals)),
-                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Today\'s Calories'),
-                h('div', { className: 'text-2xl font-bold text-orange-400' }, Number(todaysNutrition.totalCalories).toLocaleString()),
-                h('div', { className: 'text-xs mt-1 text-slate-400' },
-                  `Target: ${todaysCalorieTarget === null ? '—' : todaysCalorieTarget.toLocaleString()} kcal`
-                ),
-                todaysNutrition.mealCount > 1 && h('div', { className: 'text-xs text-slate-500 mt-1' }, `(${todaysNutrition.mealCount} meals)`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Current Weight'),
-                h('div', { className: 'text-2xl font-bold' }, `${getCurrentWeight(sleepEntries)} lbs`)
-              ),
-              h('div', { className: 'text-center' },
-                h('div', { className: 'text-xs text-slate-400' }, 'Week Burned'),
-                h('div', { className: 'text-2xl font-bold text-red-400' }, weeklyCaloriesBurned.toLocaleString()),
-                h('div', { className: 'text-xs mt-1 text-slate-500' }, 'kcal (7 days)')
-              )
-            )
-          ),
-
-          // In the dashboard view, add the SmartRecoveryCard after the plan card:
-
-          h(SmartRecoveryCard, {
-            entries: sortedEntries,
-            sleepEntries: sleepEntries,
-            plannedWorkout: nextWorkout,
-            recoveryStatus: recoveryStatus
-          }),
-
-          h('div', { className: 'grid grid-cols-3 gap-4' },
-            h(Button, {
-              onClick: () => handleShowSleepForm(),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '🌙 Log Sleep'),
-            h(Button, {
-              onClick: () => setShowNutritionModal(true),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '🍽️ Quick Add Meal'),
-            h(Button, {
-              onClick: () => handleShowForm(null),
-              variant: 'primary',
-              className: 'text-lg'
-            }, '💪 Log Workout')
-          ),
-          !hasLoggedToday && h(Button, {
-            onClick: () => setShowAIModal(true),
-            variant: 'primary',
-            className: 'w-full text-lg'
-          }, '🤖 Get AI Workout Suggestion'),
-          h(PRDashboard, { prs: allPRs }),
-
-          // Daily Log (unified view)
-          h('h2', { className: 'text-xl font-bold' }, '📅 Daily Log'),
-          h('div', { className: 'space-y-4' },
-            (() => {
-              const dailyData = groupDataByDate(sortedEntries, nutrition, sleepEntries);
-              return dailyData.length > 0
-                ? dailyData.map(dayData => h(DailyCard, {
-                    key: dayData.date,
-                    dailyData: dayData,
-                    allEntries: sortedEntries,
-                    onEditWorkout: handleShowForm,
-                    onDeleteWorkout: openDeleteModal,
-                    onEditSleep: handleShowSleepForm,
-                    onDeleteSleep: handleDeleteSleep,
-                    onEditMeal: handleEditMeal,
-                    onDeleteMeal: handleDeleteNutrition
-                  }))
-                : h('p', { className: 'text-slate-400' }, 'No entries yet. Start logging!')
-            })()
-          )
-        );
+        return h(HomeScreen, {
+          hero: homeHero,
+          hasLoggedToday,
+          protein: {
+            value: Number(todaysNutrition.totalProtein) || 0,
+            target: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget
+          },
+          calories: { value: Number(todaysNutrition.totalCalories) || 0, target: todaysCalorieTarget },
+          sleep: homeSleep,
+          weight: homeWeight,
+          recovery: { pct: readiness.pct, sub: recoverySub },
+          records: homeRecords,
+          sleepButtonLabel: todaysSleep ? '🌙 Edit sleep' : '🌙 Log sleep',
+          onStart: () => handleShowForm(null),
+          onEditToday: () => handleShowForm(todaysActualEntry),
+          onAddMeal: () => openMealFor(null),
+          onSleep: () => handleShowSleepForm(todaysSleep),
+          onOpenLog: () => { setCalendarDate(formatDate(new Date())); setView('calendar'); },
+          onOpenCharts: () => setView('charts'),
+          onOpenRecovery: () => setView('recovery'),
+          onOpenRecords: () => setView('records'),
+          onOpenAI: () => setShowAIModal(true)
+        });
     }
   };
 
   return h(ToastProvider, null,
     h(MaintenanceAutoApply, { maintenanceEstimate, dietGoals, setDietGoals }),
-    // 💡💡💡 THIS IS THE NAV BAR FIX 💡💡💡
-    // The Nav Bar is now *outside* the main scrolling container.
-    h('div', { className: 'container mx-auto max-w-2xl p-4 pb-24' },
-      h('header', { className: 'text-center my-6' },
-        h('h1', { className: 'text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-600' }, 'Hypertrophy PWA V 1.0')
-      ),
+    // The page is the scroller and the header is sticky, so nothing slides when you
+    // scroll and the iPhone status-bar tap still jumps to the top.
+    h(AppHeader, {
+      title: headerTitle,
+      subtitle: headerSubtitle,
+      readiness: view === 'recovery' || readiness.pct === null ? null : readiness,
+      onMenu: () => setMenuOpen(true),
+      onReadiness: () => setView('recovery'),
+      tapToTop: uiPrefs.headerTapTop
+    }),
+    h(MenuDrawer, {
+      open: menuOpen,
+      onClose: () => setMenuOpen(false),
+      view,
+      onNavigate: navigate,
+      week: menuWeek,
+      lastImport: lastImportDate,
+      onImport: () => {
+        setSettingsGroup(g => ({ id: 'health', n: g.n + 1 }));
+        navigate('settings');
+      }
+    }),
+    h('div', { className: 'mx-auto max-w-2xl px-4 pt-4 pb-12' },
       h(SyncBanner),
       h('main', {}, renderView()),
       
@@ -5537,9 +5683,13 @@ const App = () => {
         onClose: () => {
           setShowNutritionModal(false);
           setNutritionEntryToEdit(null);
+          setMealDate(null);
         },
+        initialDate: mealDate,
         onSave: handleSaveNutrition,
-        entryToEdit: nutritionEntryToEdit
+        entryToEdit: nutritionEntryToEdit,
+        savedMeals,
+        setSavedMeals
       }),
 
       // Cycle Editor Modal
@@ -5575,34 +5725,7 @@ const App = () => {
           }
         })
       )
-    ), // <-- Main scrolling div closes here
-    
-    // Bottom Nav Bar is now a sibling to the scrolling div
-    h('nav', { className: 'fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-slate-800 border-t border-slate-700 grid grid-cols-6' }, // 👈 Changed from cols-5 to cols-6
-      h(NavButton, { icon: '🔥', label: 'Log', active: view === 'dashboard', onClick: () => setView('dashboard') }),
-      h(NavButton, { icon: '📅', label: 'Calendar', active: view === 'calendar', onClick: () => setView('calendar') }),
-      h('div', { className: 'relative' },
-        h('button', {
-          className: 'absolute bottom-4 left-1/2 -translate-x-1/2 w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center text-4xl shadow-lg hover:bg-blue-700',
-          onClick: () => handleShowForm(null)
-        }, '+')
-      ),
-      // 👇 NEW Recovery tab
-      h(NavButton, { icon: '💪', label: 'Recovery', active: view === 'recovery', onClick: () => setView('recovery') }),
-      h(NavButton, { icon: '📊', label: 'Charts', active: view === 'charts', onClick: () => setView('charts') }),
-      h(NavButton, { icon: '⚙️', label: 'Settings', active: view === 'settings', onClick: () => setView('settings') })
-    )
-  );
-};
-
-// Nav Button Component
-const NavButton = ({ icon, label, active, onClick }) => {
-  return h('button', {
-    onClick,
-    className: `flex flex-col items-center justify-center p-2 pt-3 hover:bg-slate-700 ${active ? 'text-blue-400' : 'text-slate-400'}`
-  },
-    h('span', { className: 'text-2xl' }, icon),
-    h('span', { className: 'text-xs' }, label)
+    ) // <-- Main content closes here
   );
 };
 

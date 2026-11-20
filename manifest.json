@@ -4,8 +4,8 @@
   "description": "A PWA fitness tracker optimized for hypertrophy training.",
   "start_url": ".",
   "display": "standalone",
-  "background_color": "#1e293b",
-  "theme_color": "#0f172a",
+  "background_color": "#0D1320",
+  "theme_color": "#0D1320",
   "icons": [
     {
       "src": "icons/icon-192x192.png",

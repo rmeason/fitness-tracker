@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v27'; // v27 adds Fitbit workout days to the Google Health import
+const CACHE_NAME = 'hypertrophy-pwa-cache-v37'; // v37 redesign: charts + settings
 
 const FILES_TO_CACHE = [
   './',
@@ -8,6 +8,13 @@ const FILES_TO_CACHE = [
   './sync.js',
   './sync-config.js',
   './health-import.js',
+  './ui.js',
+  './shell.js',
+  './home.js',
+  './recovery-screen.js',
+  './workout-ui.js',
+  './calendar-screen.js',
+  './charts-screen.js',
   './manifest.json'
 ];
 

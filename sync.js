@@ -1,6 +1,6 @@
 // --- ☁️ CLOUD SYNC (Supabase) ---
 // localStorage stays the app's working copy, so nothing in app.js changes how it reads
-// or writes data. This module watches the seven data keys, pushes changes to Supabase
+// or writes data. This module watches the eight data keys, pushes changes to Supabase
 // a couple of seconds after they happen, and pulls cloud data on startup, before the
 // app renders, so a wiped phone comes back with everything on it.
 //
@@ -26,7 +26,8 @@ export const SYNC_KEYS = {
   nutrition: 'hypertrophyApp.nutrition.v1',
   sleep: 'hypertrophyApp.sleep.v1',
   dietGoals: 'hypertrophyApp.dietGoals.v1',
-  profile: 'hypertrophyApp.profile.v1'
+  profile: 'hypertrophyApp.profile.v1',
+  savedMeals: 'hypertrophyApp.savedMeals.v1'
 };
 const NAMES = Object.keys(SYNC_KEYS);
 const NAME_FOR_STORAGE_KEY = Object.fromEntries(NAMES.map(n => [SYNC_KEYS[n], n]));
