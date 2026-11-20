@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v34'; // v34 redesign: saved meals
+const CACHE_NAME = 'hypertrophy-pwa-cache-v35'; // v35 redesign: saved meals
 
 const FILES_TO_CACHE = [
   './',

@@ -2421,11 +2421,13 @@ const savedMealLine = (m) => {
   return parts.join(' · ');
 };
 
-const MacroField = ({ id, label, value, onChange, placeholder }) =>
+// `text` fields (names, notes) get the normal keyboard; number fields get the
+// decimal pad on phones.
+const MacroField = ({ id, label, value, onChange, placeholder, text = false }) =>
   h('div', null,
     h('label', { htmlFor: id, className: 'block text-[13px] font-bold text-ink-muted mb-1' }, label),
     h('input', {
-      id, type: 'text', inputMode: 'decimal', autoComplete: 'off', value, placeholder,
+      id, type: 'text', inputMode: text ? 'text' : 'decimal', autoComplete: 'off', autoCapitalize: text ? 'words' : 'off', value, placeholder,
       onChange: (e) => onChange(e.target.value),
       className: 'w-full h-12 rounded-2xl bg-ink border border-ink-line px-3.5 text-base font-bold'
     })
@@ -2711,9 +2713,9 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeal
   const renderEditor = () => h('div', { className: 'flex flex-col gap-3' },
     h('div', { className: 'text-base font-extrabold' }, editor.id ? 'Edit saved meal' : 'Save a meal from its nutrition facts'),
     h('p', { className: 'text-[13px] text-ink-muted -mt-1.5' }, 'Numbers for one serving. You pick how many servings when you log it.'),
-    h(MacroField, { id: 'sm-name', label: 'Name', value: editor.name, onChange: v => setEditor(ed => ({ ...ed, name: v })), placeholder: 'e.g. Core Power Elite' }),
+    h(MacroField, { id: 'sm-name', text: true, label: 'Name', value: editor.name, onChange: v => setEditor(ed => ({ ...ed, name: v })), placeholder: 'e.g. Core Power Elite' }),
     h(MacroFields, { prefix: 'sm', f: editor.fields, set: (k, v) => setEditor(ed => ({ ...ed, fields: { ...ed.fields, [k]: v } })) }),
-    h(MacroField, { id: 'sm-note', label: 'Note (optional)', value: editor.note, onChange: v => setEditor(ed => ({ ...ed, note: v })), placeholder: 'e.g. 1 bottle, 14 oz' }),
+    h(MacroField, { id: 'sm-note', text: true, label: 'Note (optional)', value: editor.note, onChange: v => setEditor(ed => ({ ...ed, note: v })), placeholder: 'e.g. 1 bottle, 14 oz' }),
     h(PhotoButton, { busy: photoBusy, onFile: (file) => handlePhoto(file, 'editor') }),
     h('div', { className: 'flex gap-2.5' },
       h('button', { type: 'button', onClick: () => saveEditor(false), className: 'flex-1 h-12 rounded-full border border-accent text-accent font-extrabold text-[15px]' }, 'Save'),
@@ -2823,7 +2825,7 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeal
         h('span', { className: 'block text-[15px] font-bold' }, '⭐ Save as a meal for next time'),
         h('span', { className: 'block text-xs text-ink-muted' }, 'Adds it to your Saved tab with these numbers as one serving'))
     ),
-    keepMeal && h(MacroField, { id: 'keep-name', label: 'Saved meal name', value: keepName, onChange: setKeepName, placeholder: description.trim() || 'e.g. Chicken rice bowl' }),
+    keepMeal && h(MacroField, { id: 'keep-name', text: true, label: 'Saved meal name', value: keepName, onChange: setKeepName, placeholder: description.trim() || 'e.g. Chicken rice bowl' }),
     h('button', { type: 'button', onClick: handleAdd, className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg' },
       isEdit ? 'Save changes' : 'Add meal')
   );
