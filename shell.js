@@ -16,12 +16,12 @@ export const scrollToTop = () => {
 };
 
 // readiness: { pct: 0..100, color, label } or null to hide the chip.
-export const AppHeader = ({ title, subtitle, readiness, onMenu, onReadiness }) =>
+export const AppHeader = ({ title, subtitle, readiness, onMenu, onReadiness, tapToTop = true }) =>
   h('header', {
     className: 'sticky top-0 z-30 bg-ink/95 backdrop-blur border-b border-ink-line',
     style: { paddingTop: 'env(safe-area-inset-top)' },
     // Anywhere on the header that isn't a button jumps back to the top.
-    onClick: (e) => { if (!e.target.closest('button')) scrollToTop(); }
+    onClick: (e) => { if (tapToTop && !e.target.closest('button')) scrollToTop(); }
   },
     h('div', { className: 'max-w-2xl mx-auto h-[68px] px-4 flex items-center justify-between gap-3' },
       h(IconButton, { icon: 'menu', label: 'Open menu', onClick: onMenu }),

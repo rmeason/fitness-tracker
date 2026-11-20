@@ -40,8 +40,26 @@ export const fatigueLabel = (fatiguePercent) =>
 
 // Honors the phone's Reduce Motion setting; index.html also turns transitions off.
 export const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && !!window.matchMedia &&
-  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  typeof window !== 'undefined' && (
+    (typeof document !== 'undefined' && document.documentElement.classList.contains('reduce-motion')) ||
+    (!!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches));
+
+// --- Display preferences (this device only; not synced) ---
+const UI_PREFS_KEY = 'hypertrophy-ui-prefs';
+export const DEFAULT_UI_PREFS = { animations: true, celebrations: true, headerTapTop: true };
+export const getUiPrefs = () => {
+  try { return { ...DEFAULT_UI_PREFS, ...JSON.parse(localStorage.getItem(UI_PREFS_KEY) || '{}') }; }
+  catch (e) { return { ...DEFAULT_UI_PREFS }; }
+};
+// Animations off adds .reduce-motion to <html>, which index.html uses to stop every
+// animation and transition, the same as the phone's own Reduce Motion setting.
+export const applyUiPrefs = (prefs = getUiPrefs()) => {
+  if (typeof document !== 'undefined') document.documentElement.classList.toggle('reduce-motion', !prefs.animations);
+};
+export const saveUiPrefs = (prefs) => {
+  try { localStorage.setItem(UI_PREFS_KEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ }
+  applyUiPrefs(prefs);
+};
 
 // --- Icons: inline stroke SVG paths, sized by the caller ---
 export const ICONS = {
@@ -135,6 +153,31 @@ export const IconButton = ({ icon, label, onClick, size = 44, className = '' }) 
     className: `flex-none flex items-center justify-center rounded-full border border-ink-line bg-ink-card text-ink-text ${className}`,
     style: { width: size, height: size }
   }, h(Icon, { name: icon }));
+
+// A Settings section: a row with a summary that opens in place.
+export const SettingsGroup = ({ id, emoji, title, summary, open, onToggle, danger = false, children }) =>
+  h('section', { id: `settings-${id}`, className: 'bg-ink-card border border-ink-line rounded-3xl overflow-hidden scroll-mt-24' },
+    h('button', {
+      type: 'button', onClick: onToggle, 'aria-expanded': open ? 'true' : 'false',
+      className: 'w-full min-h-[64px] flex items-center gap-3 px-4 py-3 text-left'
+    },
+      h('span', { className: 'text-[22px] w-8 text-center flex-none', 'aria-hidden': 'true' }, emoji),
+      h('span', { className: 'flex-1 min-w-0' },
+        h('span', { className: 'block text-base font-extrabold', style: danger ? { color: C.bad } : undefined }, title),
+        summary && h('span', { className: 'block text-[13px] text-ink-muted truncate' }, summary)),
+      h('span', { className: `flex-none transition-transform ${open ? 'rotate-90' : ''}` }, h(Icon, { name: 'chevronRight', size: 18, color: C.muted }))),
+    open && h('div', { className: 'px-4 pb-4 pt-1 space-y-4 anim-fade-in' }, children));
+
+export const Switch = ({ label, sub, on, onChange }) =>
+  h('div', { className: 'flex items-center gap-3 min-h-[52px]' },
+    h('span', { className: 'flex-1 min-w-0' },
+      h('span', { className: 'block text-[15px] font-bold' }, label),
+      sub && h('span', { className: 'block text-xs text-ink-muted' }, sub)),
+    h('button', {
+      type: 'button', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label, onClick: () => onChange(!on),
+      className: 'w-[52px] h-8 flex-none rounded-full p-[3px] flex transition-colors',
+      style: { background: on ? C.accent : C.neutral, justifyContent: on ? 'flex-end' : 'flex-start' }
+    }, h('span', { className: 'w-[26px] h-[26px] rounded-full', style: { background: C.text } })));
 
 // One tappable row in a list card: emoji, title/subtitle, value, chevron.
 export const ListRow = ({ emoji, title, sub, value, onClick, first = false }) =>

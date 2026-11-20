@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hypertrophy-pwa-cache-v36'; // v36 redesign: calendar
+const CACHE_NAME = 'hypertrophy-pwa-cache-v37'; // v37 redesign: charts + settings
 
 const FILES_TO_CACHE = [
   './',
@@ -14,6 +14,7 @@ const FILES_TO_CACHE = [
   './recovery-screen.js',
   './workout-ui.js',
   './calendar-screen.js',
+  './charts-screen.js',
   './manifest.json'
 ];
 

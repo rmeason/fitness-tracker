@@ -3,8 +3,6 @@
 // --- ES Module Imports ---
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Line } from 'react-chartjs-2';
-import 'chart.js/auto';
 
 // --- Import our coach brain ---
 import * as Coach from './coach.js';
@@ -37,11 +35,12 @@ import * as Sync from './sync.js';
 import { readHealthExport, mergeHealthImport, mergeWorkoutImport, keepActivityFields, renameLegacyActivityFields } from './health-import.js';
 
 // Redesign (Nov 2026): shared UI kit, the header + menu shell, and the new home screen.
-import { C as UI_COLORS, fatigueColor, formatWorkoutName } from './ui.js';
+import { C as UI_COLORS, fatigueColor, formatWorkoutName, SettingsGroup, Switch, getUiPrefs, saveUiPrefs, applyUiPrefs } from './ui.js';
 import { AppHeader, MenuDrawer, scrollToTop } from './shell.js';
 import { HomeScreen } from './home.js';
 import { RecoveryScreen } from './recovery-screen.js';
 import { CalendarScreen } from './calendar-screen.js';
+import { ChartsScreen } from './charts-screen.js';
 import { SessionBar, ExerciseCard, KeypadSheet, RestTimerBar, PRCelebration, AddExerciseSheet, ExerciseOptionsSheet, FinishSummary, Sheet } from './workout-ui.js';
 
 // Alias React.createElement to 'h' for brevity
@@ -1642,182 +1641,6 @@ const CycleEditor = ({ currentCycle, onSave, onClose, entries }) => {
   );
 };
 
-// --- 📈 CHART COMPONENT (FIXED FOR MOBILE) ---
-const ExerciseProgressChart = ({ entries, allExerciseNames, sleepEntries }) => {
-  const [selectedExercise, setSelectedExercise] = useState('');
-  const [chartType, setChartType] = useState('weight');
-
-  // Auto-select first exercise when allExerciseNames updates
-  useEffect(() => {
-    if (!selectedExercise && allExerciseNames.length > 0) {
-      setSelectedExercise(allExerciseNames[0]);
-    }
-  }, [allExerciseNames, selectedExercise]);
-
-  // No data state
-  if (!entries || entries.length === 0) {
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('p', { className: 'text-slate-400' }, 'No workout data yet. Log a workout to see charts!')
-    );
-  }
-
-  // No exercises logged state
-  if (allExerciseNames.length === 0) {
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('p', { className: 'text-slate-400' }, 'No exercises logged yet. Add exercises to your workouts!')
-    );
-  }
-
-  // Session volume chart
-  if (chartType === 'sessionVolume') {
-    const sessionData = entries
-      .filter(e => e.trainingType !== 'REST' && e.totalVolume > 0)
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    if (sessionData.length === 0) {
-      return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-        h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-        h('div', { className: 'mb-4' },
-          h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-            h('option', { value: 'weight' }, 'Show Peak Weight'),
-            h('option', { value: 'volume' }, 'Show Volume Load'),
-            h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-          )
-        ),
-        h('p', { className: 'text-slate-400' }, 'No session volume data yet.')
-      );
-    }
-
-    const chartData = {
-      labels: sessionData.map(d => d.date.slice(5)), // Shorter labels for mobile (MM-DD)
-      datasets: [
-        {
-          label: 'Session Volume (lbs)',
-          data: sessionData.map(d => d.totalVolume),
-          borderColor: '#a78bfa',
-          backgroundColor: 'rgba(167, 139, 250, 0.1)',
-          tension: 0.1,
-          fill: true,
-        },
-      ],
-    };
-
-    const chartOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
-        title: { display: true, text: 'Session Volume Progress', color: '#f1f5f9', font: { size: 14 } },
-      },
-      scales: {
-        x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
-        y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
-      }
-    };
-
-    return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-      h('div', { className: 'mb-4' },
-        h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-          h('option', { value: 'weight' }, 'Show Peak Weight'),
-          h('option', { value: 'volume' }, 'Show Volume Load'),
-          h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-        )
-      ),
-      h('div', { className: 'relative w-full', style: { height: '300px' } },
-        h(Line, { data: chartData, options: chartOptions })
-      )
-    );
-  }
-
-  // Exercise-specific charts (weight and volume)
-  const exerciseData = entries
-    .map(entry => {
-      if (!entry.exercises) return null;
-      const ex = entry.exercises.find(e => e.name === selectedExercise);
-      if (!ex) return null;
-
-      const maxWeight = Array.isArray(ex.weights)
-        ? getMaxWeight(ex.weights)
-        : (ex.weight || 0);
-
-      let volumeLoad = ex.volumeLoad;
-      if (!volumeLoad && ex.reps) {
-        const weights = Array.isArray(ex.weights) ? ex.weights : (ex.weight ? [ex.weight] : []);
-        volumeLoad = calculateVolumeLoad(weights, ex.reps, ex.name, sleepEntries, ex.eachHand);
-      }
-
-      return {
-        date: entry.date,
-        weight: maxWeight,
-        volumeLoad: volumeLoad || 0
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-  const chartData = {
-    labels: exerciseData.map(d => d.date.slice(5)), // Shorter labels (MM-DD)
-    datasets: [
-      {
-        label: chartType === 'weight' ? `Weight (lbs)` : `Volume (lbs)`,
-        data: exerciseData.map(d => chartType === 'weight' ? d.weight : d.volumeLoad),
-        borderColor: chartType === 'weight' ? '#38bdf8' : '#34d399',
-        backgroundColor: chartType === 'weight' ? 'rgba(56, 189, 248, 0.1)' : 'rgba(52, 211, 153, 0.1)',
-        tension: 0.1,
-        fill: true,
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { position: 'top', labels: { color: '#cbd5e1', boxWidth: 12, font: { size: 11 } } },
-      title: { 
-        display: true, 
-        text: selectedExercise ? `${selectedExercise}` : 'Select an Exercise', 
-        color: '#f1f5f9',
-        font: { size: 14 }
-      },
-    },
-    scales: {
-      x: { ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } }, grid: { color: '#334155' } },
-      y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: '#334155' } }
-    }
-  };
-
-  return h('div', { className: 'bg-slate-800 p-4 rounded-lg' },
-    h('h3', { className: 'text-lg font-semibold mb-4' }, '📊 Exercise Progression'),
-    h('div', { className: 'grid grid-cols-1 gap-3 mb-4' },
-      h(Select, { value: selectedExercise, onChange: (e) => setSelectedExercise(e.target.value) },
-        h('option', { value: '' }, 'Select Exercise...'),
-        allExerciseNames.map(name => h('option', { key: name, value: name }, name))
-      ),
-      h(Select, { value: chartType, onChange: (e) => setChartType(e.target.value) },
-        h('option', { value: 'weight' }, 'Show Peak Weight'),
-        h('option', { value: 'volume' }, 'Show Volume Load'),
-        h('option', { value: 'sessionVolume' }, 'Show Session Volume Progress')
-      )
-    ),
-    h('div', { className: 'relative w-full', style: { height: '300px' } },
-      exerciseData.length > 0 && selectedExercise
-        ? h(Line, { data: chartData, options: chartOptions })
-        : h('div', { className: 'flex items-center justify-center h-full' },
-            h('p', { className: 'text-slate-400 text-center' }, 
-              selectedExercise 
-                ? `No data for ${selectedExercise} yet.`
-                : 'Select an exercise to view progress.'
-            )
-          )
-    )
-  );
-};
-
-// --- 📅 CALENDAR COMPONENT (UPGRADED) ---
 const TrainingCalendar = ({ entries, trainingCycle, dynamicToday, currentCycleDay, onEditCycle, onSetCycleDay }) => {
   const [currentWeekOffset, setCurrentWeekOffset] = useState(0);
   const [weekStartDay, setWeekStartDay] = useState(0); // 0 = Sunday, 1 = Monday
@@ -3281,6 +3104,10 @@ const LogEntryForm = ({ onSave, onCancel, entryToEdit, allEntries, nutrition, al
     if (w <= sessionBest) return;
     const nextPRs = { ...sessionPRs, [name]: [...(sessionPRs[name] || []), w] };
     setSessionPRs(nextPRs);
+    if (!getUiPrefs().celebrations) {
+      showToast(`🏆 New record: ${name} ${w} lb`, 'success');
+      return;
+    }
     setCelebration({
       exercise: name, weight: w, reps: Number(reps) || 0,
       oldBest: sessionBest, oldDate: sessionBest === prev ? bestDateFor(name, prev) : 'Earlier today',
@@ -4349,7 +4176,7 @@ const SyncBanner = () => {
   return null;
 };
 
-const CloudSyncCard = () => {
+const CloudSyncCard = ({ embedded = false }) => {
   const { showToast } = useToast();
   const status = useSyncStatus();
   const [email, setEmail] = useState('');
@@ -4358,7 +4185,7 @@ const CloudSyncCard = () => {
   const [backups, setBackups] = useState(null);
   const [backupId, setBackupId] = useState('');
 
-  const card = (...children) => h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
+  const card = (...children) => embedded ? h('div', { className: 'space-y-3' }, ...children) : h('div', { className: 'space-y-3 bg-slate-800 p-4 rounded-lg' },
     h('h3', { className: 'text-lg font-semibold' }, '☁️ Cloud Sync'),
     ...children
   );
@@ -4453,7 +4280,7 @@ const daysAgoLocal = (n) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }) => {
+const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries, embedded = false }) => {
   const { showToast } = useToast();
   const [files, setFiles] = useState([]);
   const [from, setFrom] = useState(() => daysAgoLocal(60));
@@ -4498,8 +4325,8 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   const totalChanges = preview ? stats.created + stats.updated + preview.workouts.changes.length : 0;
   const sample = preview ? preview.result.changes.slice(-5).reverse() : [];
 
-  return h('div', { id: 'health-import', className: 'space-y-3 bg-slate-800 p-4 rounded-lg scroll-mt-24' },
-    h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
+  return h('div', { id: 'health-import', className: embedded ? 'space-y-3 scroll-mt-24' : 'space-y-3 bg-slate-800 p-4 rounded-lg scroll-mt-24' },
+    !embedded && h('h3', { className: 'text-lg font-semibold' }, '⌚ Google Health Import'),
     h('p', { className: 'text-sm text-slate-400' },
       'Pick your Google Takeout ZIP (or the CSVs from Takeout/Google Health). Sleep, steps, calories burned and Fitbit workout days are read on this phone; nothing is uploaded.'),
     h(Input, {
@@ -4544,7 +4371,20 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   );
 };
 
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate, savedMeals = [], setSavedMeals = () => {} }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate, savedMeals = [], setSavedMeals = () => {}, uiPrefs = getUiPrefs(), onUiPrefs = () => {}, onOpenMeals = () => {}, initialGroup = null }) => {
+  // One group open at a time keeps the page short; the menu's import shortcut opens
+  // straight onto Google Health.
+  const [openGroup, setOpenGroup] = useState(initialGroup);
+  const toggleGroup = (id) => setOpenGroup(g => (g === id ? null : id));
+  useEffect(() => {
+    if (!initialGroup) return;
+    const el = document.getElementById(`settings-${initialGroup}`);
+    if (el && el.scrollIntoView) setTimeout(() => el.scrollIntoView({ block: 'start' }), 60);
+  }, []);
+  const [restLength, setRestLength] = useState(() => {
+    const saved = Number(localStorage.getItem(REST_SECONDS_KEY));
+    return saved >= 15 && saved <= 900 ? saved : 120;
+  });
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -4854,10 +4694,8 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
     }
   };
 
-  return h('div', { className: 'p-4 space-y-6' },
-    h('h2', { className: 'text-2xl font-bold' }, '⚙️ Settings'),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '🔄 Training Cycle'),
+  return h('div', { className: 'space-y-3' },
+    h(SettingsGroup, { id: 'cycle', emoji: '🔄', title: 'Training cycle', summary: `${trainingCycle.length}-day cycle`, open: openGroup === 'cycle', onToggle: () => toggleGroup('cycle') },
       h('p', { className: 'text-sm text-slate-400 mb-2' }, `Current: ${trainingCycle.length}-day cycle`),
       h(Button, { onClick: () => setShowCycleEditor(!showCycleEditor), variant: 'primary' }, 
         showCycleEditor ? 'Hide Cycle Editor' : 'Edit Training Cycle'
@@ -4872,8 +4710,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         })
       )
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '👤 Profile'),
+    h(SettingsGroup, { id: 'profile', emoji: '👤', title: 'Profile', summary: `${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${effectiveAge > 0 ? effectiveAge : '—'}`, open: openGroup === 'profile', onToggle: () => toggleGroup('profile') },
       h('p', { className: 'text-sm text-slate-300' },
         `Current: ${formatHeight((Number(profileFeet) || 0) * 12 + (Number(profileInches) || 0))}, age ${effectiveAge > 0 ? effectiveAge : '—'}`
       ),
@@ -4903,8 +4740,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       h('p', { className: 'text-xs text-slate-400' }, 'Used to calculate your BMR and calorie targets.'),
       h(Button, { onClick: saveProfileSettings, variant: 'primary', className: 'w-full' }, 'Save Profile')
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, '🎯 Diet Goals'),
+    h(SettingsGroup, { id: 'diet', emoji: '🎯', title: 'Diet goals', summary: dietGoals.enabled ? `${dietGoals.protein} g protein · ${Number(dietGoals.calories).toLocaleString()} kcal` : 'Not set', open: openGroup === 'diet', onToggle: () => toggleGroup('diet') },
       dietGoals.enabled && h('div', { className: 'text-sm text-slate-300 mb-2' },
         `Current: ${dietGoals.protein}g protein, ${dietGoals.calories} kcal`
       ),
@@ -5021,18 +4857,49 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
         h(Button, { onClick: calculateDietGoals, variant: 'primary', className: 'w-full' }, 'Calculate & Save Goals')
       )
     ),
-    h(CloudSyncCard),
-    h(HealthImportCard, { sleepEntries, setSleepEntries, entries, setEntries }),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, 'Data Backup'),
+    h(SettingsGroup, { id: 'meals', emoji: '⭐', title: 'Saved meals', summary: savedMeals.length ? `${savedMeals.length} saved` : 'None yet', open: openGroup === 'meals', onToggle: () => toggleGroup('meals') },
+      savedMeals.length === 0
+        ? h('p', { className: 'text-sm text-ink-muted' }, 'Save meals you eat often from Add meal → Saved, then log them in one tap.')
+        : h('div', null, [...savedMeals].sort((a, b) => String(a.name).localeCompare(String(b.name))).map((m, i) =>
+            h('div', { key: m.id, className: `flex items-center gap-3 py-2.5 ${i ? 'border-t border-ink-line' : ''}` },
+              h('div', { className: 'flex-1 min-w-0' },
+                h('div', { className: 'text-[15px] font-bold truncate' }, m.name),
+                h('div', { className: 'text-xs text-ink-muted' }, `${m.protein} g protein · ${Math.round(Number(m.calories) || 0)} kcal${m.useCount ? ` · logged ${m.useCount}×` : ''}`)),
+              h('button', {
+                type: 'button', 'aria-label': `Delete ${m.name}`,
+                onClick: () => { if (window.confirm(`Delete the saved meal "${m.name}"? Meals you already logged stay.`)) setSavedMeals(list => list.filter(x => x.id !== m.id)); },
+                className: 'w-9 h-9 flex-none rounded-full flex items-center justify-center text-ink-muted text-lg'
+              }, '×')))),
+      h(Button, { onClick: onOpenMeals, variant: 'secondary', className: 'w-full' }, 'Open Add meal to add or edit')
+    ),
+    h(SettingsGroup, { id: 'cloud', emoji: '☁️', title: 'Cloud backup', summary: 'Sign-in, sync and the daily 5 am backups', open: openGroup === 'cloud', onToggle: () => toggleGroup('cloud') },
+      h(CloudSyncCard, { embedded: true })
+    ),
+    h(SettingsGroup, { id: 'health', emoji: '⌚', title: 'Google Health', summary: 'Import sleep, steps and workouts from Takeout', open: openGroup === 'health', onToggle: () => toggleGroup('health') },
+      h(HealthImportCard, { sleepEntries, setSleepEntries, entries, setEntries, embedded: true })
+    ),
+    h(SettingsGroup, { id: 'display', emoji: '✨', title: 'Display', summary: 'Animations, record celebrations, rest timer', open: openGroup === 'display', onToggle: () => toggleGroup('display') },
+      h(Switch, { label: 'Animations', sub: 'Rings filling, sheets sliding, the Start button glow', on: uiPrefs.animations, onChange: (v) => onUiPrefs({ ...uiPrefs, animations: v }) }),
+      h(Switch, { label: 'Record celebrations', sub: 'Full-screen trophy and confetti on a new best (off: a short message)', on: uiPrefs.celebrations, onChange: (v) => onUiPrefs({ ...uiPrefs, celebrations: v }) }),
+      h(Switch, { label: 'Tap the header to jump to the top', sub: 'The iPhone status-bar tap works either way', on: uiPrefs.headerTapTop, onChange: (v) => onUiPrefs({ ...uiPrefs, headerTapTop: v }) }),
+      h('div', { className: 'flex items-center gap-3 min-h-[52px]' },
+        h('label', { htmlFor: 'rest-length', className: 'flex-1 text-[15px] font-bold' }, 'Rest timer length',
+          h('span', { className: 'block text-xs text-ink-muted font-normal' }, 'Starting length; ±15s on the timer changes it too')),
+        h('select', {
+          id: 'rest-length', value: String(restLength),
+          onChange: (e) => { setRestLength(Number(e.target.value)); try { localStorage.setItem(REST_SECONDS_KEY, e.target.value); } catch (err) { /* ignore */ } },
+          className: 'h-11 rounded-full bg-ink border border-ink-line px-3 text-sm font-bold'
+        }, [...new Set([60, 90, 120, 150, 180, 240, 300, restLength])].sort((a, b) => a - b).map(sec =>
+          h('option', { key: sec, value: String(sec) }, `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`))))
+    ),
+    h(SettingsGroup, { id: 'backup', emoji: '💾', title: 'Backup file', summary: 'Export or import a JSON file', open: openGroup === 'backup', onToggle: () => toggleGroup('backup') },
       h(Button, { onClick: exportData, variant: 'primary' }, 'Export All Data (JSON)'),
       h('div', {},
         h('label', { className: 'block text-sm font-medium mb-1', htmlFor: 'import-file' }, 'Import Data (JSON)'),
         h(Input, { type: 'file', id: 'import-file', accept: '.json', onChange: importData })
       )
     ),
-    h('div', { className: 'space-y-4 bg-slate-800 p-4 rounded-lg' },
-      h('h3', { className: 'text-lg font-semibold' }, 'Danger Zone'),
+    h(SettingsGroup, { id: 'danger', emoji: '🗑️', title: 'Danger zone', summary: 'Delete all data', open: openGroup === 'danger', onToggle: () => toggleGroup('danger'), danger: true },
       h(Button, { onClick: deleteAllData, variant: 'danger' }, 'Delete All Data')
     )
   );
@@ -5157,6 +5024,10 @@ const App = () => {
   const [formStart, setFormStart] = useState(null); // { date, type } | null
   const [calendarDate, setCalendarDate] = useState(() => formatDate(new Date()));
   const [mealDate, setMealDate] = useState(null);
+  const [uiPrefs, setUiPrefsState] = useState(() => getUiPrefs());
+  useEffect(() => { applyUiPrefs(uiPrefs); }, []);
+  const updateUiPrefs = (next) => { saveUiPrefs(next); setUiPrefsState(next); };
+  const [settingsGroup, setSettingsGroup] = useState({ id: null, n: 0 });
   const [nutritionEntryToEdit, setNutritionEntryToEdit] = useState(null);
   const [sleepEntryToEdit, setSleepEntryToEdit] = useState(null);
 
@@ -5686,7 +5557,19 @@ const App = () => {
           onDeleteSleep: handleDeleteSleep
         });
       case 'charts':
-        return h(ExerciseProgressChart, { entries: sortedEntries, allExerciseNames, sleepEntries });
+        return h(ChartsScreen, {
+          entries: sortedEntries,
+          nutrition,
+          sleepEntries,
+          exerciseNames: allExerciseNames,
+          proteinTarget: dietGoals && dietGoals.enabled ? dietGoals.protein : USER_CONTEXT.proteinTarget,
+          calorieTargetFor: (type) => getTodaysCalorieTarget(type, dietGoals),
+          // Saved volumeLoad when present; older logs are computed the same way the
+          // workout form does it.
+          volumeFor: (ex) => Number(ex.volumeLoad) || calculateVolumeLoad(
+            Array.isArray(ex.weights) ? ex.weights : (ex.weight ? Array((ex.reps || []).length).fill(ex.weight) : []),
+            Array.isArray(ex.reps) ? ex.reps : [], ex.name, sleepEntries, ex.eachHand)
+        });
       case 'settings':
         return h(Settings, {
           entries: sortedEntries,
@@ -5701,7 +5584,12 @@ const App = () => {
           setDietGoals: setDietGoals,
           maintenanceEstimate: maintenanceEstimate,
           savedMeals,
-          setSavedMeals
+          setSavedMeals,
+          uiPrefs,
+          onUiPrefs: updateUiPrefs,
+          onOpenMeals: () => openMealFor(null),
+          key: `settings-${settingsGroup.n}`,
+          initialGroup: settingsGroup.id
         });
 
         case 'recovery':
@@ -5752,7 +5640,8 @@ const App = () => {
       subtitle: headerSubtitle,
       readiness: view === 'recovery' || readiness.pct === null ? null : readiness,
       onMenu: () => setMenuOpen(true),
-      onReadiness: () => setView('recovery')
+      onReadiness: () => setView('recovery'),
+      tapToTop: uiPrefs.headerTapTop
     }),
     h(MenuDrawer, {
       open: menuOpen,
@@ -5762,11 +5651,8 @@ const App = () => {
       week: menuWeek,
       lastImport: lastImportDate,
       onImport: () => {
+        setSettingsGroup(g => ({ id: 'health', n: g.n + 1 }));
         navigate('settings');
-        setTimeout(() => {
-          const card = document.getElementById('health-import');
-          if (card) card.scrollIntoView({ block: 'start' });
-        }, 80);
       }
     }),
     h('div', { className: 'mx-auto max-w-2xl px-4 pt-4 pb-12' },
