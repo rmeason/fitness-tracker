@@ -158,6 +158,7 @@ const SLEEP_KEY = 'hypertrophyApp.sleep.v1'; // Separate sleep DB (sleep + weigh
 const DIET_GOALS_KEY = 'hypertrophyApp.dietGoals.v1'; // Diet goals
 const MIGRATION_FLAG_KEY = 'hypertrophyApp.migrationV2.done'; // Migration tracker
 const PROFILE_KEY = 'hypertrophyApp.profile.v1'; // User profile (height + age)
+const SAVED_MEALS_KEY = 'hypertrophyApp.savedMeals.v1'; // Saved meals: per-serving nutrition you log in one tap (synced)
 const MIGRATION_FLAG_V3_KEY = 'hypertrophyApp.migrationV3.done'; // Migration tracker for sleep split
 
 // The shape App starts from and deleteAllData resets to. Spread, never mutated.
@@ -2379,34 +2380,222 @@ const MacroCalorieHint = ({ protein, carbs, fat, fiber, calories, onUseDerived }
   );
 };
 
-// 💡 NEW: NUTRITION QUICK-ADD MODAL (also the edit form for an existing meal)
-const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
-  // macroValue rather than `entryToEdit.x || ''`, which would read a logged 0 as
-  // "not tracked" and quietly blank it out on the next save.
-  const seed = (field) => {
-    const v = macroValue(entryToEdit, field);
-    return v === null ? '' : v;
+// --- 🍽️ ADD MEAL SHEET (redesign, Nov 2026) ---
+// Two tabs. "Saved" holds meals whose nutrition you've already worked out: one tap
+// logs a serving, or open one to pick servings, edit or delete it. "Type it" is the
+// old quick-add (describe + parse, or type the numbers, or read a label photo), with
+// a switch to keep the meal for next time. Editing a logged meal opens "Type it".
+//
+// A saved meal is { id, name, protein, calories, carbs?, fat?, fiber?, note?,
+// createdAt, lastUsedAt, useCount } -- per ONE serving. Logging one writes an ordinary
+// nutrition entry, so nothing downstream knows or cares that it came from a template.
+
+const MEAL_OPTIONAL_MACROS = ['carbs', 'fat', 'fiber'];
+const roundTenth = (n) => Math.round(n * 10) / 10;
+
+// Typed text -> number, '' stays ''. "3k" still means 3000 like the old fields.
+const macroText = (v) => (v === '' || v === null || v === undefined ? '' : String(v));
+const macroFromText = (text) => (String(text).trim() === '' ? '' : Number(parseNumberWithSuffix(text)) || 0);
+
+// Saved meal x servings -> nutrition entry. Grams to 0.1, calories to whole kcal (as
+// the meal parser rounds). A macro the saved meal never tracked stays off the entry.
+const nutritionFromSavedMeal = (saved, servings, date) => {
+  const entry = {
+    id: generateId(),
+    date,
+    protein: roundTenth((Number(saved.protein) || 0) * servings),
+    calories: Math.round((Number(saved.calories) || 0) * servings)
   };
-  // Lazy initialisers are enough: the modal is mounted conditionally, so it remounts
-  // on every open and never has to catch up to a prop change while alive.
-  const [protein, setProtein] = useState(() => seed('protein'));
-  const [calories, setCalories] = useState(() => seed('calories'));
-  // '' means "not tracked". A cleared field goes back to '' rather than 0 so an
-  // untouched macro is never saved as a logged zero.
-  const [carbs, setCarbs] = useState(() => seed('carbs'));
-  const [fat, setFat] = useState(() => seed('fat'));
-  const [fiber, setFiber] = useState(() => seed('fiber'));
+  for (const k of MEAL_OPTIONAL_MACROS) {
+    const v = macroValue(saved, k);
+    if (v !== null) entry[k] = roundTenth(v * servings);
+  }
+  entry.description = servings === 1 ? saved.name : `${saved.name} × ${servings}`;
+  return entry;
+};
+
+const savedMealLine = (m) => {
+  const parts = [`${formatMacro(macroValue(m, 'protein'))} protein`, `${Math.round(Number(m.calories) || 0).toLocaleString()} kcal`];
+  if (macroValue(m, 'carbs') !== null) parts.push(`${formatMacro(macroValue(m, 'carbs'))} carbs`);
+  if (macroValue(m, 'fat') !== null) parts.push(`${formatMacro(macroValue(m, 'fat'))} fat`);
+  return parts.join(' · ');
+};
+
+const MacroField = ({ id, label, value, onChange, placeholder }) =>
+  h('div', null,
+    h('label', { htmlFor: id, className: 'block text-[13px] font-bold text-ink-muted mb-1' }, label),
+    h('input', {
+      id, type: 'text', inputMode: 'decimal', autoComplete: 'off', value, placeholder,
+      onChange: (e) => onChange(e.target.value),
+      className: 'w-full h-12 rounded-2xl bg-ink border border-ink-line px-3.5 text-base font-bold'
+    })
+  );
+
+// Five macro boxes + the calorie cross-check. `f` is { protein, calories, carbs, fat,
+// fiber } as text; `set(key, text)` updates one.
+const MacroFields = ({ prefix, f, set }) =>
+  h('div', { className: 'flex flex-col gap-2.5' },
+    h('div', { className: 'grid grid-cols-2 gap-2.5' },
+      h(MacroField, { id: `${prefix}-protein`, label: 'Protein (g)', value: f.protein, onChange: v => set('protein', v), placeholder: 'e.g. 42' }),
+      h(MacroField, { id: `${prefix}-calories`, label: 'Calories (kcal)', value: f.calories, onChange: v => set('calories', v), placeholder: 'e.g. 230' })
+    ),
+    h('div', { className: 'grid grid-cols-3 gap-2.5' },
+      h(MacroField, { id: `${prefix}-carbs`, label: 'Carbs (g)', value: f.carbs, onChange: v => set('carbs', v), placeholder: 'optional' }),
+      h(MacroField, { id: `${prefix}-fat`, label: 'Fat (g)', value: f.fat, onChange: v => set('fat', v), placeholder: 'optional' }),
+      h(MacroField, { id: `${prefix}-fiber`, label: 'Fiber (g)', value: f.fiber, onChange: v => set('fiber', v), placeholder: 'optional' })
+    ),
+    h(MacroCalorieHint, {
+      protein: macroFromText(f.protein) === '' ? null : macroFromText(f.protein),
+      carbs: macroFromText(f.carbs) === '' ? null : macroFromText(f.carbs),
+      fat: macroFromText(f.fat) === '' ? null : macroFromText(f.fat),
+      fiber: macroFromText(f.fiber) === '' ? null : macroFromText(f.fiber),
+      calories: macroFromText(f.calories) === '' ? null : macroFromText(f.calories),
+      onUseDerived: (kcal) => set('calories', String(kcal))
+    })
+  );
+
+// Ask the vision function to read a nutrition label or a meal photo. Returns text
+// values for the macro boxes; the person reviews them before anything is saved.
+const readNutritionPhoto = async (file) => {
+  if (!file || !file.type.startsWith('image/')) throw new Error('Pick a photo.');
+  const base64Data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+  });
+  const prompt = `This is a nutrition facts label or a photo of a meal.
+Reply with ONLY a JSON object (null for anything you cannot read or estimate):
+{"name": string, "protein": number, "carbs": number, "fat": number, "fiber": number, "calories": number}
+For a label, use the values for ONE serving as printed. For a meal photo, estimate the whole plate.
+"carbs" is Total Carbohydrate; "fiber" is Dietary Fiber.`;
+  const res = await fetch('/.netlify/functions/get-vision-extraction', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: [
+      { type: 'image', source: { type: 'base64', media_type: file.type, data: base64Data } },
+      { type: 'text', text: prompt }
+    ] })
+  });
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { msg = (await res.json()).error || msg; } catch (e) { /* keep statusText */ }
+    throw new Error(`Couldn't read the photo: ${msg}`);
+  }
+  const data = await res.json();
+  const r = parseAiJson(data.text);
+  const t = (v) => (optionalNumber(v) === null ? '' : String(optionalNumber(v)));
+  return {
+    name: typeof r.name === 'string' ? r.name.trim() : '',
+    fields: { protein: t(r.protein), calories: t(r.calories), carbs: t(r.carbs), fat: t(r.fat), fiber: t(r.fiber) }
+  };
+};
+
+const PhotoButton = ({ busy, onFile }) =>
+  h('label', {
+    className: `h-11 px-4 rounded-full border border-ink-line flex items-center justify-center gap-2 text-sm font-bold cursor-pointer ${busy ? 'opacity-60' : ''}`
+  },
+    busy
+      ? h(Fragment, null, h('span', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-accent' }), 'Reading…')
+      : '📷 Read a label or photo',
+    h('input', {
+      type: 'file', accept: 'image/*', className: 'sr-only', disabled: busy,
+      onChange: (e) => { const file = e.target.files[0]; e.target.value = ''; if (file) onFile(file); }
+    })
+  );
+
+const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null, savedMeals = [], setSavedMeals = () => {} }) => {
+  const { showToast } = useToast();
+  const isEdit = !!entryToEdit;
+  const [tab, setTab] = useState(isEdit || savedMeals.length === 0 ? 'type' : 'saved');
+  const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
+  const [addedCount, setAddedCount] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState(false);
+
+  // --- "Type it" state. '' means "not tracked": an untouched macro never saves as 0.
+  const seed = (field) => macroText(macroValue(entryToEdit, field));
+  const [fields, setFields] = useState(() => ({
+    protein: seed('protein'), calories: seed('calories'), carbs: seed('carbs'), fat: seed('fat'), fiber: seed('fiber')
+  }));
+  const setField = (k, v) => setFields(f => ({ ...f, [k]: v }));
   // The person's own words, kept verbatim. Trustworthy in a way the resolved numbers are not.
   const [description, setDescription] = useState(() => entryToEdit?.description || '');
-  // null when idle, otherwise the stage being shown: the lookup stage makes one network
-  // call per item and visibly takes longer than the parse.
   const [parseStage, setParseStage] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
-  // 💡💡💡 THIS IS THE FIX 💡💡💡
-  // Add date state, defaulting to today
-  const [date, setDate] = useState(() => entryToEdit?.date || formatDate(new Date()));
-  const { showToast } = useToast();
+  const [keepMeal, setKeepMeal] = useState(false);
+  const [keepName, setKeepName] = useState('');
 
+  // --- "Saved" state
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState(null);
+  const [servings, setServings] = useState(1);
+  const [editor, setEditor] = useState(null); // null | { id|null, name, note, fields }
+
+  const sortedMeals = [...savedMeals].sort((a, b) =>
+    (b.lastUsedAt || '').localeCompare(a.lastUsedAt || '') || String(a.name).localeCompare(String(b.name)));
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shownMeals = words.length
+    ? sortedMeals.filter(m => { const low = `${m.name} ${m.note || ''}`.toLowerCase(); return words.every(w => low.includes(w)); })
+    : sortedMeals;
+
+  const dateLabel = date === formatDate(new Date())
+    ? 'Today'
+    : parseLocalDate(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+
+  // --- Saved: log a serving count of one meal
+  const addSaved = (meal, count) => {
+    onSave(nutritionFromSavedMeal(meal, count, date));
+    const now = new Date().toISOString();
+    setSavedMeals(list => list.map(m => (m.id === meal.id ? { ...m, lastUsedAt: now, useCount: (m.useCount || 0) + 1 } : m)));
+    setAddedCount(n => n + 1);
+    setOpenId(null);
+    setServings(1);
+    showToast(`Added ${count === 1 ? '' : `${count} × `}${meal.name} to ${dateLabel.toLowerCase() === 'today' ? 'today' : dateLabel}`, 'success');
+  };
+
+  const deleteSaved = (meal) => {
+    if (!window.confirm(`Delete the saved meal "${meal.name}"? Meals you already logged stay.`)) return;
+    setSavedMeals(list => list.filter(m => m.id !== meal.id));
+    setOpenId(null);
+  };
+
+  // Build a saved meal from name + text fields. null (with a toast) if not usable.
+  const buildSavedMeal = (base, name, f, note) => {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) { showToast('Give the meal a name', 'error'); return null; }
+    const protein = macroFromText(f.protein);
+    const calories = macroFromText(f.calories);
+    if ((protein === '' || protein === 0) && (calories === '' || calories === 0)) {
+      showToast('Enter at least protein or calories', 'error');
+      return null;
+    }
+    const meal = {
+      ...(base || {}),
+      id: base?.id || generateId(),
+      name: trimmed,
+      protein: protein === '' ? 0 : protein,
+      calories: calories === '' ? 0 : Math.round(calories),
+      createdAt: base?.createdAt || new Date().toISOString()
+    };
+    for (const k of MEAL_OPTIONAL_MACROS) {
+      const v = macroFromText(f[k]);
+      if (v !== '') meal[k] = v; else delete meal[k];
+    }
+    if (note && note.trim()) meal.note = note.trim(); else delete meal.note;
+    return meal;
+  };
+
+  const saveEditor = (alsoLog) => {
+    const base = editor.id ? savedMeals.find(m => m.id === editor.id) : null;
+    const meal = buildSavedMeal(base, editor.name, editor.fields, editor.note);
+    if (!meal) return;
+    setSavedMeals(list => (base ? list.map(m => (m.id === meal.id ? meal : m)) : [...list, meal]));
+    setEditor(null);
+    if (alsoLog) addSaved(meal, 1);
+    else showToast(base ? `Updated ${meal.name}` : `Saved ${meal.name}. Tap it any time to log it`, 'success');
+  };
+
+  // --- Type it: parse a description (AI + USDA), unchanged from the old quick-add
   const handleParse = async () => {
     const text = description.trim();
     if (!text) return;
@@ -2415,22 +2604,16 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
       setParseStage('Reading description…');
       const items = await parseMealDescription(text);
       if (items.length === 0) throw new Error('No foods were recognised in that description.');
-
       setParseStage('Looking up foods…');
       const rows = await resolveMealItems(items);
       setParsedRows(rows);
-
-      // Overwriting is intended: the modal is the review surface and nothing is stored
-      // until Save. A macro no row could supply stays blank rather than showing a
-      // partial sum as though it were a total.
+      // Overwriting is intended: nothing is stored until Save. A macro no row could
+      // supply stays blank rather than showing a partial sum as though it were a total.
       const totals = sumMealItems(rows);
-      const toField = (v) => (v === null ? '' : String(v));
-      setProtein(toField(totals.protein));
-      setCarbs(toField(totals.carbs));
-      setFat(toField(totals.fat));
-      setFiber(toField(totals.fiber));
-      setCalories(toField(totals.calories));
-
+      setFields({
+        protein: macroText(totals.protein), calories: macroText(totals.calories),
+        carbs: macroText(totals.carbs), fat: macroText(totals.fat), fiber: macroText(totals.fiber)
+      });
       const matched = rows.filter(r => r.source === 'usda').length;
       showToast(`Parsed ${rows.length} item${rows.length === 1 ? '' : 's'}, ${matched} matched in USDA.`, 'success');
     } catch (err) {
@@ -2442,144 +2625,215 @@ const NutritionQuickAddModal = ({ onClose, onSave, entryToEdit = null }) => {
     }
   };
 
-  const handleAdd = () => {
-    // CRITICAL FIX: Ensure parseNumberWithSuffix result is converted to Number
-    const prot = Number(parseNumberWithSuffix(protein)) || 0;
-    const cals = Number(parseNumberWithSuffix(calories)) || 0;
+  const handlePhoto = async (file, target) => {
+    setPhotoBusy(true);
+    try {
+      const { name, fields: read } = await readNutritionPhoto(file);
+      if (target === 'editor') {
+        setEditor(ed => ({ ...ed, name: ed.name || name, fields: read }));
+      } else {
+        setFields(read);
+        if (name && !description.trim()) setDescription(name);
+      }
+      showToast('Read the photo. Check the numbers before saving', 'success');
+    } catch (err) {
+      console.error('Photo read failed:', err);
+      showToast(err.message, 'error');
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
-    // Note: Allow negative values for corrections (e.g., if user logged wrong meal)
-    // But warn if nothing at all was entered
-    if (prot === 0 && cals === 0 && carbs === '' && fat === '' && fiber === '') {
+  const handleAdd = () => {
+    const prot = Number(parseNumberWithSuffix(fields.protein)) || 0;
+    const cals = Number(parseNumberWithSuffix(fields.calories)) || 0;
+    // Negative values are allowed for corrections, but not an entirely empty meal.
+    if (prot === 0 && cals === 0 && fields.carbs === '' && fields.fat === '' && fields.fiber === '') {
       showToast('Please enter protein, calories, carbs, fat, or fiber', 'error');
       return;
     }
-
-    // Editing spreads the original rather than rebuilding it. A nutrition row imported
-    // from a pre-V3 backup still carries sleepHours/deepSleepPercent/weight/
-    // recoveryRating, and rebuilding would silently drop them. Keeping the original id
-    // is also what makes the save land on the update branch instead of appending a copy.
+    // Editing spreads the original rather than rebuilding it: a row imported from a
+    // pre-V3 backup still carries sleep/weight fields, and keeping the id is what makes
+    // the save update the entry instead of appending a copy.
     const meal = entryToEdit
       ? { ...entryToEdit, date, protein: prot, calories: cals }
       : { id: generateId(), date, protein: prot, calories: cals };
-
-    // Set when entered, delete when cleared. Without the delete, the spread above
-    // would resurrect a macro the user just blanked out.
-    if (carbs !== '') meal.carbs = Number(parseNumberWithSuffix(carbs)) || 0;
-    else delete meal.carbs;
-    if (fat !== '') meal.fat = Number(parseNumberWithSuffix(fat)) || 0;
-    else delete meal.fat;
-    if (fiber !== '') meal.fiber = Number(parseNumberWithSuffix(fiber)) || 0;
-    else delete meal.fiber;
-    // Same set-when-present/delete-when-cleared rule as the macros, so the spread-based
-    // edit path keeps working. The resolved rows and their source markers are NOT stored.
+    // Set when entered, delete when cleared, so the spread can't resurrect a blanked macro.
+    for (const k of MEAL_OPTIONAL_MACROS) {
+      if (String(fields[k]).trim() !== '') meal[k] = Number(parseNumberWithSuffix(fields[k])) || 0;
+      else delete meal[k];
+    }
     if (description.trim() !== '') meal.description = description.trim();
     else delete meal.description;
-    onSave(meal);
 
+    if (keepMeal) {
+      const saved = buildSavedMeal(null, keepName || description, fields, '');
+      if (!saved) return;
+      saved.lastUsedAt = new Date().toISOString();
+      saved.useCount = 1;
+      setSavedMeals(list => [...list, saved]);
+      // Logged under the saved name when nothing was described, so the day's log reads well.
+      if (!meal.description) meal.description = saved.name;
+    }
+    onSave(meal);
     showToast(entryToEdit
       ? `Updated to ${prot}g protein and ${cals} kcal for ${date}.`
-      : `Added ${prot}g protein and ${cals} kcal for ${date}!`, 'success');
+      : `Added ${prot}g protein and ${cals} kcal${keepMeal ? ' and saved the meal' : ''}.`, 'success');
     onClose();
   };
 
-  return h(Modal, { show: true, onClose, title: entryToEdit ? "🍽️ Edit Meal" : "🍽️ Quick Add Meal" },
-    h('div', { className: 'space-y-4' },
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Describe the meal'),
-        h('textarea', {
-          className: 'w-full p-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400',
-          rows: 2,
-          value: description,
-          onChange: e => setDescription(e.target.value),
-          placeholder: 'e.g., two Core Power shakes and a handful of shredded cheddar'
+  const tabBtn = (id, label) => h('button', {
+    type: 'button', role: 'tab', 'aria-selected': tab === id ? 'true' : 'false', onClick: () => { setTab(id); setEditor(null); },
+    className: `flex-1 h-10 rounded-full text-sm ${tab === id ? 'bg-accent text-accent-on font-extrabold' : 'font-bold'}`
+  }, label);
+
+  const header = h('div', { className: 'flex items-center gap-3 mb-3' },
+    h('div', { className: 'flex-1 min-w-0' },
+      h('div', { className: 'text-xl font-extrabold' }, isEdit ? 'Edit meal' : 'Add meal'),
+      h('label', { className: 'flex items-center gap-2 text-[13px] text-ink-muted mt-0.5' },
+        'For',
+        h('input', {
+          type: 'date', value: date, onChange: (e) => setDate(e.target.value), 'aria-label': 'Meal date',
+          className: 'bg-transparent text-ink-text font-bold'
         }),
-        h('div', { className: 'flex items-center gap-2 mt-2' },
-          h(Button, {
-            variant: 'secondary',
-            size: 'sm',
-            onClick: handleParse,
-            className: (parseStage || description.trim() === '') ? 'opacity-50' : ''
-          }, 'Parse'),
-          parseStage && h('div', { className: 'flex items-center gap-2 text-xs text-slate-400' },
-            h('div', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400' }),
-            h('span', {}, parseStage)
-          )
+        addedCount > 0 && h('span', { className: 'font-bold', style: { color: UI_COLORS.good } }, `· ${addedCount} added`)
+      )
+    ),
+    h('button', {
+      type: 'button', onClick: onClose, 'aria-label': addedCount ? 'Done' : 'Close',
+      className: addedCount
+        ? 'h-11 px-4 rounded-full bg-accent text-accent-on font-extrabold text-sm flex-none'
+        : 'w-11 h-11 flex-none rounded-full border border-ink-line bg-ink flex items-center justify-center'
+    }, addedCount ? 'Done' : '✕')
+  );
+
+  // --- Saved tab ---
+  const renderEditor = () => h('div', { className: 'flex flex-col gap-3' },
+    h('div', { className: 'text-base font-extrabold' }, editor.id ? 'Edit saved meal' : 'Save a meal from its nutrition facts'),
+    h('p', { className: 'text-[13px] text-ink-muted -mt-1.5' }, 'Numbers for one serving. You pick how many servings when you log it.'),
+    h(MacroField, { id: 'sm-name', label: 'Name', value: editor.name, onChange: v => setEditor(ed => ({ ...ed, name: v })), placeholder: 'e.g. Core Power Elite' }),
+    h(MacroFields, { prefix: 'sm', f: editor.fields, set: (k, v) => setEditor(ed => ({ ...ed, fields: { ...ed.fields, [k]: v } })) }),
+    h(MacroField, { id: 'sm-note', label: 'Note (optional)', value: editor.note, onChange: v => setEditor(ed => ({ ...ed, note: v })), placeholder: 'e.g. 1 bottle, 14 oz' }),
+    h(PhotoButton, { busy: photoBusy, onFile: (file) => handlePhoto(file, 'editor') }),
+    h('div', { className: 'flex gap-2.5' },
+      h('button', { type: 'button', onClick: () => saveEditor(false), className: 'flex-1 h-12 rounded-full border border-accent text-accent font-extrabold text-[15px]' }, 'Save'),
+      h('button', { type: 'button', onClick: () => saveEditor(true), className: 'flex-1 h-12 rounded-full bg-accent text-accent-on font-extrabold text-[15px]' }, 'Save + log 1')
+    ),
+    h('button', { type: 'button', onClick: () => setEditor(null), className: 'h-11 text-sm font-bold text-ink-muted' }, 'Cancel')
+  );
+
+  const renderMealRow = (m, i) => {
+    const open = openId === m.id;
+    const preview = open ? nutritionFromSavedMeal(m, servings, date) : null;
+    return h('div', { key: m.id, className: i ? 'border-t border-ink-line' : '' },
+      h('div', { className: 'flex items-center gap-3 py-3' },
+        h('button', {
+          type: 'button', onClick: () => { setOpenId(open ? null : m.id); setServings(1); }, 'aria-expanded': open ? 'true' : 'false',
+          className: 'flex-1 min-w-0 text-left'
+        },
+          h('span', { className: 'block text-[15px] font-extrabold truncate' }, m.name),
+          h('span', { className: 'block text-[13px] text-ink-muted truncate' }, savedMealLine(m)),
+          m.note && h('span', { className: 'block text-xs text-ink-muted truncate' }, m.note)
         ),
-        // The review surface. Its whole job is making "looked up" and "guessed" obvious
-        // at a glance, so the source marker is per row and never abbreviated away.
-        parsedRows.length > 0 && h('div', { className: 'mt-3 space-y-2' },
-          parsedRows.map((row, i) =>
-            h('div', { key: i, className: 'bg-slate-900 p-2 rounded text-xs space-y-1' },
-              h('div', { className: 'flex justify-between gap-2' },
-                h('span', { className: 'font-medium text-slate-200 min-w-0 truncate' }, row.name),
-                h('span', { className: 'text-slate-400 shrink-0' }, row.grams === null ? '—' : `${row.grams} g`)
-              ),
-              h('div', { className: 'text-slate-300' },
-                `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${row.calories === null ? '—' : row.calories} kcal`
-              ),
-              // Three states, not two. A generic match is real database data but for a
-              // stand-in food, so it must not read as an exact hit or as a guess.
-              row.source === 'usda'
-                ? h('div', { className: 'text-green-400 truncate' }, `USDA: ${row.matchedName}`)
-                : row.source === 'usda-generic'
-                  ? h('div', { className: 'text-cyan-400 truncate' }, `USDA, similar food: ${row.matchedName}`)
-                  : h('div', { className: 'text-yellow-500' }, 'estimated — no database match')
-            )
-          )
+        h('button', {
+          type: 'button', onClick: () => addSaved(m, 1), 'aria-label': `Log one serving of ${m.name}`,
+          className: 'w-11 h-11 flex-none rounded-full bg-accent text-accent-on text-2xl font-extrabold flex items-center justify-center'
+        }, '+')
+      ),
+      open && h('div', { className: 'pb-3.5 flex flex-col gap-3 anim-fade-in' },
+        h('div', { className: 'flex items-center gap-3' },
+          h('span', { className: 'text-sm font-bold flex-1' }, 'Servings'),
+          h('button', { type: 'button', 'aria-label': 'Fewer servings', disabled: servings <= 0.5, onClick: () => setServings(s => Math.max(0.5, roundTenth(s - 0.5))), className: 'w-11 h-11 rounded-full border border-ink-line text-xl font-extrabold disabled:opacity-40' }, '−'),
+          h('span', { className: 'w-12 text-center text-lg font-extrabold', 'aria-live': 'polite' }, servings),
+          h('button', { type: 'button', 'aria-label': 'More servings', disabled: servings >= 10, onClick: () => setServings(s => Math.min(10, roundTenth(s + 0.5))), className: 'w-11 h-11 rounded-full border border-ink-line text-xl font-extrabold disabled:opacity-40' }, '+')
+        ),
+        h('div', { className: 'text-[13px] text-ink-muted' }, `That's ${savedMealLine(preview)}`),
+        h('button', { type: 'button', onClick: () => addSaved(m, servings), className: 'h-12 rounded-full bg-accent text-accent-on font-extrabold text-[15px]' },
+          `Log ${servings} serving${servings === 1 ? '' : 's'}`),
+        h('div', { className: 'flex gap-2.5' },
+          h('button', {
+            type: 'button', className: 'flex-1 h-11 rounded-full border border-ink-line font-bold text-sm',
+            onClick: () => setEditor({ id: m.id, name: m.name, note: m.note || '', fields: { protein: macroText(m.protein), calories: macroText(m.calories), carbs: macroText(m.carbs), fat: macroText(m.fat), fiber: macroText(m.fiber) } })
+          }, '✏️ Edit'),
+          h('button', { type: 'button', onClick: () => deleteSaved(m), className: 'flex-1 h-11 rounded-full border font-bold text-sm', style: { borderColor: UI_COLORS.bad, color: UI_COLORS.bad } }, '🗑️ Delete')
         )
+      )
+    );
+  };
+
+  const renderSaved = () => editor ? renderEditor() : h('div', { className: 'flex flex-col gap-3' },
+    savedMeals.length > 0 && h(Fragment, null,
+      h('label', { className: 'sr-only', htmlFor: 'saved-meal-search' }, 'Search saved meals'),
+      h('input', {
+        id: 'saved-meal-search', type: 'search', value: query, autoComplete: 'off', onChange: (e) => setQuery(e.target.value),
+        placeholder: 'Search your saved meals', className: 'w-full h-12 rounded-full bg-ink border border-ink-line px-4 text-base'
+      })
+    ),
+    savedMeals.length === 0
+      ? h('div', { className: 'text-center py-4' },
+          h('div', { className: 'text-base font-extrabold' }, 'No saved meals yet'),
+          h('p', { className: 'text-sm text-ink-muted mt-1' }, 'Save the meals you eat often, with their nutrition facts, and log them in one tap.'))
+      : h('div', { className: 'bg-ink border border-ink-line rounded-3xl px-4' },
+          shownMeals.length ? shownMeals.map(renderMealRow) : h('div', { className: 'py-4 text-sm text-ink-muted' }, 'No saved meal matches.')),
+    h('button', {
+      type: 'button',
+      onClick: () => setEditor({ id: null, name: query.trim(), note: '', fields: { protein: '', calories: '', carbs: '', fat: '', fiber: '' } }),
+      className: 'h-12 rounded-full border border-dashed border-ink-line text-ink-muted font-extrabold text-[15px]'
+    }, '＋ Save a new meal from nutrition facts')
+  );
+
+  // --- Type it tab ---
+  const renderType = () => h('div', { className: 'flex flex-col gap-3' },
+    h('div', null,
+      h('label', { htmlFor: 'meal-desc', className: 'block text-[13px] font-bold text-ink-muted mb-1' }, 'Describe the meal'),
+      h('textarea', {
+        id: 'meal-desc', rows: 2, value: description, onChange: e => setDescription(e.target.value),
+        placeholder: 'e.g. two Core Power shakes and a handful of shredded cheddar',
+        className: 'w-full p-3 rounded-2xl bg-ink border border-ink-line text-base'
+      }),
+      h('div', { className: 'flex flex-wrap items-center gap-2 mt-2' },
+        h('button', {
+          type: 'button', onClick: handleParse, disabled: !!parseStage || description.trim() === '',
+          className: 'h-11 px-4 rounded-full border border-accent text-accent font-extrabold text-sm disabled:opacity-40'
+        }, '✨ Work out the numbers'),
+        h(PhotoButton, { busy: photoBusy, onFile: (file) => handlePhoto(file, 'type') }),
+        parseStage && h('span', { className: 'flex items-center gap-2 text-xs text-ink-muted' },
+          h('span', { className: 'animate-spin rounded-full h-4 w-4 border-b-2 border-accent' }), parseStage)
       ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Date'),
-        h(Input, { type: 'date', value: date, onChange: e => setDate(e.target.value) })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Protein (g)'),
-        h(Input, {
-          type: 'text',
-          value: protein,
-          onChange: e => setProtein(parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 30 or 3k'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Carbs (g)'),
-        h(Input, {
-          type: 'text',
-          value: carbs,
-          onChange: e => setCarbs(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 50 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fat (g)'),
-        h(Input, {
-          type: 'text',
-          value: fat,
-          onChange: e => setFat(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 20 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Fiber (g)'),
-        h(Input, {
-          type: 'text',
-          value: fiber,
-          onChange: e => setFiber(e.target.value === '' ? '' : parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 8 (optional)'
-        })
-      ),
-      h('div', {},
-        h('label', { className: 'block text-sm font-medium mb-1' }, 'Calories (kcal)'),
-        h(Input, {
-          type: 'text',
-          value: calories,
-          onChange: e => setCalories(parseNumberWithSuffix(e.target.value)),
-          placeholder: 'e.g., 500 or 3k'
-        })
-      ),
-      h(MacroCalorieHint, { protein, carbs, fat, fiber, calories, onUseDerived: setCalories }),
-      h(Button, { onClick: handleAdd, variant: 'primary', className: 'w-full' }, entryToEdit ? 'Save Changes' : 'Add Entry')
-    )
+      // Review surface: "looked up" vs "guessed" stays obvious per row.
+      parsedRows.length > 0 && h('div', { className: 'mt-3 space-y-2' },
+        parsedRows.map((row, i) => h('div', { key: i, className: 'bg-ink border border-ink-line p-2.5 rounded-2xl text-xs space-y-1' },
+          h('div', { className: 'flex justify-between gap-2' },
+            h('span', { className: 'font-bold min-w-0 truncate' }, row.name),
+            h('span', { className: 'text-ink-muted shrink-0' }, row.grams === null ? '—' : `${row.grams} g`)),
+          h('div', { className: 'text-ink-muted' },
+            `${formatMacro(macroValue(row, 'protein'))} P / ${formatMacro(macroValue(row, 'carbs'))} C / ${formatMacro(macroValue(row, 'fat'))} F / ${formatMacro(macroValue(row, 'fiber'))} Fi / ${formatMacro(macroValue(row, 'calories'), ' kcal')}`),
+          row.source === 'usda'
+            ? h('div', { className: 'truncate', style: { color: UI_COLORS.good } }, `USDA: ${row.matchedName}`)
+            : row.source === 'usda-generic'
+              ? h('div', { className: 'truncate text-accent' }, `USDA, similar food: ${row.matchedName}`)
+              : h('div', { style: { color: UI_COLORS.warn } }, 'estimated — no database match')
+        ))
+      )
+    ),
+    h(MacroFields, { prefix: 'meal', f: fields, set: setField }),
+    h('label', { className: 'flex items-center gap-3 p-3.5 rounded-2xl bg-ink border border-ink-line cursor-pointer' },
+      h('input', { type: 'checkbox', checked: keepMeal, onChange: (e) => setKeepMeal(e.target.checked), className: 'w-5 h-5 accent-[#4C9BFF]' }),
+      h('span', { className: 'flex-1' },
+        h('span', { className: 'block text-[15px] font-bold' }, '⭐ Save as a meal for next time'),
+        h('span', { className: 'block text-xs text-ink-muted' }, 'Adds it to your Saved tab with these numbers as one serving'))
+    ),
+    keepMeal && h(MacroField, { id: 'keep-name', label: 'Saved meal name', value: keepName, onChange: setKeepName, placeholder: description.trim() || 'e.g. Chicken rice bowl' }),
+    h('button', { type: 'button', onClick: handleAdd, className: 'w-full h-14 rounded-full bg-accent text-accent-on font-extrabold text-lg' },
+      isEdit ? 'Save changes' : 'Add meal')
+  );
+
+  return h(Sheet, { label: isEdit ? 'Edit meal' : 'Add meal', onClose },
+    header,
+    !isEdit && h('div', { className: 'flex gap-1 p-1 rounded-full bg-ink border border-ink-line mb-3', role: 'tablist' },
+      tabBtn('saved', `⭐ Saved${savedMeals.length ? ` (${savedMeals.length})` : ''}`),
+      tabBtn('type', '✍️ Type it')),
+    tab === 'saved' && !isEdit ? renderSaved() : renderType()
   );
 };
 
@@ -4282,7 +4536,7 @@ const HealthImportCard = ({ sleepEntries, setSleepEntries, entries, setEntries }
   );
 };
 
-const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate }) => {
+const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrition, setNutrition, sleepEntries, setSleepEntries, dietGoals, setDietGoals, maintenanceEstimate, savedMeals = [], setSavedMeals = () => {} }) => {
   const { showToast } = useToast();
   const [showCycleEditor, setShowCycleEditor] = useState(false);
   const [customCycles, setCustomCycles] = useState(() => {
@@ -4457,7 +4711,7 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
   const exportData = () => {
     const cardioSessions = entries.reduce((sum, e) => sum + getCardioList(e).length, 0);
     console.log(`[Export] Exporting data: ${entries.length} workouts (${cardioSessions} cardio sessions), ${nutrition.length} meals, ${sleepEntries.length} sleep entries`);
-    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals, profile: getProfile() }, null, 2);
+    const dataStr = JSON.stringify({ entries, trainingCycle, customCycles, nutrition, sleep: sleepEntries, dietGoals, profile: getProfile(), savedMeals }, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
@@ -4541,6 +4795,12 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
             localStorage.setItem(DIET_GOALS_KEY, JSON.stringify(restoredGoals));
             console.log('[Import] Restored diet goals');
           }
+          // Saved meals only exist in exports from Nov 2026 on; older files leave the list alone.
+          if (Array.isArray(imported.savedMeals)) {
+            setSavedMeals(imported.savedMeals);
+            localStorage.setItem(SAVED_MEALS_KEY, JSON.stringify(imported.savedMeals));
+            console.log(`[Import] Restored ${imported.savedMeals.length} saved meals`);
+          }
           // Also absent from every export written before today, so no warning.
           // saveProfile rather than a direct write: it drops the stale age key once a
           // valid birth date exists, which a legacy age-only profile needs on the way in.
@@ -4570,12 +4830,14 @@ const Settings = ({ entries, setEntries, trainingCycle, setTrainingCycle, nutrit
       setCustomCycles({});
       setNutrition([]);
       setSleepEntries([]);
+      setSavedMeals([]);
       setDietGoals({ ...DEFAULT_DIET_GOALS });
       localStorage.removeItem(DB_KEY);
       localStorage.removeItem(CYCLE_KEY);
       localStorage.removeItem(CUSTOM_CYCLES_KEY);
       localStorage.removeItem(NUTRITION_KEY);
       localStorage.removeItem(SLEEP_KEY);
+      localStorage.removeItem(SAVED_MEALS_KEY);
       localStorage.removeItem(DIET_GOALS_KEY);
       localStorage.removeItem(PROFILE_KEY);
       // Same reason as the import: these inputs are seeded at mount, not reactive.
@@ -4847,6 +5109,12 @@ const App = () => {
     const saved = localStorage.getItem(NUTRITION_KEY);
     return saved ? JSON.parse(saved) : [];
   });
+  const [savedMeals, setSavedMeals] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_MEALS_KEY) || '[]');
+      return Array.isArray(saved) ? saved : [];
+    } catch (e) { return []; }
+  });
 
   const [sleepEntries, setSleepEntries] = useState(() => {
     const saved = localStorage.getItem(SLEEP_KEY);
@@ -4922,6 +5190,10 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem(NUTRITION_KEY, JSON.stringify(nutrition));
   }, [nutrition]);
+
+  useEffect(() => {
+    localStorage.setItem(SAVED_MEALS_KEY, JSON.stringify(savedMeals));
+  }, [savedMeals]);
 
   useEffect(() => {
     localStorage.setItem(SLEEP_KEY, JSON.stringify(sleepEntries));
@@ -5375,7 +5647,9 @@ const App = () => {
           setSleepEntries: setSleepEntries,
           dietGoals: dietGoals,
           setDietGoals: setDietGoals,
-          maintenanceEstimate: maintenanceEstimate
+          maintenanceEstimate: maintenanceEstimate,
+          savedMeals,
+          setSavedMeals
         });
 
         case 'recovery':
@@ -5497,7 +5771,9 @@ const App = () => {
           setNutritionEntryToEdit(null);
         },
         onSave: handleSaveNutrition,
-        entryToEdit: nutritionEntryToEdit
+        entryToEdit: nutritionEntryToEdit,
+        savedMeals,
+        setSavedMeals
       }),
 
       // Cycle Editor Modal
